@@ -9,6 +9,10 @@ fn usage() {
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
+    if args.len() == 1 && (args[0] == "--help" || args[0] == "-h") {
+        usage();
+        return;
+    }
     if args.len() < 2 || args[0] != "inspect" {
         usage();
         process::exit(2);
