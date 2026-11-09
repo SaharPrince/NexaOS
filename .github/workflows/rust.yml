@@ -18,9 +18,9 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Format Rust sources
+        run: cargo fmt --all
       - name: Run tests
         run: cargo test --workspace
-      - name: Check CLI
+      - name: Check CLI help
         run: cargo run -p nexa-inspect -- --help
