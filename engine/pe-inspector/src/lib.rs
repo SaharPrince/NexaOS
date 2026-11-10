@@ -44,7 +44,7 @@ impl fmt::Display for PeError {
 impl std::error::Error for PeError {}
 type Result<T> = std::result::Result<T, PeError>;
 
-fn bytes(d: &[u8], o: usize, n: usize, what: &'static str) -> Result<&[u8]> {
+fn bytes<'a>(d: &'a [u8], o: usize, n: usize, what: &'static str) -> Result<&'a [u8]> {
     let end = o.checked_add(n).ok_or(PeError::OutOfBounds(what))?;
     d.get(o..end).ok_or(PeError::Truncated(what))
 }
