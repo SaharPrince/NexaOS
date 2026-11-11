@@ -1,5 +1,25 @@
 use nexa_inspect::inspect;
-use std::{env, fs, process};
+use std::{
+    env, fs,
+    io::{self, Read},
+    process,
+};
+
+const MAX_INPUT_FILE_SIZE: usize = 512 * 1024 * 1024;
+
+fn read_limited<R: Read>(reader: R, max_size: usize) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    reader
+        .take(max_size as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > max_size {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "input file exceeds the 512 MiB inspection limit",
+        ));
+    }
+    Ok(bytes)
+}
 
 fn usage() {
     eprintln!("Nexa PE Inspector — read-only Windows PE metadata inspection");
@@ -25,8 +45,15 @@ fn main() {
             process::exit(2);
         }
     };
-    let bytes = match fs::read(path) {
-        Ok(b) => b,
+    let file = match fs::File::open(path) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Unable to open {path}: {e}");
+            process::exit(1);
+        }
+    };
+    let bytes = match read_limited(file, MAX_INPUT_FILE_SIZE) {
+        Ok(bytes) => bytes,
         Err(e) => {
             eprintln!("Unable to read {path}: {e}");
             process::exit(1);
@@ -71,5 +98,26 @@ fn main() {
             eprintln!("Execution: NOT ATTEMPTED");
             process::exit(1);
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::read_limited;
+    use std::io::{self, Cursor};
+
+    #[test]
+    fn reads_input_at_size_limit() {
+        let data = vec![0x5a; 16];
+        let result = read_limited(Cursor::new(data.clone()), 16).unwrap();
+        assert_eq!(result, data);
+    }
+
+    #[test]
+    fn rejects_input_over_size_limit() {
+        let data = vec![0x5a; 17];
+        let error = read_limited(Cursor::new(data), 16).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
     }
 }
