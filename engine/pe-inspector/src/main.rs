@@ -9,9 +9,7 @@ const MAX_INPUT_FILE_SIZE: usize = 512 * 1024 * 1024;
 
 fn read_limited<R: Read>(reader: R, max_size: usize) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    reader
-        .take(max_size as u64 + 1)
-        .read_to_end(&mut bytes)?;
+    reader.take(max_size as u64 + 1).read_to_end(&mut bytes)?;
     if bytes.len() > max_size {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -100,7 +98,6 @@ fn main() {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
