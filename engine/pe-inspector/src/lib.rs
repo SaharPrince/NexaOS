@@ -365,6 +365,19 @@ mod tests {
         b[s + 20..s + 24].copy_from_slice(&0x200u32.to_le_bytes());
         b
     }
+    fn pe32() -> Vec<u8> {
+        let mut b = pe64();
+        // Move the section header 16 bytes earlier for the smaller PE32
+        // optional header while preserving its raw file offset.
+        b.copy_within(0x188..0x1b0, 0x178);
+        b[0x94..0x96].copy_from_slice(&0xe0u16.to_le_bytes());
+        b[0x98..0x9a].copy_from_slice(&0x10bu16.to_le_bytes());
+        b[0xb4..0xb8].copy_from_slice(&0x400000u32.to_le_bytes());
+        b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
+        b[0x86..0x88].copy_from_slice(&0x014cu16.to_le_bytes());
+        b
+    }
+
     #[test]
     fn parses_pe32_plus() {
         let r = inspect(&pe64()).unwrap();
@@ -372,6 +385,15 @@ mod tests {
         assert_eq!(r.machine, "AMD64");
         assert_eq!(r.sections[0].name, ".text");
         assert_eq!(r.subsystem, "Windows Console");
+    }
+
+    #[test]
+    fn parses_pe32_x86() {
+        let r = inspect(&pe32()).unwrap();
+        assert_eq!(r.format, "PE32");
+        assert_eq!(r.machine, "x86");
+        assert_eq!(r.image_base, 0x400000);
+        assert_eq!(r.sections[0].name, ".text");
     }
     #[test]
     fn json_report_is_valid_and_marks_execution_unattempted() {
