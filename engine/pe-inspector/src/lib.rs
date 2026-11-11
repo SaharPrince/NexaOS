@@ -308,6 +308,26 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         }
         Err(PeError::OutOfBounds("RVA does not map to file data"))
     };
+
+    // The security directory is the PE-format exception: its address is a
+    // file offset, while every other standard data-directory address is an RVA.
+    for directory in &directories {
+        if directory.address == 0 || directory.size == 0 {
+            continue;
+        }
+        if directory.index == 4 {
+            let end = directory
+                .address
+                .checked_add(directory.size)
+                .ok_or(PeError::OutOfBounds("security directory file range"))?;
+            if end as usize > d.len() {
+                return Err(PeError::OutOfBounds("security directory file range"));
+            }
+        } else {
+            map_rva_range(directory.address, directory.size as usize)?;
+        }
+    }
+
     let getdir = |i: usize| directories.iter().find(|x| x.index == i).cloned();
     let mut imports = Vec::new();
     if let Some(x) = getdir(1) {
@@ -484,6 +504,30 @@ mod tests {
         let report = inspect(&b).unwrap();
         assert_eq!(report.directories[4].address, 0x250);
         assert_eq!(report.directories[4].address_kind, "file_offset");
+    }
+
+    #[test]
+    fn rejects_security_directory_file_range_outside_input() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x2f8u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("security directory file range"))
+        ));
+    }
+
+    #[test]
+    fn validates_unparsed_rva_directory_ranges() {
+        let mut b = pe64();
+        let resource_dir = 0x98 + 112 + 2 * 8;
+        b[resource_dir..resource_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
+        b[resource_dir + 4..resource_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
+        ));
     }
 
     #[test]
