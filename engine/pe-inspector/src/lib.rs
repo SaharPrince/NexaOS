@@ -1,6 +1,9 @@
 use serde::Serialize;
 use std::fmt;
 
+mod image_layout;
+pub use image_layout::{plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan, ImageZeroFillRange, SectionImageLayout};
+
 const MAX_SECTIONS: usize = 96;
 const MAX_DIRECTORIES: usize = 16;
 
@@ -12,6 +15,10 @@ pub struct PeReport {
     pub machine_raw: u16,
     pub sections: Vec<Section>,
     pub image_base: u64,
+    pub size_of_image: u32,
+    pub size_of_headers: u32,
+    pub section_alignment: u32,
+    pub file_alignment: u32,
     pub entry_point_rva: u32,
     pub subsystem: String,
     pub directories: Vec<DataDirectory>,
@@ -590,6 +597,10 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         machine_raw: mach,
         sections,
         image_base,
+        size_of_image: u32at(d, opt + 56, "size of image")?,
+        size_of_headers,
+        section_alignment: u32at(d, opt + 32, "section alignment")?,
+        file_alignment: u32at(d, opt + 36, "file alignment")?,
         entry_point_rva: entry,
         subsystem: sub,
         directories,
