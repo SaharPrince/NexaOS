@@ -586,7 +586,6 @@ mod tests {
         b
     }
 
-
     fn pe32_with_one_import() -> Vec<u8> {
         let mut b = pe32();
         let import_dir = 0x98 + 96 + 8;
@@ -637,7 +636,6 @@ mod tests {
         b[0x260..0x26a].copy_from_slice(b"NexaEntry\0");
         b
     }
-
 
     #[test]
     fn extracts_pe32_import_library_and_symbol() {
