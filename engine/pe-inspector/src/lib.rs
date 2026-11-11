@@ -346,9 +346,16 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     .checked_add(i * 20)
                     .ok_or(PeError::OutOfBounds("import descriptor"))?;
                 let lookup = u32at(d, o, "import lookup")?;
+                let timestamp = u32at(d, o + 4, "import timestamp")?;
+                let forwarder_chain = u32at(d, o + 8, "import forwarder chain")?;
                 let name_rva = u32at(d, o + 12, "DLL name RVA")?;
                 let iat = u32at(d, o + 16, "IAT")?;
-                if lookup == 0 && name_rva == 0 && iat == 0 {
+                if lookup == 0
+                    && timestamp == 0
+                    && forwarder_chain == 0
+                    && name_rva == 0
+                    && iat == 0
+                {
                     terminated = true;
                     break;
                 }
@@ -532,6 +539,19 @@ mod tests {
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.imports[0].name, "KERNEL32.dll");
         assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+    }
+
+    #[test]
+    fn does_not_treat_nonzero_import_timestamp_as_null_descriptor() {
+        let mut b = pe64_with_one_import();
+        let descriptor = 0x200;
+        b[descriptor + 4..descriptor + 8].copy_from_slice(&1u32.to_le_bytes());
+        b[descriptor + 12..descriptor + 16].copy_from_slice(&0u32.to_le_bytes());
+        b[descriptor + 16..descriptor + 20].copy_from_slice(&0u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("import descriptor has no DLL name"))
+        ));
     }
 
     #[test]
