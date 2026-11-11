@@ -155,6 +155,7 @@ pub fn plan_image_layout(
     let mut total_copy_bytes = headers_size;
     let mut total_zero_fill_bytes = 0u64;
     let mut ranges = Vec::with_capacity(report.sections.len());
+    let mut source_ranges = Vec::with_capacity(report.sections.len());
 
     for section in &report.sections {
         let raw_size = section.raw_size as u64;
@@ -210,6 +211,14 @@ pub fn plan_image_layout(
                     "section raw file range exceeds input file",
                 ));
             }
+            for &(other_start, other_end) in &source_ranges {
+                if overlaps(file_offset, file_end, other_start, other_end) {
+                    return Err(ImageLayoutError::Invalid(
+                        "section raw file ranges overlap",
+                    ));
+                }
+            }
+            source_ranges.push((file_offset, file_end));
             total_copy_bytes = total_copy_bytes
                 .checked_add(raw_size)
                 .ok_or(ImageLayoutError::OutOfBounds("total copy byte count"))?;
@@ -384,6 +393,22 @@ mod tests {
         assert!(matches!(
             plan_image_layout(&input, 0x400, limits()),
             Err(ImageLayoutError::Invalid("section image ranges overlap"))
+        ));
+    }
+
+    #[test]
+    fn rejects_overlapping_section_source_ranges() {
+        let mut input = report();
+        let mut second = input.sections[0].clone();
+        second.name = ".data".into();
+        second.virtual_address = 0x2000;
+        second.raw_offset = 0x300;
+        input.sections.push(second);
+        assert!(matches!(
+            plan_image_layout(&input, 0x600, limits()),
+            Err(ImageLayoutError::Invalid(
+                "section raw file ranges overlap"
+            ))
         ));
     }
 
