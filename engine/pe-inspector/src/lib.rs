@@ -211,7 +211,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let section_table_end = st
         .checked_add(nsec * 40)
         .ok_or(PeError::OutOfBounds("section table end"))?;
-    if size_of_headers as usize > d.len() || (nsec > 0 && size_of_headers as usize < section_table_end) {
+    if size_of_headers as usize > d.len()
+        || (nsec > 0 && (size_of_headers as usize) < section_table_end)
+    {
         return Err(PeError::Invalid("invalid size of headers"));
     }
     let map_rva_range = |rva: u32, len: usize| -> Result<(usize, usize)> {
@@ -316,7 +318,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             if x.size < 40 {
                 return Err(PeError::Invalid("truncated export directory"));
             }
-            let (o, _) = map_rva_range(x.rva, 40)?;
+            let (o, _) = map_rva_range(x.rva, x.size as usize)?;
             let count = (u32at(d, o + 24, "export name count")? as usize).min(8192);
             let names = u32at(d, o + 32, "export name table")?;
             if names != 0 && count > 0 {
@@ -468,6 +470,28 @@ mod tests {
         let import_dir = 0x98 + 112 + 8;
         b[import_dir..import_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
         b[import_dir + 4..import_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
+        ));
+    }
+    #[test]
+    fn rejects_export_directory_range_past_section_raw_data() {
+        let mut b = pe64();
+        let export_dir = 0x98 + 112;
+        b[export_dir..export_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
+        ));
+    }
+    #[test]
+    fn rejects_relocation_directory_range_past_section_raw_data() {
+        let mut b = pe64();
+        let reloc_dir = 0x98 + 112 + 5 * 8;
+        b[reloc_dir..reloc_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
+        b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
