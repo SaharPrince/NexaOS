@@ -351,11 +351,10 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         }
         for s in &sections {
             let span = s.raw_size.max(s.virtual_size);
-            let virtual_end = s
-                .virtual_address
-                .checked_add(span)
-                .ok_or(PeError::OutOfBounds("section RVA range"))?;
-            if rva >= s.virtual_address && rva < virtual_end {
+            // Use a wider type for the exclusive end: a valid section may
+            // end exactly at 2^32, which cannot be represented by a u32 RVA.
+            let virtual_end = s.virtual_address as u64 + span as u64;
+            if rva >= s.virtual_address && (rva as u64) < virtual_end {
                 let delta = rva - s.virtual_address;
                 if delta >= s.raw_size {
                     return Err(PeError::OutOfBounds(
@@ -1176,4 +1175,23 @@ mod tests {
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
         ));
     }
+    #[test]
+    fn maps_valid_rva_range_when_section_ends_at_32_bit_boundary() {
+        let mut b = pe64();
+        b.resize(0x400, 0);
+        let section = 0x188;
+        b[section + 8..section + 12].copy_from_slice(&0x200u32.to_le_bytes());
+        b[section + 12..section + 16].copy_from_slice(&0xffff_fe00u32.to_le_bytes());
+        b[section + 16..section + 20].copy_from_slice(&0x200u32.to_le_bytes());
+        b[section + 20..section + 24].copy_from_slice(&0x200u32.to_le_bytes());
+
+        // This valid directory is inside the section, whose exclusive end is 2^32.
+        let resource_dir = 0x98 + 112 + 2 * 8;
+        b[resource_dir..resource_dir + 4].copy_from_slice(&0xffff_ff00u32.to_le_bytes());
+        b[resource_dir + 4..resource_dir + 8].copy_from_slice(&0x10u32.to_le_bytes());
+
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.directories[2].address, 0xffff_ff00);
+    }
+
 }
