@@ -785,7 +785,7 @@ mod tests {
     #[test]
     fn rejects_pe32_plus_ordinal_import_with_reserved_bits_set() {
         let mut b = pe64_with_one_import();
-        b[0x240..0x248].copy_from_slice(&0x8000_0000_0000_0001u64.to_le_bytes());
+        b[0x240..0x248].copy_from_slice(&0x8000_0000_0001_0001u64.to_le_bytes());
         assert!(matches!(
             inspect(&b),
             Err(PeError::Invalid(
@@ -797,7 +797,7 @@ mod tests {
     #[test]
     fn rejects_pe32_ordinal_import_with_reserved_bits_set() {
         let mut b = pe32_with_one_import();
-        b[0x240..0x244].copy_from_slice(&0x8000_0001u32.to_le_bytes());
+        b[0x240..0x244].copy_from_slice(&0x8001_0001u32.to_le_bytes());
         assert!(matches!(
             inspect(&b),
             Err(PeError::Invalid(
