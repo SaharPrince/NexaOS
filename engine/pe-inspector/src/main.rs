@@ -41,7 +41,6 @@ fn main() {
                     process::exit(1);
                 }
             }
-            println!("Execution: NOT ATTEMPTED");
         }
         Ok(r) => {
             println!("Nexa PE Inspector");
@@ -67,7 +66,7 @@ fn main() {
                 "Relocations: {} blocks, {} entries",
                 r.relocation_blocks, r.relocation_entries
             );
-            println!("Execution: NOT ATTEMPTED");
+            println!("Execution: {}", r.execution);
         }
         Err(e) => {
             eprintln!("Inspection failed: {e}");
