@@ -232,6 +232,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         return Err(PeError::Invalid("invalid size of headers"));
     }
     for (i, section) in sections.iter().enumerate() {
+        if section.raw_size > 0 && section.raw_offset < size_of_headers {
+            return Err(PeError::Invalid("section raw data overlaps headers"));
+        }
         let virtual_len = section.raw_size.max(section.virtual_size) as u64;
         if virtual_len > 0 {
             let start = section.virtual_address as u64;
@@ -645,6 +648,17 @@ mod tests {
             Err(PeError::OutOfBounds("section raw range"))
         ));
     }
+    #[test]
+    fn rejects_section_raw_data_overlapping_headers() {
+        let mut b = pe64();
+        b[0x188 + 20..0x188 + 24].copy_from_slice(&0x180u32.to_le_bytes());
+        b[0x188 + 16..0x188 + 20].copy_from_slice(&0x80u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("section raw data overlaps headers"))
+        ));
+    }
+
     #[test]
     fn rejects_overlapping_section_virtual_ranges() {
         let mut b = pe64();
