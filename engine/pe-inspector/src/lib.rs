@@ -130,6 +130,57 @@ fn subsystem(v: u16) -> String {
     .into()
 }
 
+fn validate_certificate_table(d: &[u8], offset: u32, size: u32) -> Result<()> {
+    if !offset.is_multiple_of(8) {
+        return Err(PeError::Invalid(
+            "security directory file offset is not 8-byte aligned",
+        ));
+    }
+    if !size.is_multiple_of(8) {
+        return Err(PeError::Invalid(
+            "security directory size is not 8-byte aligned",
+        ));
+    }
+
+    let start = offset as usize;
+    let table_size = size as usize;
+    let end = start
+        .checked_add(table_size)
+        .ok_or(PeError::OutOfBounds("security directory file range"))?;
+    if end > d.len() {
+        return Err(PeError::OutOfBounds("security directory file range"));
+    }
+
+    let mut cursor = start;
+    while cursor < end {
+        let remaining = end - cursor;
+        if remaining < 8 {
+            return Err(PeError::Invalid("truncated WIN_CERTIFICATE header"));
+        }
+        let record_length = u32at(d, cursor, "WIN_CERTIFICATE length")? as usize;
+        if record_length < 8 {
+            return Err(PeError::Invalid("invalid WIN_CERTIFICATE length"));
+        }
+        if record_length > remaining {
+            return Err(PeError::OutOfBounds("WIN_CERTIFICATE record"));
+        }
+        let aligned_length = record_length
+            .checked_add(7)
+            .ok_or(PeError::OutOfBounds("WIN_CERTIFICATE alignment"))?
+            & !7;
+        if aligned_length > remaining {
+            return Err(PeError::Invalid(
+                "WIN_CERTIFICATE padding exceeds security directory",
+            ));
+        }
+        cursor = cursor
+            .checked_add(aligned_length)
+            .ok_or(PeError::OutOfBounds("WIN_CERTIFICATE record"))?;
+    }
+
+    Ok(())
+}
+
 pub fn inspect(d: &[u8]) -> Result<PeReport> {
     if bytes(d, 0, 2, "DOS signature")? != b"MZ" {
         return Err(PeError::Invalid("missing MZ signature"));
@@ -335,20 +386,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             continue;
         }
         if directory.index == 4 {
-            // WIN_CERTIFICATE records are aligned on 8-byte boundaries. The
-            // security directory address is a file offset, not an RVA.
-            if !directory.address.is_multiple_of(8) {
-                return Err(PeError::Invalid(
-                    "security directory file offset is not 8-byte aligned",
-                ));
-            }
-            let end = directory
-                .address
-                .checked_add(directory.size)
-                .ok_or(PeError::OutOfBounds("security directory file range"))?;
-            if end as usize > d.len() {
-                return Err(PeError::OutOfBounds("security directory file range"));
-            }
+            // The security directory is a file-offset table of 8-byte-aligned
+            // WIN_CERTIFICATE records, not an RVA-mapped data directory.
+            validate_certificate_table(d, directory.address, directory.size)?;
         } else {
             map_rva_range(directory.address, directory.size as usize)?;
         }
@@ -758,6 +798,10 @@ mod tests {
         let security_dir = 0x98 + 112 + 4 * 8;
         b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
         b[security_dir + 4..security_dir + 8].copy_from_slice(&0x10u32.to_le_bytes());
+        // One 12-byte WIN_CERTIFICATE record plus four bytes of 8-byte padding.
+        b[0x258..0x25c].copy_from_slice(&12u32.to_le_bytes());
+        b[0x25c..0x25e].copy_from_slice(&0x0200u16.to_le_bytes());
+        b[0x25e..0x260].copy_from_slice(&0x0002u16.to_le_bytes());
 
         let report = inspect(&b).unwrap();
         assert_eq!(report.directories[4].address, 0x258);
@@ -787,6 +831,59 @@ mod tests {
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("security directory file range"))
+        ));
+    }
+
+    #[test]
+    fn rejects_security_directory_size_not_aligned_to_eight_bytes() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&9u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "security directory size is not 8-byte aligned"
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_security_directory_with_invalid_certificate_length() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&8u32.to_le_bytes());
+        b[0x258..0x25c].copy_from_slice(&7u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("invalid WIN_CERTIFICATE length"))
+        ));
+    }
+
+    #[test]
+    fn rejects_certificate_record_that_exceeds_security_directory() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&8u32.to_le_bytes());
+        b[0x258..0x25c].copy_from_slice(&16u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("WIN_CERTIFICATE record"))
+        ));
+    }
+
+    #[test]
+    fn rejects_certificate_record_without_required_alignment_padding() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&8u32.to_le_bytes());
+        b[0x258..0x25c].copy_from_slice(&9u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("WIN_CERTIFICATE record"))
         ));
     }
 
