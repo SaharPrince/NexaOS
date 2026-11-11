@@ -349,11 +349,17 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     terminated = true;
                     break;
                 }
+                if name_rva == 0 {
+                    return Err(PeError::Invalid("import descriptor has no DLL name"));
+                }
                 let (name_offset, name_available) = map_rva_range(name_rva, 1)?;
                 let name = cstr(d, name_offset, name_available, 512, "import DLL name")?;
                 let thunk = if lookup != 0 { lookup } else { iat };
+                if thunk == 0 {
+                    return Err(PeError::Invalid("import descriptor has no thunk table"));
+                }
                 let mut symbols = Vec::new();
-                if thunk != 0 {
+                {
                     let width = if magic == 0x20b { 8usize } else { 4usize };
                     let (mut to, thunk_available) = map_rva_range(thunk, width)?;
                     let thunk_count = (thunk_available / width).min(4096);
@@ -372,7 +378,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         if value & flag != 0 {
                             symbols.push(format!("ordinal:{}", value & 0xffff));
                         } else {
-                            let (no, name_len) = map_rva_range(value as u32, 3)?;
+                            let name_rva = u32::try_from(value)
+                                .map_err(|_| PeError::Invalid("import name RVA exceeds 32-bit range"))?;
+                            let (no, name_len) = map_rva_range(name_rva, 3)?;
                             let hn = no
                                 .checked_add(2)
                                 .ok_or(PeError::OutOfBounds("hint/name offset"))?;
@@ -400,7 +408,10 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 return Err(PeError::Invalid("truncated export directory"));
             }
             let (o, _) = map_rva_range(x.address, x.size as usize)?;
-            let count = (u32at(d, o + 24, "export name count")? as usize).min(8192);
+            let count = u32at(d, o + 24, "export name count")? as usize;
+            if count > 8192 {
+                return Err(PeError::Invalid("export name count exceeds safety limit"));
+            }
             let names = u32at(d, o + 32, "export name table")?;
             if names != 0 && count > 0 {
                 let array_size = count
@@ -492,6 +503,45 @@ mod tests {
         b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
         b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
         b
+    }
+
+    fn pe64_with_one_import() -> Vec<u8> {
+        let mut b = pe64();
+        let import_dir = 0x98 + 112 + 8;
+        b[import_dir..import_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&40u32.to_le_bytes());
+
+        // IMAGE_IMPORT_DESCRIPTOR
+        b[0x200..0x204].copy_from_slice(&0x1040u32.to_le_bytes());
+        b[0x20c..0x210].copy_from_slice(&0x1030u32.to_le_bytes());
+        b[0x210..0x214].copy_from_slice(&0x1050u32.to_le_bytes());
+        b[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\0");
+        // IMAGE_THUNK_DATA64 followed by its null terminator.
+        b[0x240..0x248].copy_from_slice(&0x1060u64.to_le_bytes());
+        b[0x248..0x250].copy_from_slice(&0u64.to_le_bytes());
+        // IMAGE_IMPORT_BY_NAME: two-byte hint then a symbol name.
+        b[0x260..0x26d].copy_from_slice(&[0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's']);
+        b[0x26d] = 0;
+        b
+    }
+
+    #[test]
+    fn extracts_valid_import_library_and_symbol() {
+        let report = inspect(&pe64_with_one_import()).unwrap();
+        assert_eq!(report.imports.len(), 1);
+        assert_eq!(report.imports[0].name, "KERNEL32.dll");
+        assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+    }
+
+    #[test]
+    fn rejects_import_descriptor_with_zero_dll_name_rva() {
+        let mut b = pe64_with_one_import();
+        let name_rva = 0x200 + 12;
+        b[name_rva..name_rva + 4].copy_from_slice(&0u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("import descriptor has no DLL name"))
+        ));
     }
 
     #[test]
