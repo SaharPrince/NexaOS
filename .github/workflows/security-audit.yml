@@ -21,5 +21,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-      - name: Check Cargo.lock for known vulnerabilities
-        run: cargo audit --deny warnings
+      - name: Generate fuzz dependency lockfile
+        run: cargo generate-lockfile --manifest-path fuzz/Cargo.toml
+      - name: Check workspace dependencies
+        run: cargo audit --file Cargo.lock --deny warnings
+      - name: Check fuzz dependencies
+        run: cargo audit --file fuzz/Cargo.lock --deny warnings
