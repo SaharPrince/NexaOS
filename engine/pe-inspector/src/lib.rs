@@ -135,6 +135,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         return Err(PeError::Invalid("missing MZ signature"));
     }
     let pe = u32at(d, 0x3c, "e_lfanew")? as usize;
+    if pe < 0x40 {
+        return Err(PeError::Invalid("PE header overlaps the DOS header"));
+    }
     if bytes(d, pe, 4, "PE signature")? != b"PE\0\0" {
         return Err(PeError::Invalid("missing PE signature"));
     }
@@ -152,6 +155,16 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         .ok_or(PeError::OutOfBounds("optional header"))?;
     bytes(d, opt, opt_size, "optional header")?;
     let magic = u16at(d, opt, "optional header magic")?;
+    let machine_conflicts_with_format = match magic {
+        0x10b => matches!(mach, 0x8664 | 0xaa64 | 0x0200 | 0xa641 | 0xa64e),
+        0x20b => matches!(mach, 0x014c | 0x01c0 | 0x01c2 | 0x01c4),
+        _ => false,
+    };
+    if machine_conflicts_with_format {
+        return Err(PeError::Invalid(
+            "machine type conflicts with optional header format",
+        ));
+    }
     let (fmt, base_off, count_off, dirs_off, min_size) = match magic {
         0x10b => ("PE32", opt + 28, opt + 92, opt + 96, 96usize),
         0x20b => ("PE32+", opt + 24, opt + 108, opt + 112, 112usize),
@@ -715,6 +728,41 @@ mod tests {
     fn rejects_truncated() {
         assert!(inspect(b"MZ").is_err());
     }
+    #[test]
+    fn rejects_pe_header_offset_inside_dos_header() {
+        let mut b = pe64();
+        b[0x3c..0x40].copy_from_slice(&0x20u32.to_le_bytes());
+        b[0x20..0x24].copy_from_slice(b"PE\\0\\0");
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("PE header overlaps the DOS header"))
+        ));
+    }
+
+    #[test]
+    fn rejects_pe32_plus_with_32_bit_x86_machine() {
+        let mut b = pe64();
+        b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "machine type conflicts with optional header format"
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_pe32_with_64_bit_amd64_machine() {
+        let mut b = pe32();
+        b[0x84..0x86].copy_from_slice(&0x8664u16.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "machine type conflicts with optional header format"
+            ))
+        ));
+    }
+
     #[test]
     fn rejects_bad_offset() {
         let mut b = pe64();
