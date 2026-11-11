@@ -428,7 +428,7 @@ mod tests {
         let mut second = input.sections[0].clone();
         second.name = ".data".into();
         second.virtual_address = 0x2000;
-        second.raw_offset = 0x300;
+        second.raw_offset = 0x200;
         input.size_of_image = 0x3000;
         input.sections.push(second);
         assert!(matches!(
