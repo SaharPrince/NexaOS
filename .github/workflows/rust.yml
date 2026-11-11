@@ -18,8 +18,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check formatting
+      - name: Check workspace formatting
         run: cargo fmt --all -- --check
+      - name: Check fuzz target formatting
+        run: cargo fmt --manifest-path fuzz/Cargo.toml -- --check
 
   test:
     name: Test (${{ matrix.os }})
