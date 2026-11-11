@@ -21,6 +21,6 @@ jobs:
       - name: Format Rust sources
         run: cargo fmt --all -- --check
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
       - name: Check CLI help
-        run: cargo run -p nexa-inspect -- --help
+        run: cargo run --locked -p nexa-inspect -- --help
