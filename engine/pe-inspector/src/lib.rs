@@ -374,7 +374,7 @@ mod tests {
         b[0x98..0x9a].copy_from_slice(&0x10bu16.to_le_bytes());
         b[0xb4..0xb8].copy_from_slice(&0x400000u32.to_le_bytes());
         b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
-        b[0x86..0x88].copy_from_slice(&0x014cu16.to_le_bytes());
+        b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
         b
     }
 
