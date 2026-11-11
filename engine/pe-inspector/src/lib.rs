@@ -33,7 +33,10 @@ pub struct Section {
 pub struct DataDirectory {
     pub index: usize,
     pub name: String,
-    pub rva: u32,
+    /// Address value from IMAGE_DATA_DIRECTORY. This is a file offset for
+    /// IMAGE_DIRECTORY_ENTRY_SECURITY and an RVA for other standard entries.
+    pub address: u32,
+    pub address_kind: String,
     pub size: u32,
 }
 #[derive(Debug, Clone, Serialize)]
@@ -164,9 +167,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         u32at(d, base_off, "image base")? as u64
     };
     let sub = subsystem(u16at(d, opt + 68, "subsystem")?);
-    let ndirs = (u32at(d, count_off, "directory count")? as usize)
-        .min(MAX_DIRECTORIES)
-        .min(opt_size.saturating_sub(dirs_off - opt) / 8);
+    let declared_directories = u32at(d, count_off, "directory count")? as usize;
+    let supported_directories = declared_directories.min(MAX_DIRECTORIES);
+    let available_directories = opt_size.saturating_sub(dirs_off - opt) / 8;
+    if supported_directories > available_directories {
+        return Err(PeError::Truncated("data directory entries"));
+    }
+    let ndirs = supported_directories;
     let st = opt
         .checked_add(opt_size)
         .ok_or(PeError::OutOfBounds("section table"))?;
@@ -207,7 +214,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         directories.push(DataDirectory {
             index: i,
             name: dirname(i),
-            rva: u32at(d, o, "directory RVA")?,
+            address: u32at(d, o, "directory address")?,
+            address_kind: if i == 4 { "file_offset" } else { "rva" }.into(),
             size: u32at(d, o + 4, "directory size")?,
         });
     }
@@ -303,11 +311,11 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let getdir = |i: usize| directories.iter().find(|x| x.index == i).cloned();
     let mut imports = Vec::new();
     if let Some(x) = getdir(1) {
-        if x.rva != 0 && x.size > 0 {
+        if x.address != 0 && x.size > 0 {
             if x.size < 20 || x.size % 20 != 0 {
                 return Err(PeError::Invalid("invalid import directory size"));
             }
-            let (start, _) = map_rva_range(x.rva, x.size as usize)?;
+            let (start, _) = map_rva_range(x.address, x.size as usize)?;
             let count = (x.size as usize / 20).min(4096);
             let mut terminated = false;
             for i in 0..count {
@@ -367,11 +375,11 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     }
     let mut exports = Vec::new();
     if let Some(x) = getdir(0) {
-        if x.rva != 0 && x.size > 0 {
+        if x.address != 0 && x.size > 0 {
             if x.size < 40 {
                 return Err(PeError::Invalid("truncated export directory"));
             }
-            let (o, _) = map_rva_range(x.rva, x.size as usize)?;
+            let (o, _) = map_rva_range(x.address, x.size as usize)?;
             let count = (u32at(d, o + 24, "export name count")? as usize).min(8192);
             let names = u32at(d, o + 32, "export name table")?;
             if names != 0 && count > 0 {
@@ -389,8 +397,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     }
     let (mut relocation_blocks, mut relocation_entries) = (0usize, 0usize);
     if let Some(x) = getdir(5) {
-        if x.rva != 0 && x.size > 0 {
-            let (mut o, _) = map_rva_range(x.rva, x.size as usize)?;
+        if x.address != 0 && x.size > 0 {
+            let (mut o, _) = map_rva_range(x.address, x.size as usize)?;
             let end = o
                 .checked_add(x.size as usize)
                 .ok_or(PeError::OutOfBounds("relocation directory"))?;
@@ -464,6 +472,28 @@ mod tests {
         b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
         b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
         b
+    }
+
+    #[test]
+    fn security_directory_address_is_reported_as_file_offset() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x250u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&0x10u32.to_le_bytes());
+
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.directories[4].address, 0x250);
+        assert_eq!(report.directories[4].address_kind, "file_offset");
+    }
+
+    #[test]
+    fn rejects_directory_count_exceeding_optional_header_storage() {
+        let mut b = pe64();
+        // Keep the optional header size at 0xf0 but claim more entries than
+        // the 16 entries physically available in this header.
+        b[0x98 + 108..0x98 + 112].copy_from_slice(&17u32.to_le_bytes());
+        let error = inspect(&b).unwrap_err();
+        assert!(matches!(error, PeError::Truncated("data directory entries")));
     }
 
     #[test]
