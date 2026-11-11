@@ -75,8 +75,7 @@ fn u32at(d: &[u8], o: usize, w: &'static str) -> Result<u32> {
 fn u64at(d: &[u8], o: usize, w: &'static str) -> Result<u64> {
     Ok(u64::from_le_bytes(bytes(d, o, 8, w)?.try_into().unwrap()))
 }
-fn cstr(d: &[u8], o: usize, max: usize, w: &'static str) -> Result<String> {
-    let available = d.len().checked_sub(o).ok_or(PeError::OutOfBounds(w))?;
+fn cstr(d: &[u8], o: usize, available: usize, max: usize, w: &'static str) -> Result<String> {
     let b = bytes(d, o, available.min(max), w)?;
     let end = b.iter().position(|x| *x == 0).ok_or(PeError::Invalid(w))?;
     Ok(String::from_utf8_lossy(&b[..end]).into_owned())
@@ -208,102 +207,126 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             size: u32at(d, o + 4, "directory size")?,
         });
     }
-    let map_rva = |rva: u32| -> Result<usize> {
+    let size_of_headers = u32at(d, opt + 60, "size of headers")?;
+    let section_table_end = st
+        .checked_add(nsec * 40)
+        .ok_or(PeError::OutOfBounds("section table end"))?;
+    if size_of_headers as usize > d.len() || (nsec > 0 && size_of_headers as usize < section_table_end) {
+        return Err(PeError::Invalid("invalid size of headers"));
+    }
+    let map_rva_range = |rva: u32, len: usize| -> Result<(usize, usize)> {
+        let requested_end = (rva as usize)
+            .checked_add(len)
+            .ok_or(PeError::OutOfBounds("RVA range"))?;
+        if rva < size_of_headers {
+            if requested_end > size_of_headers as usize || requested_end > d.len() {
+                return Err(PeError::OutOfBounds("header RVA range"));
+            }
+            return Ok((rva as usize, size_of_headers as usize - rva as usize));
+        }
         for s in &sections {
             let span = s.raw_size.max(s.virtual_size);
-            let end = s
-                .virtual_address
+            let virtual_end = s.virtual_address
                 .checked_add(span)
                 .ok_or(PeError::OutOfBounds("section RVA range"))?;
-            if rva >= s.virtual_address && rva < end {
+            if rva >= s.virtual_address && rva < virtual_end {
                 let delta = rva - s.virtual_address;
-                if delta >= s.raw_size {
-                    return Err(PeError::OutOfBounds(
-                        "RVA points to uninitialized section data",
-                    ));
+                let available = s.raw_size.checked_sub(delta)
+                    .ok_or(PeError::OutOfBounds("RVA points to uninitialized section data"))?;
+                if len > available as usize {
+                    return Err(PeError::OutOfBounds("RVA range exceeds section raw data"));
                 }
-                let off = s
-                    .raw_offset
-                    .checked_add(delta)
-                    .ok_or(PeError::OutOfBounds("RVA offset"))? as usize;
-                if off >= d.len() {
-                    return Err(PeError::OutOfBounds("RVA file offset"));
+                let file_offset = s.raw_offset.checked_add(delta)
+                    .ok_or(PeError::OutOfBounds("RVA file offset"))?;
+                let file_end = file_offset.checked_add(len as u32)
+                    .ok_or(PeError::OutOfBounds("RVA file range"))?;
+                if file_end as usize > d.len() {
+                    return Err(PeError::OutOfBounds("RVA file range"));
                 }
-                return Ok(off);
+                return Ok((file_offset as usize, available as usize));
             }
         }
-        if rva < st as u32 {
-            Ok(rva as usize)
-        } else {
-            Err(PeError::OutOfBounds("RVA does not map to file data"))
-        }
+        Err(PeError::OutOfBounds("RVA does not map to file data"))
     };
     let getdir = |i: usize| directories.iter().find(|x| x.index == i).cloned();
     let mut imports = Vec::new();
     if let Some(x) = getdir(1) {
-        if x.rva != 0 && x.size >= 20 {
-            let start = map_rva(x.rva)?;
+        if x.rva != 0 && x.size > 0 {
+            if x.size < 20 || x.size % 20 != 0 {
+                return Err(PeError::Invalid("invalid import directory size"));
+            }
+            let (start, _) = map_rva_range(x.rva, x.size as usize)?;
             let count = (x.size as usize / 20).min(4096);
+            let mut terminated = false;
             for i in 0..count {
-                let o = start
-                    .checked_add(i * 20)
+                let o = start.checked_add(i * 20)
                     .ok_or(PeError::OutOfBounds("import descriptor"))?;
                 let lookup = u32at(d, o, "import lookup")?;
                 let name_rva = u32at(d, o + 12, "DLL name RVA")?;
                 let iat = u32at(d, o + 16, "IAT")?;
                 if lookup == 0 && name_rva == 0 && iat == 0 {
+                    terminated = true;
                     break;
                 }
-                let name = cstr(d, map_rva(name_rva)?, 512, "import DLL name")?;
+                let (name_offset, name_available) = map_rva_range(name_rva, 1)?;
+                let name = cstr(d, name_offset, name_available, 512, "import DLL name")?;
                 let thunk = if lookup != 0 { lookup } else { iat };
                 let mut symbols = Vec::new();
                 if thunk != 0 {
-                    let mut to = map_rva(thunk)?;
                     let width = if magic == 0x20b { 8usize } else { 4usize };
-                    for _ in 0..4096 {
+                    let (mut to, thunk_available) = map_rva_range(thunk, width)?;
+                    let thunk_count = (thunk_available / width).min(4096);
+                    let mut thunk_terminated = false;
+                    for _ in 0..thunk_count {
                         let value = if width == 8 {
                             u64at(d, to, "import thunk")?
                         } else {
                             u32at(d, to, "import thunk")? as u64
                         };
                         if value == 0 {
+                            thunk_terminated = true;
                             break;
                         }
                         let flag = if width == 8 { 1u64 << 63 } else { 1u64 << 31 };
                         if value & flag != 0 {
                             symbols.push(format!("ordinal:{}", value & 0xffff));
                         } else {
-                            let no = map_rva(value as u32)?;
-                            let hn = no
-                                .checked_add(2)
+                            let (no, name_len) = map_rva_range(value as u32, 3)?;
+                            let hn = no.checked_add(2)
                                 .ok_or(PeError::OutOfBounds("hint/name offset"))?;
-                            symbols.push(cstr(d, hn, 512, "import symbol")?);
+                            symbols.push(cstr(d, hn, name_len - 2, 512, "import symbol")?);
                         }
-                        to = to
-                            .checked_add(width)
+                        to = to.checked_add(width)
                             .ok_or(PeError::OutOfBounds("thunk offset"))?;
+                    }
+                    if !thunk_terminated {
+                        return Err(PeError::Invalid("unterminated import thunk table"));
                     }
                 }
                 imports.push(ImportLibrary { name, symbols });
+            }
+            if !terminated {
+                return Err(PeError::Invalid("unterminated import descriptor table"));
             }
         }
     }
     let mut exports = Vec::new();
     if let Some(x) = getdir(0) {
-        if x.rva != 0 && x.size >= 40 {
-            let o = map_rva(x.rva)?;
+        if x.rva != 0 && x.size > 0 {
+            if x.size < 40 {
+                return Err(PeError::Invalid("truncated export directory"));
+            }
+            let (o, _) = map_rva_range(x.rva, 40)?;
             let count = (u32at(d, o + 24, "export name count")? as usize).min(8192);
             let names = u32at(d, o + 32, "export name table")?;
-            if names != 0 {
-                let no = map_rva(names)?;
+            if names != 0 && count > 0 {
+                let array_size = count.checked_mul(4)
+                    .ok_or(PeError::OutOfBounds("export name array"))?;
+                let (no, _) = map_rva_range(names, array_size)?;
                 for i in 0..count {
-                    let ro = u32at(
-                        d,
-                        no.checked_add(i * 4)
-                            .ok_or(PeError::OutOfBounds("export names"))?,
-                        "export name RVA",
-                    )?;
-                    exports.push(cstr(d, map_rva(ro)?, 512, "export name")?);
+                    let ro = u32at(d, no + i * 4, "export name RVA")?;
+                    let (name_offset, name_available) = map_rva_range(ro, 1)?;
+                    exports.push(cstr(d, name_offset, name_available, 512, "export name")?);
                 }
             }
         }
@@ -311,13 +334,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let (mut relocation_blocks, mut relocation_entries) = (0usize, 0usize);
     if let Some(x) = getdir(5) {
         if x.rva != 0 && x.size > 0 {
-            let mut o = map_rva(x.rva)?;
-            let end = o
-                .checked_add(x.size as usize)
+            let (mut o, _) = map_rva_range(x.rva, x.size as usize)?;
+            let end = o.checked_add(x.size as usize)
                 .ok_or(PeError::OutOfBounds("relocation directory"))?;
-            if end > d.len() {
-                return Err(PeError::OutOfBounds("relocation directory"));
-            }
             while o < end {
                 if end - o < 8 {
                     return Err(PeError::Invalid("incomplete relocation block"));
@@ -365,6 +384,7 @@ mod tests {
         b[o..o + 2].copy_from_slice(&0x20bu16.to_le_bytes());
         b[o + 16..o + 20].copy_from_slice(&0x1000u32.to_le_bytes());
         b[o + 24..o + 32].copy_from_slice(&0x140000000u64.to_le_bytes());
+        b[o + 60..o + 64].copy_from_slice(&0x200u32.to_le_bytes());
         b[o + 68..o + 70].copy_from_slice(&3u16.to_le_bytes());
         b[o + 108..o + 112].copy_from_slice(&16u32.to_le_bytes());
         let s = o + 0xf0;
@@ -383,6 +403,7 @@ mod tests {
         b[0x94..0x96].copy_from_slice(&0xe0u16.to_le_bytes());
         b[0x98..0x9a].copy_from_slice(&0x10bu16.to_le_bytes());
         b[0xb4..0xb8].copy_from_slice(&0x400000u32.to_le_bytes());
+        b[0xd4..0xd8].copy_from_slice(&0x200u32.to_le_bytes());
         b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
         b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
         b
@@ -439,6 +460,17 @@ mod tests {
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("section raw range"))
+        ));
+    }
+    #[test]
+    fn rejects_directory_range_past_section_raw_data() {
+        let mut b = pe64();
+        let import_dir = 0x98 + 112 + 8;
+        b[import_dir..import_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
         ));
     }
 }
