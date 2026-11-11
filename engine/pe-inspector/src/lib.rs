@@ -783,6 +783,14 @@ mod tests {
     }
 
     #[test]
+    fn extracts_pe32_plus_ordinal_import() {
+        let mut b = pe64_with_one_import();
+        b[0x240..0x248].copy_from_slice(&0x8000_0000_0000_0007u64.to_le_bytes());
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.imports[0].symbols, vec!["ordinal:7"]);
+    }
+
+    #[test]
     fn rejects_pe32_plus_ordinal_import_with_reserved_bits_set() {
         let mut b = pe64_with_one_import();
         b[0x240..0x248].copy_from_slice(&0x8000_0000_0001_0001u64.to_le_bytes());
