@@ -335,6 +335,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             continue;
         }
         if directory.index == 4 {
+            // WIN_CERTIFICATE records are aligned on 8-byte boundaries. The
+            // security directory address is a file offset, not an RVA.
+            if !directory.address.is_multiple_of(8) {
+                return Err(PeError::Invalid(
+                    "security directory file offset is not 8-byte aligned",
+                ));
+            }
             let end = directory
                 .address
                 .checked_add(directory.size)
@@ -731,12 +738,26 @@ mod tests {
     fn security_directory_address_is_reported_as_file_offset() {
         let mut b = pe64();
         let security_dir = 0x98 + 112 + 4 * 8;
-        b[security_dir..security_dir + 4].copy_from_slice(&0x250u32.to_le_bytes());
+        b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
         b[security_dir + 4..security_dir + 8].copy_from_slice(&0x10u32.to_le_bytes());
 
         let report = inspect(&b).unwrap();
-        assert_eq!(report.directories[4].address, 0x250);
+        assert_eq!(report.directories[4].address, 0x258);
         assert_eq!(report.directories[4].address_kind, "file_offset");
+    }
+
+    #[test]
+    fn rejects_unaligned_security_directory_file_offset() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x251u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&0x10u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "security directory file offset is not 8-byte aligned"
+            ))
+        ));
     }
 
     #[test]
