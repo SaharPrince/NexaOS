@@ -407,7 +407,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     return Err(PeError::Invalid("incomplete relocation block"));
                 }
                 let size = u32at(d, o + 4, "relocation block size")? as usize;
-                if size < 8 || size > end - o || size % 2 != 0 {
+                if size < 8 || size > end - o || !size.is_multiple_of(2) {
                     return Err(PeError::Invalid("invalid relocation block size"));
                 }
                 relocation_blocks += 1;
@@ -489,11 +489,15 @@ mod tests {
     #[test]
     fn rejects_directory_count_exceeding_optional_header_storage() {
         let mut b = pe64();
-        // Keep the optional header size at 0xf0 but claim more entries than
-        // the 16 entries physically available in this header.
-        b[0x98 + 108..0x98 + 112].copy_from_slice(&17u32.to_le_bytes());
+        // Declare one data directory while the optional header contains
+        // space for none.
+        b[0x94..0x96].copy_from_slice(&112u16.to_le_bytes());
+        b[0x98 + 108..0x98 + 112].copy_from_slice(&1u32.to_le_bytes());
         let error = inspect(&b).unwrap_err();
-        assert!(matches!(error, PeError::Truncated("data directory entries")));
+        assert!(matches!(
+            error,
+            PeError::Truncated("data directory entries")
+        ));
     }
 
     #[test]
