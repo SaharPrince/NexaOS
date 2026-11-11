@@ -7,6 +7,7 @@ const MAX_DIRECTORIES: usize = 16;
 #[derive(Debug, Clone, Serialize)]
 pub struct PeReport {
     pub format: String,
+    pub execution: &'static str,
     pub machine: String,
     pub machine_raw: u16,
     pub sections: Vec<Section>,
@@ -323,6 +324,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     }
     Ok(PeReport {
         format: fmt.into(),
+        execution: "NOT_ATTEMPTED",
         machine: machine(mach),
         machine_raw: mach,
         sections,
@@ -370,6 +372,13 @@ mod tests {
         assert_eq!(r.machine, "AMD64");
         assert_eq!(r.sections[0].name, ".text");
         assert_eq!(r.subsystem, "Windows Console");
+    }
+    #[test]
+    fn json_report_is_valid_and_marks_execution_unattempted() {
+        let report = inspect(&pe64()).unwrap();
+        let encoded = serde_json::to_string(&report).unwrap();
+        let decoded: serde_json::Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded["execution"], "NOT_ATTEMPTED");
     }
     #[test]
     fn rejects_bad_dos() {
