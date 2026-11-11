@@ -875,16 +875,17 @@ mod tests {
     }
 
     #[test]
-    fn rejects_certificate_record_without_required_alignment_padding() {
+    fn accepts_multiple_aligned_certificate_records() {
         let mut b = pe64();
         let security_dir = 0x98 + 112 + 4 * 8;
         b[security_dir..security_dir + 4].copy_from_slice(&0x258u32.to_le_bytes());
-        b[security_dir + 4..security_dir + 8].copy_from_slice(&8u32.to_le_bytes());
-        b[0x258..0x25c].copy_from_slice(&9u32.to_le_bytes());
-        assert!(matches!(
-            inspect(&b),
-            Err(PeError::OutOfBounds("WIN_CERTIFICATE record"))
-        ));
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&16u32.to_le_bytes());
+        // Two minimal WIN_CERTIFICATE records, each occupying one 8-byte slot.
+        b[0x258..0x25c].copy_from_slice(&8u32.to_le_bytes());
+        b[0x260..0x264].copy_from_slice(&8u32.to_le_bytes());
+
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.directories[4].address_kind, "file_offset");
     }
 
     #[test]
