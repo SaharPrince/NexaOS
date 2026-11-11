@@ -301,9 +301,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         if virtual_len > 0 {
             let start = section.virtual_address as u64;
             if start < size_of_headers as u64 {
-                return Err(PeError::Invalid(
-                    "section virtual range overlaps headers",
-                ));
+                return Err(PeError::Invalid("section virtual range overlaps headers"));
             }
             let end = start + virtual_len;
             for other in sections.iter().skip(i + 1) {
