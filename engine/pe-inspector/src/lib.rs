@@ -304,6 +304,11 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 return Err(PeError::Invalid("section virtual range overlaps headers"));
             }
             let end = start + virtual_len;
+            if end > u32::MAX as u64 + 1 {
+                return Err(PeError::OutOfBounds(
+                    "section RVA range exceeds 32-bit address space",
+                ));
+            }
             for other in sections.iter().skip(i + 1) {
                 let other_len = other.raw_size.max(other.virtual_size) as u64;
                 if other_len == 0 {
@@ -1062,6 +1067,21 @@ mod tests {
         assert!(matches!(
             inspect(&b),
             Err(PeError::Invalid("section raw data overlaps headers"))
+        ));
+    }
+
+    #[test]
+    fn rejects_section_virtual_range_exceeding_rva_address_space() {
+        let mut b = pe64();
+        let section = 0x188;
+        b[section + 12..section + 16].copy_from_slice(&0xffff_f000u32.to_le_bytes());
+        b[section + 8..section + 12].copy_from_slice(&0x2000u32.to_le_bytes());
+        b[section + 16..section + 20].copy_from_slice(&0u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds(
+                "section RVA range exceeds 32-bit address space"
+            ))
         ));
     }
 
