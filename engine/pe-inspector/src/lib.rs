@@ -499,6 +499,12 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 if end - o < 8 {
                     return Err(PeError::Invalid("incomplete relocation block"));
                 }
+                let page_rva = u32at(d, o, "relocation page RVA")?;
+                if !page_rva.is_multiple_of(0x1000) {
+                    return Err(PeError::Invalid(
+                        "relocation block page RVA is not 4KiB aligned",
+                    ));
+                }
                 let size = u32at(d, o + 4, "relocation block size")? as usize;
                 if size < 8 || size > end - o || !size.is_multiple_of(2) {
                     return Err(PeError::Invalid("invalid relocation block size"));
@@ -666,6 +672,18 @@ mod tests {
         let report = inspect(&pe64_with_one_relocation_block(12)).unwrap();
         assert_eq!(report.relocation_blocks, 1);
         assert_eq!(report.relocation_entries, 2);
+    }
+
+    #[test]
+    fn rejects_unaligned_base_relocation_page_rva() {
+        let mut b = pe64_with_one_relocation_block(12);
+        b[0x200..0x204].copy_from_slice(&0x1001u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "relocation block page RVA is not 4KiB aligned"
+            ))
+        ));
     }
 
     #[test]
