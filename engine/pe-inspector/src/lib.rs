@@ -239,9 +239,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let section_table_end = st
         .checked_add(section_table_size)
         .ok_or(PeError::OutOfBounds("section table end"))?;
-    if size_of_headers as usize > d.len()
-        || (size_of_headers as usize) < section_table_end
-    {
+    if size_of_headers as usize > d.len() || (size_of_headers as usize) < section_table_end {
         return Err(PeError::Invalid("invalid size of headers"));
     }
     for (i, section) in sections.iter().enumerate() {
