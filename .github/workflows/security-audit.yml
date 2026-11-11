@@ -2,7 +2,7 @@ name: Dependency security audit
 
 on:
   push:
-    branches: [main, "nce-001/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   schedule:
