@@ -3,6 +3,8 @@ name: PE parser fuzz smoke test
 on:
   push:
     branches: [main, "nce-001/**"]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "23 4 * * 1"
