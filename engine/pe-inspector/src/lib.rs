@@ -370,35 +370,36 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 }
                 let mut symbols = Vec::new();
                 let width = if magic == 0x20b { 8usize } else { 4usize };
-                    let (mut to, thunk_available) = map_rva_range(thunk, width)?;
-                    let thunk_count = (thunk_available / width).min(4096);
-                    let mut thunk_terminated = false;
-                    for _ in 0..thunk_count {
-                        let value = if width == 8 {
-                            u64at(d, to, "import thunk")?
-                        } else {
-                            u32at(d, to, "import thunk")? as u64
-                        };
-                        if value == 0 {
-                            thunk_terminated = true;
-                            break;
-                        }
-                        let flag = if width == 8 { 1u64 << 63 } else { 1u64 << 31 };
-                        if value & flag != 0 {
-                            symbols.push(format!("ordinal:{}", value & 0xffff));
-                        } else {
-                            let name_rva = u32::try_from(value)
-                                .map_err(|_| PeError::Invalid("import name RVA exceeds 32-bit range"))?;
-                            let (no, name_len) = map_rva_range(name_rva, 3)?;
-                            let hn = no
-                                .checked_add(2)
-                                .ok_or(PeError::OutOfBounds("hint/name offset"))?;
-                            symbols.push(cstr(d, hn, name_len - 2, 512, "import symbol")?);
-                        }
-                        to = to
-                            .checked_add(width)
-                            .ok_or(PeError::OutOfBounds("thunk offset"))?;
+                let (mut to, thunk_available) = map_rva_range(thunk, width)?;
+                let thunk_count = (thunk_available / width).min(4096);
+                let mut thunk_terminated = false;
+                for _ in 0..thunk_count {
+                    let value = if width == 8 {
+                        u64at(d, to, "import thunk")?
+                    } else {
+                        u32at(d, to, "import thunk")? as u64
+                    };
+                    if value == 0 {
+                        thunk_terminated = true;
+                        break;
                     }
+                    let flag = if width == 8 { 1u64 << 63 } else { 1u64 << 31 };
+                    if value & flag != 0 {
+                        symbols.push(format!("ordinal:{}", value & 0xffff));
+                    } else {
+                        let name_rva = u32::try_from(value).map_err(|_| {
+                            PeError::Invalid("import name RVA exceeds 32-bit range")
+                        })?;
+                        let (no, name_len) = map_rva_range(name_rva, 3)?;
+                        let hn = no
+                            .checked_add(2)
+                            .ok_or(PeError::OutOfBounds("hint/name offset"))?;
+                        symbols.push(cstr(d, hn, name_len - 2, 512, "import symbol")?);
+                    }
+                    to = to
+                        .checked_add(width)
+                        .ok_or(PeError::OutOfBounds("thunk offset"))?;
+                }
                 if !thunk_terminated {
                     return Err(PeError::Invalid("unterminated import thunk table"));
                 }
@@ -449,8 +450,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 let (names_offset, _) = map_rva_range(names_rva, name_bytes)?;
                 let (ordinals_offset, _) = map_rva_range(ordinals_rva, ordinal_bytes)?;
                 for i in 0..name_count {
-                    let ordinal = u16at(d, ordinals_offset + i * 2, "export name ordinal")?
-                        as usize;
+                    let ordinal =
+                        u16at(d, ordinals_offset + i * 2, "export name ordinal")? as usize;
                     if ordinal >= function_count {
                         return Err(PeError::Invalid("export name ordinal is out of range"));
                     }
@@ -558,7 +559,9 @@ mod tests {
         b[0x240..0x248].copy_from_slice(&0x1060u64.to_le_bytes());
         b[0x248..0x250].copy_from_slice(&0u64.to_le_bytes());
         // IMAGE_IMPORT_BY_NAME: two-byte hint then a symbol name.
-        b[0x260..0x26d].copy_from_slice(&[0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's']);
+        b[0x260..0x26d].copy_from_slice(&[
+            0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's',
+        ]);
         b[0x26d] = 0;
         b
     }
