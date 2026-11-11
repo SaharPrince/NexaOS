@@ -596,7 +596,7 @@ mod tests {
         b[0x200..0x204].copy_from_slice(&0x1040u32.to_le_bytes());
         b[0x20c..0x210].copy_from_slice(&0x1030u32.to_le_bytes());
         b[0x210..0x214].copy_from_slice(&0x1050u32.to_le_bytes());
-        b[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\\0");
+        b[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\0");
         b[0x240..0x244].copy_from_slice(&0x1060u32.to_le_bytes());
         b[0x244..0x248].copy_from_slice(&0u32.to_le_bytes());
         b[0x260..0x26d].copy_from_slice(&[
