@@ -14,3 +14,5 @@ the repository owner privately through GitHub's security reporting feature.
 - Malformed input must return an error, not panic.
 - Parser changes should include regression tests for malformed inputs.
 - Fuzzing is encouraged before accepting parser changes.
+- GitHub Actions runs Rust tests on Linux and Windows, Clippy with warnings denied, bounded parser fuzzing, and a scheduled Rust dependency advisory audit.
+- Dependabot proposes weekly updates for Cargo dependencies and GitHub Actions. Review and validate every update before merging.
