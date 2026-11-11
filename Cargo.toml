@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["engine/pe-inspector"]
+exclude = ["fuzz"]
 
 [workspace.package]
 edition = "2021"
