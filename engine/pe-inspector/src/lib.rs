@@ -512,7 +512,31 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 let function_bytes = function_count
                     .checked_mul(4)
                     .ok_or(PeError::OutOfBounds("export function array"))?;
-                map_rva_range(functions_rva, function_bytes)?;
+                let (functions_offset, _) = map_rva_range(functions_rva, function_bytes)?;
+                let export_end = x.address as u64 + x.size as u64;
+                for i in 0..function_count {
+                    let function_rva =
+                        u32at(d, functions_offset + i * 4, "export function RVA")?;
+                    if function_rva != 0
+                        && (function_rva as u64) >= x.address as u64
+                        && (function_rva as u64) < export_end
+                    {
+                        // An address-table entry inside the export directory is
+                        // a forwarder string, not a code/data RVA. Its terminator
+                        // must occur before the export directory's declared end.
+                        let (forwarder_offset, file_available) =
+                            map_rva_range(function_rva, 1)?;
+                        let directory_available = (export_end - function_rva as u64) as usize;
+                        let available = file_available.min(directory_available);
+                        let _ = cstr(
+                            d,
+                            forwarder_offset,
+                            available,
+                            4096,
+                            "export forwarder",
+                        )?;
+                    }
+                }
             }
             if name_count > 0 {
                 if names_rva == 0 || ordinals_rva == 0 {
@@ -762,6 +786,33 @@ mod tests {
     fn extracts_valid_named_export() {
         let report = inspect(&pe64_with_one_export()).unwrap();
         assert_eq!(report.exports, vec!["NexaEntry"]);
+    }
+
+    #[test]
+    fn accepts_export_forwarder_inside_export_directory() {
+        let mut b = pe64_with_one_export();
+        let export_dir = 0x98 + 112;
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x80u32.to_le_bytes());
+        b[0x240..0x244].copy_from_slice(&0x1070u32.to_le_bytes());
+        b[0x270..0x27b].copy_from_slice(b"OTHER.Func");
+        b[0x27b] = 0;
+
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.exports, vec!["NexaEntry"]);
+    }
+
+    #[test]
+    fn rejects_unterminated_export_forwarder_at_directory_boundary() {
+        let mut b = pe64_with_one_export();
+        let export_dir = 0x98 + 112;
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x78u32.to_le_bytes());
+        b[0x240..0x244].copy_from_slice(&0x1070u32.to_le_bytes());
+        b[0x270..0x278].copy_from_slice(b"BADNAME!");
+
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("export forwarder"))
+        ));
     }
 
     #[test]
