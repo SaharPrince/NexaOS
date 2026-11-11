@@ -586,6 +586,39 @@ mod tests {
         b
     }
 
+
+    fn pe32_with_one_import() -> Vec<u8> {
+        let mut b = pe32();
+        let import_dir = 0x98 + 96 + 8;
+        b[import_dir..import_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&40u32.to_le_bytes());
+
+        // IMAGE_IMPORT_DESCRIPTOR and 32-bit IMAGE_THUNK_DATA.
+        b[0x200..0x204].copy_from_slice(&0x1040u32.to_le_bytes());
+        b[0x20c..0x210].copy_from_slice(&0x1030u32.to_le_bytes());
+        b[0x210..0x214].copy_from_slice(&0x1050u32.to_le_bytes());
+        b[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\\0");
+        b[0x240..0x244].copy_from_slice(&0x1060u32.to_le_bytes());
+        b[0x244..0x248].copy_from_slice(&0u32.to_le_bytes());
+        b[0x260..0x26d].copy_from_slice(&[
+            0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's',
+        ]);
+        b[0x26d] = 0;
+        b
+    }
+
+    fn pe64_with_one_relocation_block(block_size: u32) -> Vec<u8> {
+        let mut b = pe64();
+        let reloc_dir = 0x98 + 112 + 5 * 8;
+        b[reloc_dir..reloc_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&block_size.to_le_bytes());
+        b[0x200..0x204].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[0x204..0x208].copy_from_slice(&block_size.to_le_bytes());
+        b[0x208..0x20a].copy_from_slice(&0x3000u16.to_le_bytes());
+        b[0x20a..0x20c].copy_from_slice(&0u16.to_le_bytes());
+        b
+    }
+
     fn pe64_with_one_export() -> Vec<u8> {
         let mut b = pe64();
         let export_dir = 0x98 + 112;
@@ -603,6 +636,49 @@ mod tests {
         b[0x248..0x24a].copy_from_slice(&0u16.to_le_bytes());
         b[0x260..0x26a].copy_from_slice(b"NexaEntry\0");
         b
+    }
+
+
+    #[test]
+    fn extracts_pe32_import_library_and_symbol() {
+        let report = inspect(&pe32_with_one_import()).unwrap();
+        assert_eq!(report.format, "PE32");
+        assert_eq!(report.imports.len(), 1);
+        assert_eq!(report.imports[0].name, "KERNEL32.dll");
+        assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+    }
+
+    #[test]
+    fn extracts_pe32_ordinal_import() {
+        let mut b = pe32_with_one_import();
+        b[0x240..0x244].copy_from_slice(&0x8000_0007u32.to_le_bytes());
+        let report = inspect(&b).unwrap();
+        assert_eq!(report.imports[0].symbols, vec!["ordinal:7"]);
+    }
+
+    #[test]
+    fn counts_valid_base_relocation_block() {
+        let report = inspect(&pe64_with_one_relocation_block(12)).unwrap();
+        assert_eq!(report.relocation_blocks, 1);
+        assert_eq!(report.relocation_entries, 2);
+    }
+
+    #[test]
+    fn rejects_base_relocation_block_smaller_than_header() {
+        let error = inspect(&pe64_with_one_relocation_block(6)).unwrap_err();
+        assert!(matches!(
+            error,
+            PeError::Invalid("invalid relocation block size")
+        ));
+    }
+
+    #[test]
+    fn rejects_odd_sized_base_relocation_block() {
+        let error = inspect(&pe64_with_one_relocation_block(9)).unwrap_err();
+        assert!(matches!(
+            error,
+            PeError::Invalid("invalid relocation block size")
+        ));
     }
 
     #[test]
