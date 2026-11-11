@@ -2,7 +2,10 @@ use serde::Serialize;
 use std::fmt;
 
 mod image_layout;
-pub use image_layout::{plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan, ImageZeroFillRange, SectionImageLayout};
+pub use image_layout::{
+    plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
+    ImageZeroFillRange, SectionImageLayout,
+};
 
 const MAX_SECTIONS: usize = 96;
 const MAX_DIRECTORIES: usize = 16;
