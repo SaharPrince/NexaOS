@@ -388,11 +388,13 @@ mod tests {
     #[test]
     fn rejects_section_destination_overlapping_headers() {
         let mut input = report();
-        input.sections[0].virtual_address = 0;
+        input.section_alignment = 0x100;
+        input.file_alignment = 0x100;
+        input.sections[0].virtual_address = 0x100;
         assert!(matches!(
             plan_image_layout(&input, 0x400, limits()),
             Err(ImageLayoutError::Invalid(
-                "section VirtualAddress is not aligned to SectionAlignment"
+                "section image range overlaps image headers"
             ))
         ));
     }
