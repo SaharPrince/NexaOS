@@ -45,6 +45,21 @@ cargo run -p nexa-inspect -- inspect --json path/to/program.exe
 
 The inspector only reads the selected file. **Execution: NOT ATTEMPTED.**
 
+## Continuous validation
+
+GitHub Actions automatically checks changes on the development branch and pull
+requests targeting `main`:
+
+- Rust formatting, including the isolated fuzz target
+- Workspace tests and CLI startup on Linux and Windows
+- Clippy with warnings denied
+- A bounded PE parser fuzz run
+- Rust dependency advisory audits for both the main workspace and fuzz harness
+
+Dependency audits also run weekly. Dependabot proposes weekly updates for Cargo
+and GitHub Actions dependencies; proposed updates must pass the same checks
+before they are accepted.
+
 ## Roadmap
 
 - [ ] NCE-001: PE inspector
