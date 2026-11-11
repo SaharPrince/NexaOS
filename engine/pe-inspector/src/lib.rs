@@ -238,9 +238,12 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 .ok_or(PeError::OutOfBounds("section RVA range"))?;
             if rva >= s.virtual_address && rva < virtual_end {
                 let delta = rva - s.virtual_address;
-                let available = s.raw_size.checked_sub(delta).ok_or(PeError::OutOfBounds(
-                    "RVA points to uninitialized section data",
-                ))?;
+                if delta >= s.raw_size {
+                    return Err(PeError::OutOfBounds(
+                        "RVA points to uninitialized section data",
+                    ));
+                }
+                let available = s.raw_size - delta;
                 if len > available as usize {
                     return Err(PeError::OutOfBounds("RVA range exceeds section raw data"));
                 }
@@ -483,7 +486,7 @@ mod tests {
         let mut b = pe64();
         let import_dir = 0x98 + 112 + 8;
         b[import_dir..import_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
-        b[import_dir + 4..import_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&0x28u32.to_le_bytes());
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
@@ -509,7 +512,7 @@ mod tests {
         let mut b = pe64();
         let export_dir = 0x98 + 112;
         b[export_dir..export_dir + 4].copy_from_slice(&0x10f0u32.to_le_bytes());
-        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x28u32.to_le_bytes());
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
