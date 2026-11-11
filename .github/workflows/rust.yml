@@ -42,6 +42,27 @@ jobs:
         run: cargo test --workspace --locked
       - name: Check CLI help
         run: cargo run --locked -p nexa-inspect -- --help
+      - name: Inspect a compiler-produced PE32+ executable
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = "target/debug/nexa-inspect.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Expected Windows PE fixture was not built: $exe"
+          }
+          $report = cargo run --locked -p nexa-inspect -- inspect --json $exe | ConvertFrom-Json
+          if ($report.format -ne "PE32+") {
+            throw "Expected PE32+ format, got: $($report.format)"
+          }
+          if ($report.machine -ne "AMD64") {
+            throw "Expected AMD64 machine, got: $($report.machine)"
+          }
+          if ($report.sections.Count -lt 1) {
+            throw "Compiler-produced PE fixture has no parsed sections"
+          }
+          if ($report.execution -ne "NOT_ATTEMPTED") {
+            throw "Inspection must never execute the input"
+          }
 
   clippy:
     name: Clippy (warnings denied)
