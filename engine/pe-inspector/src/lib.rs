@@ -80,6 +80,10 @@ fn cstr(d: &[u8], o: usize, available: usize, max: usize, w: &'static str) -> Re
     let end = b.iter().position(|x| *x == 0).ok_or(PeError::Invalid(w))?;
     Ok(String::from_utf8_lossy(&b[..end]).into_owned())
 }
+fn ranges_overlap(a_start: u64, a_end: u64, b_start: u64, b_end: u64) -> bool {
+    a_start < b_end && b_start < a_end
+}
+
 fn machine(v: u16) -> String {
     match v {
         0x014c => "x86",
@@ -219,6 +223,40 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     {
         return Err(PeError::Invalid("invalid size of headers"));
     }
+    for (i, section) in sections.iter().enumerate() {
+        let virtual_len = section.raw_size.max(section.virtual_size) as u64;
+        if virtual_len > 0 {
+            let start = section.virtual_address as u64;
+            let end = start + virtual_len;
+            for other in sections.iter().skip(i + 1) {
+                let other_len = other.raw_size.max(other.virtual_size) as u64;
+                if other_len == 0 {
+                    continue;
+                }
+                let other_start = other.virtual_address as u64;
+                let other_end = other_start + other_len;
+                if ranges_overlap(start, end, other_start, other_end) {
+                    return Err(PeError::Invalid("overlapping section RVA ranges"));
+                }
+            }
+        }
+
+        if section.raw_size > 0 {
+            let start = section.raw_offset as u64;
+            let end = start + section.raw_size as u64;
+            for other in sections.iter().skip(i + 1) {
+                if other.raw_size == 0 {
+                    continue;
+                }
+                let other_start = other.raw_offset as u64;
+                let other_end = other_start + other.raw_size as u64;
+                if ranges_overlap(start, end, other_start, other_end) {
+                    return Err(PeError::Invalid("overlapping section raw ranges"));
+                }
+            }
+        }
+    }
+
     let map_rva_range = |rva: u32, len: usize| -> Result<(usize, usize)> {
         let len_u32 = u32::try_from(len).map_err(|_| PeError::OutOfBounds("RVA range length"))?;
         let requested_end = (rva as usize)
@@ -481,6 +519,39 @@ mod tests {
             Err(PeError::OutOfBounds("section raw range"))
         ));
     }
+    #[test]
+    fn rejects_overlapping_section_virtual_ranges() {
+        let mut b = pe64();
+        b.resize(0x380, 0);
+        b[0x86..0x88].copy_from_slice(&2u16.to_le_bytes());
+        let second = 0x188 + 40;
+        b[second..second + 5].copy_from_slice(b".data");
+        b[second + 8..second + 12].copy_from_slice(&0x80u32.to_le_bytes());
+        b[second + 12..second + 16].copy_from_slice(&0x1080u32.to_le_bytes());
+        b[second + 16..second + 20].copy_from_slice(&0x80u32.to_le_bytes());
+        b[second + 20..second + 24].copy_from_slice(&0x300u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("overlapping section RVA ranges"))
+        ));
+    }
+
+    #[test]
+    fn rejects_overlapping_section_raw_ranges() {
+        let mut b = pe64();
+        b[0x86..0x88].copy_from_slice(&2u16.to_le_bytes());
+        let second = 0x188 + 40;
+        b[second..second + 5].copy_from_slice(b".data");
+        b[second + 8..second + 12].copy_from_slice(&0x80u32.to_le_bytes());
+        b[second + 12..second + 16].copy_from_slice(&0x1200u32.to_le_bytes());
+        b[second + 16..second + 20].copy_from_slice(&0x80u32.to_le_bytes());
+        b[second + 20..second + 24].copy_from_slice(&0x280u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("overlapping section raw ranges"))
+        ));
+    }
+
     #[test]
     fn rejects_directory_range_past_section_raw_data() {
         let mut b = pe64();
