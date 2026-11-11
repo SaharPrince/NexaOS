@@ -794,8 +794,8 @@ mod tests {
         let export_dir = 0x98 + 112;
         b[export_dir + 4..export_dir + 8].copy_from_slice(&0x80u32.to_le_bytes());
         b[0x240..0x244].copy_from_slice(&0x1070u32.to_le_bytes());
-        b[0x270..0x27b].copy_from_slice(b"OTHER.Func");
-        b[0x27b] = 0;
+        b[0x270..0x27a].copy_from_slice(b"OTHER.Func");
+        b[0x27a] = 0;
 
         let report = inspect(&b).unwrap();
         assert_eq!(report.exports, vec!["NexaEntry"]);
