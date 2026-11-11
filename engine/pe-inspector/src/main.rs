@@ -13,10 +13,22 @@ fn read_limited<R: Read>(reader: R, max_size: usize) -> io::Result<Vec<u8>> {
     if bytes.len() > max_size {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "input file exceeds the 512 MiB inspection limit",
+            format!("input file exceeds the configured inspection limit of {max_size} bytes"),
         ));
     }
     Ok(bytes)
+}
+
+fn parse_inspect_args(args: &[String]) -> Option<(bool, &str)> {
+    if args.first().map(String::as_str) != Some("inspect") {
+        return None;
+    }
+
+    match args {
+        [_, path] if !path.starts_with('-') => Some((false, path)),
+        [_, flag, path] if flag == "--json" && !path.starts_with('-') => Some((true, path)),
+        _ => None,
+    }
 }
 
 fn usage() {
@@ -31,18 +43,15 @@ fn main() {
         usage();
         return;
     }
-    if args.len() < 2 || args[0] != "inspect" {
-        usage();
-        process::exit(2);
-    }
-    let json = args.iter().any(|a| a == "--json");
-    let path = match args.iter().skip(1).find(|a| a.as_str() != "--json") {
-        Some(p) => p,
+
+    let (json, path) = match parse_inspect_args(&args) {
+        Some(parsed) => parsed,
         None => {
             usage();
             process::exit(2);
         }
     };
+
     let file = match fs::File::open(path) {
         Ok(file) => file,
         Err(e) => {
@@ -101,8 +110,50 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::read_limited;
+    use super::{parse_inspect_args, read_limited};
     use std::io::{self, Cursor};
+
+    fn strings(args: &[&str]) -> Vec<String> {
+        args.iter().map(|arg| (*arg).to_owned()).collect()
+    }
+
+    #[test]
+    fn parses_plain_inspection_arguments() {
+        assert_eq!(
+            parse_inspect_args(&strings(&["inspect", "sample.exe"])),
+            Some((false, "sample.exe"))
+        );
+    }
+
+    #[test]
+    fn parses_json_inspection_arguments() {
+        assert_eq!(
+            parse_inspect_args(&strings(&["inspect", "--json", "sample.exe"])),
+            Some((true, "sample.exe"))
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_extra_inspection_arguments() {
+        for args in [
+            strings(&[]),
+            strings(&["inspect"]),
+            strings(&["inspect", "sample.exe", "extra.exe"]),
+            strings(&["inspect", "--json", "sample.exe", "extra.exe"]),
+            strings(&["inspect", "--json", "--json", "sample.exe"]),
+            strings(&["other", "sample.exe"]),
+        ] {
+            assert_eq!(parse_inspect_args(&args), None);
+        }
+    }
+
+    #[test]
+    fn rejects_json_flag_after_path_when_usage_requires_it_before_path() {
+        assert_eq!(
+            parse_inspect_args(&strings(&["inspect", "sample.exe", "--json"])),
+            None
+        );
+    }
 
     #[test]
     fn reads_input_at_size_limit() {
@@ -116,5 +167,6 @@ mod tests {
         let data = vec![0x5a; 17];
         let error = read_limited(Cursor::new(data), 16).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("16 bytes"));
     }
 }
