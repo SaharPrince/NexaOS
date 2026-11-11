@@ -326,7 +326,12 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     // The security directory is the PE-format exception: its address is a
     // file offset, while every other standard data-directory address is an RVA.
     for directory in &directories {
-        if directory.address == 0 || directory.size == 0 {
+        if (directory.address == 0) != (directory.size == 0) {
+            return Err(PeError::Invalid(
+                "data directory has an address/size mismatch",
+            ));
+        }
+        if directory.address == 0 {
             continue;
         }
         if directory.index == 4 {
@@ -677,6 +682,34 @@ mod tests {
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
+        ));
+    }
+
+    #[test]
+    fn rejects_rva_directory_with_zero_address_and_nonzero_size() {
+        let mut b = pe64();
+        let resource_dir = 0x98 + 112 + 2 * 8;
+        b[resource_dir..resource_dir + 4].copy_from_slice(&0u32.to_le_bytes());
+        b[resource_dir + 4..resource_dir + 8].copy_from_slice(&0x20u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "data directory has an address/size mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_security_directory_with_nonzero_offset_and_zero_size() {
+        let mut b = pe64();
+        let security_dir = 0x98 + 112 + 4 * 8;
+        b[security_dir..security_dir + 4].copy_from_slice(&0x250u32.to_le_bytes());
+        b[security_dir + 4..security_dir + 8].copy_from_slice(&0u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "data directory has an address/size mismatch"
+            ))
         ));
     }
 
