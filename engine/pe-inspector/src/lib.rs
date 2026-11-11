@@ -630,6 +630,9 @@ mod tests {
         b[o..o + 2].copy_from_slice(&0x20bu16.to_le_bytes());
         b[o + 16..o + 20].copy_from_slice(&0x1000u32.to_le_bytes());
         b[o + 24..o + 32].copy_from_slice(&0x140000000u64.to_le_bytes());
+        b[o + 32..o + 36].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[o + 36..o + 40].copy_from_slice(&0x200u32.to_le_bytes());
+        b[o + 56..o + 60].copy_from_slice(&0x2000u32.to_le_bytes());
         b[o + 60..o + 64].copy_from_slice(&0x200u32.to_le_bytes());
         b[o + 68..o + 70].copy_from_slice(&3u16.to_le_bytes());
         b[o + 108..o + 112].copy_from_slice(&16u32.to_le_bytes());
@@ -679,6 +682,15 @@ mod tests {
         ]);
         b[0x26d] = 0;
         b
+    }
+
+    #[test]
+    fn reports_image_layout_metadata_for_pe32_plus() {
+        let report = inspect(&pe64()).unwrap();
+        assert_eq!(report.size_of_image, 0x2000);
+        assert_eq!(report.size_of_headers, 0x200);
+        assert_eq!(report.section_alignment, 0x1000);
+        assert_eq!(report.file_alignment, 0x200);
     }
 
     fn pe32_with_one_import() -> Vec<u8> {
