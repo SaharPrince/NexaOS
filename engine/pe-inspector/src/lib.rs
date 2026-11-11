@@ -416,19 +416,49 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 return Err(PeError::Invalid("truncated export directory"));
             }
             let (o, _) = map_rva_range(x.address, x.size as usize)?;
-            let count = u32at(d, o + 24, "export name count")? as usize;
-            if count > 8192 {
-                return Err(PeError::Invalid("export name count exceeds safety limit"));
+            let function_count = u32at(d, o + 20, "export function count")? as usize;
+            let name_count = u32at(d, o + 24, "export name count")? as usize;
+            if function_count > 16384 || name_count > 8192 {
+                return Err(PeError::Invalid("export table count exceeds safety limit"));
             }
-            let names = u32at(d, o + 32, "export name table")?;
-            if names != 0 && count > 0 {
-                let array_size = count
+            if name_count > function_count {
+                return Err(PeError::Invalid("export name count exceeds function count"));
+            }
+            let functions_rva = u32at(d, o + 28, "export function table")?;
+            let names_rva = u32at(d, o + 32, "export name table")?;
+            let ordinals_rva = u32at(d, o + 36, "export ordinal table")?;
+            if function_count > 0 {
+                if functions_rva == 0 {
+                    return Err(PeError::Invalid("missing export function table"));
+                }
+                let function_bytes = function_count
+                    .checked_mul(4)
+                    .ok_or(PeError::OutOfBounds("export function array"))?;
+                map_rva_range(functions_rva, function_bytes)?;
+            }
+            if name_count > 0 {
+                if names_rva == 0 || ordinals_rva == 0 {
+                    return Err(PeError::Invalid("missing export name or ordinal table"));
+                }
+                let name_bytes = name_count
                     .checked_mul(4)
                     .ok_or(PeError::OutOfBounds("export name array"))?;
-                let (no, _) = map_rva_range(names, array_size)?;
-                for i in 0..count {
-                    let ro = u32at(d, no + i * 4, "export name RVA")?;
-                    let (name_offset, name_available) = map_rva_range(ro, 1)?;
+                let ordinal_bytes = name_count
+                    .checked_mul(2)
+                    .ok_or(PeError::OutOfBounds("export ordinal array"))?;
+                let (names_offset, _) = map_rva_range(names_rva, name_bytes)?;
+                let (ordinals_offset, _) = map_rva_range(ordinals_rva, ordinal_bytes)?;
+                for i in 0..name_count {
+                    let ordinal = u16at(d, ordinals_offset + i * 2, "export name ordinal")?
+                        as usize;
+                    if ordinal >= function_count {
+                        return Err(PeError::Invalid("export name ordinal is out of range"));
+                    }
+                    let name_rva = u32at(d, names_offset + i * 4, "export name RVA")?;
+                    if name_rva == 0 {
+                        return Err(PeError::Invalid("export name has a zero RVA"));
+                    }
+                    let (name_offset, name_available) = map_rva_range(name_rva, 1)?;
                     exports.push(cstr(d, name_offset, name_available, 512, "export name")?);
                 }
             }
@@ -531,6 +561,41 @@ mod tests {
         b[0x260..0x26d].copy_from_slice(&[0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's']);
         b[0x26d] = 0;
         b
+    }
+
+    fn pe64_with_one_export() -> Vec<u8> {
+        let mut b = pe64();
+        let export_dir = 0x98 + 112;
+        b[export_dir..export_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&40u32.to_le_bytes());
+
+        // IMAGE_EXPORT_DIRECTORY with one function and one named export.
+        b[0x200 + 20..0x200 + 24].copy_from_slice(&1u32.to_le_bytes());
+        b[0x200 + 24..0x200 + 28].copy_from_slice(&1u32.to_le_bytes());
+        b[0x200 + 28..0x200 + 32].copy_from_slice(&0x1040u32.to_le_bytes());
+        b[0x200 + 32..0x200 + 36].copy_from_slice(&0x1044u32.to_le_bytes());
+        b[0x200 + 36..0x200 + 40].copy_from_slice(&0x1048u32.to_le_bytes());
+        b[0x240..0x244].copy_from_slice(&0x1080u32.to_le_bytes());
+        b[0x244..0x248].copy_from_slice(&0x1060u32.to_le_bytes());
+        b[0x248..0x24a].copy_from_slice(&0u16.to_le_bytes());
+        b[0x260..0x26a].copy_from_slice(b"NexaEntry\0");
+        b
+    }
+
+    #[test]
+    fn extracts_valid_named_export() {
+        let report = inspect(&pe64_with_one_export()).unwrap();
+        assert_eq!(report.exports, vec!["NexaEntry"]);
+    }
+
+    #[test]
+    fn rejects_export_name_ordinal_outside_function_table() {
+        let mut b = pe64_with_one_export();
+        b[0x248..0x24a].copy_from_slice(&1u16.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("export name ordinal is out of range"))
+        ));
     }
 
     #[test]
