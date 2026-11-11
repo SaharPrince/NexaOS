@@ -556,6 +556,10 @@ mod tests {
         b[0xb4..0xb8].copy_from_slice(&0x400000u32.to_le_bytes());
         b[0xd4..0xd8].copy_from_slice(&0x200u32.to_le_bytes());
         b[0xf4..0xf8].copy_from_slice(&16u32.to_le_bytes());
+        // The PE32 directory table starts 16 bytes earlier than PE32+.
+        // Clear the inherited PE32+ optional-header bytes so the synthetic
+        // fixture does not accidentally encode malformed directory entries.
+        b[0xf8..0x178].fill(0);
         b[0x84..0x86].copy_from_slice(&0x014cu16.to_le_bytes());
         b
     }
