@@ -2,7 +2,7 @@ name: Rust checks
 
 on:
   push:
-    branches: [main, "nce-001/**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
