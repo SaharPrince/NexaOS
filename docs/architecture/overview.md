@@ -57,3 +57,7 @@ The compatibility runtime must not execute untrusted inputs during inspection, m
 ## NCE-001 boundary
 
 NCE-001 is a read-only metadata inspector. It must not map executable sections into executable memory, resolve imports for execution, load Windows DLLs, or transfer control to an entry point. Its purpose is to establish a safe, testable PE foundation for later loader work.
+
+## NCE-002 design boundary
+
+The [NCE-002 design specification](../milestones/NCE-002.md) defines a staged PE32+ AMD64 image-layout plan. Its first implementation must use bounded, non-executable memory and must not transfer control to an image entry point. Layout planning, allocation, population, relocation, import resolution, and execution remain separate stages. The specification is design-only until the corresponding implementation and automated acceptance tests exist.
