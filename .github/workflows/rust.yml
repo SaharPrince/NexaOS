@@ -10,17 +10,41 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  format:
+    name: Format Rust sources
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - name: Format Rust sources
+      - name: Check formatting
         run: cargo fmt --all -- --check
-      - name: Run tests
+
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run workspace tests
         run: cargo test --workspace --locked
       - name: Check CLI help
         run: cargo run --locked -p nexa-inspect -- --help
+
+  clippy:
+    name: Clippy (warnings denied)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Lint all targets
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
