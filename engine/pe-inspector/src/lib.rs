@@ -179,12 +179,22 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         let o = st + i * 40;
         let name = bytes(d, o, 8, "section name")?;
         let end = name.iter().position(|b| *b == 0).unwrap_or(8);
+        let raw_size = u32at(d, o + 16, "raw size")?;
+        let raw_offset = u32at(d, o + 20, "raw offset")?;
+        if raw_size > 0 {
+            let raw_end = raw_offset
+                .checked_add(raw_size)
+                .ok_or(PeError::OutOfBounds("section raw range"))?;
+            if raw_end as usize > d.len() {
+                return Err(PeError::OutOfBounds("section raw range"));
+            }
+        }
         sections.push(Section {
             name: String::from_utf8_lossy(&name[..end]).into_owned(),
             virtual_size: u32at(d, o + 8, "virtual size")?,
             virtual_address: u32at(d, o + 12, "virtual address")?,
-            raw_size: u32at(d, o + 16, "raw size")?,
-            raw_offset: u32at(d, o + 20, "raw offset")?,
+            raw_size,
+            raw_offset,
             characteristics: u32at(d, o + 36, "section flags")?,
         });
     }
@@ -343,7 +353,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
 mod tests {
     use super::*;
     fn pe64() -> Vec<u8> {
-        let mut b = vec![0u8; 0x200 + 40];
+        let mut b = vec![0u8; 0x300];
         b[0..2].copy_from_slice(b"MZ");
         b[0x3c..0x40].copy_from_slice(&0x80u32.to_le_bytes());
         b[0x80..0x84].copy_from_slice(b"PE\0\0");
@@ -421,5 +431,14 @@ mod tests {
         let mut b = pe64();
         b[0x86..0x88].copy_from_slice(&u16::MAX.to_le_bytes());
         assert!(inspect(&b).is_err());
+    }
+    #[test]
+    fn rejects_section_raw_data_outside_file() {
+        let mut b = pe64();
+        b[0x198..0x19c].copy_from_slice(&0x2000u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("section raw range"))
+        ));
     }
 }
