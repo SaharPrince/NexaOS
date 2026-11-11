@@ -208,8 +208,11 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         });
     }
     let size_of_headers = u32at(d, opt + 60, "size of headers")?;
+    let section_table_size = nsec
+        .checked_mul(40)
+        .ok_or(PeError::OutOfBounds("section table size"))?;
     let section_table_end = st
-        .checked_add(nsec * 40)
+        .checked_add(section_table_size)
         .ok_or(PeError::OutOfBounds("section table end"))?;
     if size_of_headers as usize > d.len()
         || (nsec > 0 && (size_of_headers as usize) < section_table_end)
@@ -217,6 +220,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         return Err(PeError::Invalid("invalid size of headers"));
     }
     let map_rva_range = |rva: u32, len: usize| -> Result<(usize, usize)> {
+        let len_u32 = u32::try_from(len)
+            .map_err(|_| PeError::OutOfBounds("RVA range length"))?;
         let requested_end = (rva as usize)
             .checked_add(len)
             .ok_or(PeError::OutOfBounds("RVA range"))?;
@@ -240,7 +245,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 }
                 let file_offset = s.raw_offset.checked_add(delta)
                     .ok_or(PeError::OutOfBounds("RVA file offset"))?;
-                let file_end = file_offset.checked_add(len as u32)
+                let file_end = file_offset.checked_add(len_u32)
                     .ok_or(PeError::OutOfBounds("RVA file range"))?;
                 if file_end as usize > d.len() {
                     return Err(PeError::OutOfBounds("RVA file range"));
@@ -473,6 +478,19 @@ mod tests {
         assert!(matches!(
             inspect(&b),
             Err(PeError::OutOfBounds("RVA range exceeds section raw data"))
+        ));
+    }
+    #[test]
+    fn rejects_directory_in_virtual_only_section_data() {
+        let mut b = pe64();
+        let section = 0x98 + 0xf0;
+        b[section + 8..section + 12].copy_from_slice(&0x200u32.to_le_bytes());
+        let import_dir = 0x98 + 112 + 8;
+        b[import_dir..import_dir + 4].copy_from_slice(&0x1100u32.to_le_bytes());
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&0x14u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::OutOfBounds("RVA points to uninitialized section data"))
         ));
     }
     #[test]
