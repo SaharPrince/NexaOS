@@ -84,7 +84,9 @@ pub fn plan_image_layout(
         ));
     }
     if limits.max_image_size == 0 {
-        return Err(ImageLayoutError::Invalid("maximum image size must be nonzero"));
+        return Err(ImageLayoutError::Invalid(
+            "maximum image size must be nonzero",
+        ));
     }
 
     let image_size = report.size_of_image as u64;
