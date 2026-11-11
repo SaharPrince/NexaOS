@@ -33,15 +33,13 @@ fn main() {
         }
     };
     match inspect(&bytes) {
-        Ok(report) if json => {
-            match serde_json::to_string_pretty(&report) {
-                Ok(s) => println!("{s}"),
-                Err(e) => {
-                    eprintln!("JSON error: {e}");
-                    process::exit(1);
-                }
+        Ok(report) if json => match serde_json::to_string_pretty(&report) {
+            Ok(s) => println!("{s}"),
+            Err(e) => {
+                eprintln!("JSON error: {e}");
+                process::exit(1);
             }
-        }
+        },
         Ok(r) => {
             println!("Nexa PE Inspector");
             println!("File: {path}");
