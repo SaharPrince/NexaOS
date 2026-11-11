@@ -2,7 +2,7 @@ name: PE parser fuzz smoke test
 
 on:
   push:
-    branches: [main, "nce-001/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
