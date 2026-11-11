@@ -5,7 +5,7 @@ use nexa_inspect::inspect;
 
 fn decode_hex_seed(data: &[u8]) -> Option<Vec<u8>> {
     let text = std::str::from_utf8(data).ok()?;
-    let hex = text.strip_prefix("NEXA-PE-HEX\\n")?;
+    let hex = text.strip_prefix("NEXA-PE-HEX\n")?;
     let digits: Vec<u8> = hex.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
     if !digits.len().is_multiple_of(2) {
         return None;
