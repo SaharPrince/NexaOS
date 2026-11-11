@@ -76,8 +76,8 @@ jobs:
           if ($pe32Report.format -ne "PE32") {
             throw "Expected PE32 format, got: $($pe32Report.format)"
           }
-          if ($pe32Report.machine -ne "I386") {
-            throw "Expected I386 machine, got: $($pe32Report.machine)"
+          if ($pe32Report.machine -ne "x86") {
+            throw "Expected x86 machine, got: $($pe32Report.machine)"
           }
           if ($pe32Report.sections.Count -lt 1) {
             throw "Compiler-produced PE32 fixture has no parsed sections"
