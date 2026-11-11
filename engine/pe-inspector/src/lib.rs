@@ -455,6 +455,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     }
                     let flag = if width == 8 { 1u64 << 63 } else { 1u64 << 31 };
                     if value & flag != 0 {
+                        // IMAGE_THUNK_DATA reserves every ordinal-form bit
+                        // except the high ordinal flag and low 16-bit ordinal.
+                        if value & (flag - 1) & !0xffff != 0 {
+                            return Err(PeError::Invalid(
+                                "ordinal import thunk has nonzero reserved bits",
+                            ));
+                        }
                         symbols.push(format!("ordinal:{}", value & 0xffff));
                     } else {
                         let name_rva = u32::try_from(value).map_err(|_| {
@@ -773,6 +780,30 @@ mod tests {
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.imports[0].name, "KERNEL32.dll");
         assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+    }
+
+    #[test]
+    fn rejects_pe32_plus_ordinal_import_with_reserved_bits_set() {
+        let mut b = pe64_with_one_import();
+        b[0x240..0x248].copy_from_slice(&0x8000_0000_0000_0001u64.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "ordinal import thunk has nonzero reserved bits"
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_pe32_ordinal_import_with_reserved_bits_set() {
+        let mut b = pe32_with_one_import();
+        b[0x240..0x244].copy_from_slice(&0x8000_0001u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "ordinal import thunk has nonzero reserved bits"
+            ))
+        ));
     }
 
     #[test]
