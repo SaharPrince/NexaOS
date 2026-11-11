@@ -1193,5 +1193,4 @@ mod tests {
         let report = inspect(&b).unwrap();
         assert_eq!(report.directories[2].address, 0xffff_ff00);
     }
-
 }
