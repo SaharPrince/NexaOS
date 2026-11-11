@@ -6,6 +6,8 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ImageLayoutLimits {
     pub max_image_size: u64,
+    /// Maximum number of sections the planner may process and retain.
+    pub max_sections: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +88,11 @@ pub fn plan_image_layout(
     if limits.max_image_size == 0 {
         return Err(ImageLayoutError::Invalid(
             "maximum image size must be nonzero",
+        ));
+    }
+    if report.sections.len() > limits.max_sections {
+        return Err(ImageLayoutError::ResourceLimit(
+            "section count exceeds the configured maximum",
         ));
     }
 
@@ -295,6 +302,7 @@ mod tests {
     fn limits() -> ImageLayoutLimits {
         ImageLayoutLimits {
             max_image_size: 16 * 1024 * 1024,
+            max_sections: 96,
         }
     }
 
@@ -347,10 +355,30 @@ mod tests {
                 &input,
                 0x400,
                 ImageLayoutLimits {
-                    max_image_size: 0x2000
+                    max_image_size: 0x2000,
+                    max_sections: 96,
                 }
             ),
             Err(ImageLayoutError::ResourceLimit(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_section_count_over_configured_limit_before_planning() {
+        let mut input = report();
+        input.sections.push(input.sections[0].clone());
+        assert!(matches!(
+            plan_image_layout(
+                &input,
+                0x400,
+                ImageLayoutLimits {
+                    max_image_size: 0x4000,
+                    max_sections: 1,
+                }
+            ),
+            Err(ImageLayoutError::ResourceLimit(
+                "section count exceeds the configured maximum"
+            ))
         ));
     }
 
