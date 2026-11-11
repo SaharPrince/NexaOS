@@ -64,6 +64,28 @@ jobs:
             throw "Inspection must never execute the input"
           }
 
+          # Build a genuine 32-bit Windows PE with the MSVC toolchain and
+          # inspect it without executing the generated binary.
+          rustup target add i686-pc-windows-msvc
+          cargo build --locked -p nexa-inspect --target i686-pc-windows-msvc
+          $pe32 = "target/i686-pc-windows-msvc/debug/nexa-inspect.exe"
+          if (-not (Test-Path $pe32)) {
+            throw "Expected compiler-produced PE32 fixture was not built: $pe32"
+          }
+          $pe32Report = cargo run --locked -p nexa-inspect -- inspect --json $pe32 | ConvertFrom-Json
+          if ($pe32Report.format -ne "PE32") {
+            throw "Expected PE32 format, got: $($pe32Report.format)"
+          }
+          if ($pe32Report.machine -ne "I386") {
+            throw "Expected I386 machine, got: $($pe32Report.machine)"
+          }
+          if ($pe32Report.sections.Count -lt 1) {
+            throw "Compiler-produced PE32 fixture has no parsed sections"
+          }
+          if ($pe32Report.execution -ne "NOT_ATTEMPTED") {
+            throw "Inspection must never execute the PE32 input"
+          }
+
   clippy:
     name: Clippy (warnings denied)
     runs-on: ubuntu-latest
