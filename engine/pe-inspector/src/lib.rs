@@ -359,8 +359,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     return Err(PeError::Invalid("import descriptor has no thunk table"));
                 }
                 let mut symbols = Vec::new();
-                {
-                    let width = if magic == 0x20b { 8usize } else { 4usize };
+                let width = if magic == 0x20b { 8usize } else { 4usize };
                     let (mut to, thunk_available) = map_rva_range(thunk, width)?;
                     let thunk_count = (thunk_available / width).min(4096);
                     let mut thunk_terminated = false;
@@ -390,9 +389,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                             .checked_add(width)
                             .ok_or(PeError::OutOfBounds("thunk offset"))?;
                     }
-                    if !thunk_terminated {
-                        return Err(PeError::Invalid("unterminated import thunk table"));
-                    }
+                if !thunk_terminated {
+                    return Err(PeError::Invalid("unterminated import thunk table"));
                 }
                 imports.push(ImportLibrary { name, symbols });
             }
