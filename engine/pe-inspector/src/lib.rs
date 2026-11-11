@@ -515,8 +515,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 let (functions_offset, _) = map_rva_range(functions_rva, function_bytes)?;
                 let export_end = x.address as u64 + x.size as u64;
                 for i in 0..function_count {
-                    let function_rva =
-                        u32at(d, functions_offset + i * 4, "export function RVA")?;
+                    let function_rva = u32at(d, functions_offset + i * 4, "export function RVA")?;
                     if function_rva != 0
                         && (function_rva as u64) >= x.address as u64
                         && (function_rva as u64) < export_end
@@ -524,17 +523,10 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         // An address-table entry inside the export directory is
                         // a forwarder string, not a code/data RVA. Its terminator
                         // must occur before the export directory's declared end.
-                        let (forwarder_offset, file_available) =
-                            map_rva_range(function_rva, 1)?;
+                        let (forwarder_offset, file_available) = map_rva_range(function_rva, 1)?;
                         let directory_available = (export_end - function_rva as u64) as usize;
                         let available = file_available.min(directory_available);
-                        let _ = cstr(
-                            d,
-                            forwarder_offset,
-                            available,
-                            4096,
-                            "export forwarder",
-                        )?;
+                        let _ = cstr(d, forwarder_offset, available, 4096, "export forwarder")?;
                     }
                 }
             }
