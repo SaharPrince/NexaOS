@@ -183,7 +183,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let declared_directories = u32at(d, count_off, "directory count")? as usize;
     let supported_directories = declared_directories.min(MAX_DIRECTORIES);
     let available_directories = opt_size.saturating_sub(dirs_off - opt) / 8;
-    if supported_directories > available_directories {
+    if declared_directories > available_directories {
         return Err(PeError::Truncated("data directory entries"));
     }
     let ndirs = supported_directories;
@@ -240,7 +240,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         .checked_add(section_table_size)
         .ok_or(PeError::OutOfBounds("section table end"))?;
     if size_of_headers as usize > d.len()
-        || (nsec > 0 && (size_of_headers as usize) < section_table_end)
+        || (size_of_headers as usize) < section_table_end
     {
         return Err(PeError::Invalid("invalid size of headers"));
     }
@@ -697,6 +697,27 @@ mod tests {
     }
 
     #[test]
+    fn rejects_declared_directory_count_above_physical_storage() {
+        let mut b = pe64();
+        b[0x98 + 108..0x98 + 112].copy_from_slice(&17u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Truncated("data directory entries"))
+        ));
+    }
+
+    #[test]
+    fn rejects_size_of_headers_before_section_table_end_without_sections() {
+        let mut b = pe64();
+        b[0x86..0x88].copy_from_slice(&0u16.to_le_bytes());
+        b[0x98 + 60..0x98 + 64].copy_from_slice(&0x100u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("invalid size of headers"))
+        ));
+    }
+
+    #[test]
     fn parses_pe32_plus() {
         let r = inspect(&pe64()).unwrap();
         assert_eq!(r.format, "PE32+");
@@ -732,7 +753,7 @@ mod tests {
     fn rejects_pe_header_offset_inside_dos_header() {
         let mut b = pe64();
         b[0x3c..0x40].copy_from_slice(&0x20u32.to_le_bytes());
-        b[0x20..0x24].copy_from_slice(b"PE\\0\\0");
+        b[0x20..0x24].copy_from_slice(b"PE\0\0");
         assert!(matches!(
             inspect(&b),
             Err(PeError::Invalid("PE header overlaps the DOS header"))
