@@ -610,7 +610,7 @@ mod tests {
         let mut b = pe64();
         let reloc_dir = 0x98 + 112 + 5 * 8;
         b[reloc_dir..reloc_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
-        b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&block_size.to_le_bytes());
+        b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&block_size.max(8).to_le_bytes());
         b[0x200..0x204].copy_from_slice(&0x1000u32.to_le_bytes());
         b[0x204..0x208].copy_from_slice(&block_size.to_le_bytes());
         b[0x208..0x20a].copy_from_slice(&0x3000u16.to_le_bytes());
