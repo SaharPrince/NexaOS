@@ -213,9 +213,7 @@ pub fn plan_image_layout(
             }
             for &(other_start, other_end) in &source_ranges {
                 if overlaps(file_offset, file_end, other_start, other_end) {
-                    return Err(ImageLayoutError::Invalid(
-                        "section raw file ranges overlap",
-                    ));
+                    return Err(ImageLayoutError::Invalid("section raw file ranges overlap"));
                 }
             }
             source_ranges.push((file_offset, file_end));
@@ -403,12 +401,11 @@ mod tests {
         second.name = ".data".into();
         second.virtual_address = 0x2000;
         second.raw_offset = 0x300;
+        input.size_of_image = 0x3000;
         input.sections.push(second);
         assert!(matches!(
             plan_image_layout(&input, 0x600, limits()),
-            Err(ImageLayoutError::Invalid(
-                "section raw file ranges overlap"
-            ))
+            Err(ImageLayoutError::Invalid("section raw file ranges overlap"))
         ));
     }
 
