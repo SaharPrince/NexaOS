@@ -948,7 +948,6 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn rejects_certificate_length_that_excludes_alignment_padding() {
         let mut b = pe64();
