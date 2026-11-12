@@ -31,21 +31,21 @@ fn plans_the_compiler_produced_nexa_inspect_executable() {
 
     let mut expected_copy_bytes = plan.headers.length;
     let mut expected_zero_fill_bytes = 0_u64;
-    for section in report.sections.iter().filter(|section| {
-        section.virtual_size > 0 || section.raw_size > 0
-    }) {
+    for section in report
+        .sections
+        .iter()
+        .filter(|section| section.virtual_size > 0 || section.raw_size > 0)
+    {
         let mapped_size = if section.virtual_size == 0 {
             u64::from(section.raw_size)
         } else {
             u64::from(section.virtual_size)
         };
-        let expected_copy = u64::from(section.raw_size.min(
-            if section.virtual_size == 0 {
-                section.raw_size
-            } else {
-                section.virtual_size
-            },
-        ));
+        let expected_copy = u64::from(section.raw_size.min(if section.virtual_size == 0 {
+            section.raw_size
+        } else {
+            section.virtual_size
+        }));
         let layout = plan
             .sections
             .iter()
@@ -70,10 +70,7 @@ fn plans_the_compiler_produced_nexa_inspect_executable() {
             expected_copy_bytes += copy.length;
         }
         if let Some(zero_fill) = &layout.zero_fill {
-            assert_eq!(
-                zero_fill.image_rva,
-                layout.image_rva + expected_copy
-            );
+            assert_eq!(zero_fill.image_rva, layout.image_rva + expected_copy);
             expected_zero_fill_bytes += zero_fill.length;
         }
     }
