@@ -112,6 +112,7 @@ fn rejects_low_section_alignment_when_raw_offset_differs_from_rva() {
     input.size_of_image = 0x1000;
     input.section_alignment = 0x200;
     input.file_alignment = 0x200;
+    input.entry_point_rva = 0x200;
 
     assert!(matches!(
         plan_image_layout(&input, 0x600, limits()),
