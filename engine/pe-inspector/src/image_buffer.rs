@@ -128,8 +128,7 @@ pub fn populate_image_buffer(
         if length == 0 || end > plan.image_size {
             return Err(ImageAllocationError::InvalidPlan);
         }
-        let start =
-            usize::try_from(destination).map_err(|_| ImageAllocationError::InvalidPlan)?;
+        let start = usize::try_from(destination).map_err(|_| ImageAllocationError::InvalidPlan)?;
         let end = usize::try_from(end).map_err(|_| ImageAllocationError::InvalidPlan)?;
         if let Some(source) = source {
             let source_end = source
@@ -247,8 +246,15 @@ mod tests {
                 name: ".text".into(),
                 image_rva: 0x200,
                 mapped_size: 8,
-                copy: Some(ImageCopyRange { file_offset: 4, image_rva: 0x200, length: 4 }),
-                zero_fill: Some(ImageZeroFillRange { image_rva: 0x204, length: 4 }),
+                copy: Some(ImageCopyRange {
+                    file_offset: 4,
+                    image_rva: 0x200,
+                    length: 4,
+                }),
+                zero_fill: Some(ImageZeroFillRange {
+                    image_rva: 0x204,
+                    length: 4,
+                }),
             }],
             total_copy_bytes: 8,
             total_zero_fill_bytes: 4,
