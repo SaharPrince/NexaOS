@@ -92,6 +92,30 @@ jobs:
             throw "Inspection must never execute the PE32 input"
           }
 
+  external-pe-corpus:
+    name: External compiler PE layout (MinGW)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install MinGW-w64 cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64
+      - name: Build independent PE32+ fixture
+        shell: bash
+        run: |
+          mkdir -p target/pe-corpus
+          x86_64-w64-mingw32-gcc --version | head -n 1 | tee target/pe-corpus/compiler-version.txt
+          x86_64-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
+            -o target/pe-corpus/mingw-x86_64.exe \
+            engine/pe-inspector/tests/fixtures/mingw_layout.c
+          echo "NEXA_MINGW_PE_FIXTURE=$PWD/target/pe-corpus/mingw-x86_64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_MINGW_COMPILER_VERSION=$(cat target/pe-corpus/compiler-version.txt)" >> "$GITHUB_ENV"
+      - name: Inspect and plan external compiler output
+        run: cargo test --locked -p nexa-inspect --test external_compiler_pe -- --nocapture
+
   clippy:
     name: Clippy (warnings denied)
     runs-on: ubuntu-latest
