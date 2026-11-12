@@ -118,6 +118,7 @@ pub fn populate_image_buffer(
     }
 
     let mut destinations: Vec<(usize, usize)> = Vec::new();
+    let mut sources: Vec<(u64, u64)> = Vec::new();
     let mut copy_total = 0u64;
     let mut zero_total = 0u64;
 
@@ -137,6 +138,13 @@ pub fn populate_image_buffer(
             if source_end > input.len() as u64 {
                 return Err(ImageAllocationError::InputOutOfBounds);
             }
+            if sources
+                .iter()
+                .any(|(other_start, other_end)| source < *other_end && *other_start < source_end)
+            {
+                return Err(ImageAllocationError::InvalidPlan);
+            }
+            sources.push((source, source_end));
             copy_total = copy_total
                 .checked_add(length)
                 .ok_or(ImageAllocationError::InvalidPlan)?;
@@ -157,12 +165,43 @@ pub fn populate_image_buffer(
         plan.headers.image_rva,
         plan.headers.length,
     )?;
+
     for section in &plan.sections {
+        if section.mapped_size == 0 {
+            return Err(ImageAllocationError::InvalidPlan);
+        }
+        let section_end = section
+            .image_rva
+            .checked_add(section.mapped_size)
+            .ok_or(ImageAllocationError::InvalidPlan)?;
+        if section_end > plan.image_size {
+            return Err(ImageAllocationError::InvalidPlan);
+        }
+
+        let copy_length = section.copy.as_ref().map_or(0, |copy| copy.length);
+        let zero_length = section.zero_fill.as_ref().map_or(0, |zero| zero.length);
+        if copy_length.checked_add(zero_length) != Some(section.mapped_size) {
+            return Err(ImageAllocationError::InvalidPlan);
+        }
+
         if let Some(copy) = &section.copy {
+            if copy.image_rva != section.image_rva {
+                return Err(ImageAllocationError::InvalidPlan);
+            }
             validate_range(Some(copy.file_offset), copy.image_rva, copy.length)?;
         }
         if let Some(zero) = &section.zero_fill {
+            let expected_zero_rva = section
+                .image_rva
+                .checked_add(copy_length)
+                .ok_or(ImageAllocationError::InvalidPlan)?;
+            if zero.image_rva != expected_zero_rva {
+                return Err(ImageAllocationError::InvalidPlan);
+            }
             validate_range(None, zero.image_rva, zero.length)?;
+        }
+        if section.copy.is_none() && section.zero_fill.is_none() {
+            return Err(ImageAllocationError::InvalidPlan);
         }
     }
     if copy_total != plan.total_copy_bytes || zero_total != plan.total_zero_fill_bytes {
