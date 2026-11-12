@@ -42,6 +42,12 @@ jobs:
         run: cargo test --workspace --locked
       - name: Check CLI help
         run: cargo run --locked -p nexa-inspect -- --help
+      - name: Run lightweight image benchmark smoke test
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          NEXA_BENCH_PLAN_ITERS: 5
+          NEXA_BENCH_BUFFER_ITERS: 2
+        run: cargo bench --locked -p nexa-inspect --bench nexa_image
       - name: Inspect a compiler-produced PE32+ executable
         if: matrix.os == 'windows-latest'
         shell: pwsh
