@@ -3,7 +3,9 @@ use std::fmt;
 
 mod image_buffer;
 mod image_layout;
-pub use image_buffer::{allocate_image_buffer, ImageAllocationError, ImageAllocator, ImageBuffer, SystemImageAllocator};
+pub use image_buffer::{
+    allocate_image_buffer, ImageAllocationError, ImageAllocator, ImageBuffer, SystemImageAllocator,
+};
 pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
     ImageZeroFillRange, SectionImageLayout,
