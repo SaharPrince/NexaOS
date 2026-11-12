@@ -133,4 +133,17 @@ fn main() {
     println!(
         "note: counts are calls to the image-buffer allocator, not process-wide heap allocation counts; peak RSS is not measured"
     );
+
+    // Optional hold keeps the process alive long enough for an external
+    // process monitor to read its peak working set. It is outside all timed
+    // benchmark phases and is disabled during normal benchmark runs.
+    let hold_ms = std::env::var("NEXA_BENCH_HOLD_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0)
+        .clamp(0, 30_000);
+    if hold_ms > 0 {
+        println!("external_measurement_hold_ms={hold_ms}");
+        std::thread::sleep(Duration::from_millis(hold_ms));
+    }
 }
