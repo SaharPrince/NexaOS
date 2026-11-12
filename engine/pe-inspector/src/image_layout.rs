@@ -214,6 +214,13 @@ pub fn plan_image_layout(
                     "section raw data overlaps image headers",
                 ));
             }
+            // With sub-page SectionAlignment, PE image files require the
+            // section's on-disk offset to match its in-memory RVA.
+            if section_alignment < 0x1000 && file_offset != image_rva {
+                return Err(ImageLayoutError::Invalid(
+                    "low-alignment section raw offset must equal its RVA",
+                ));
+            }
             if !file_offset.is_multiple_of(file_alignment)
                 || !raw_size.is_multiple_of(file_alignment)
             {
