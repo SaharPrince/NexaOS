@@ -129,7 +129,7 @@ jobs:
             -Wl,/machine:x64 -Wl,/timestamp:0 \
             -o target/pe-corpus/llvm-lld-x86_64.exe \
             engine/pe-inspector/tests/fixtures/llvm_layout.c
-          llvm-readobj --file-headers --sections target/pe-corpus/llvm-lld-x86_64.exe
+          objdump -h target/pe-corpus/llvm-lld-x86_64.exe
           echo "NEXA_LLVM_PE_FIXTURE=$PWD/target/pe-corpus/llvm-lld-x86_64.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_COMPILER_VERSION=$(cat target/pe-corpus/clang-version.txt)" >> "$GITHUB_ENV"
           echo "NEXA_LLD_LINKER_VERSION=$(cat target/pe-corpus/lld-version.txt)" >> "$GITHUB_ENV"
