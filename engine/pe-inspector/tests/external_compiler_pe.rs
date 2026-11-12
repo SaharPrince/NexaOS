@@ -1,5 +1,13 @@
 use nexa_inspect::{inspect, plan_image_layout, ImageLayoutLimits};
 
+fn read_u32(bytes: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(
+        bytes[offset..offset + 4]
+            .try_into()
+            .expect("PE header field is in bounds"),
+    )
+}
+
 #[test]
 fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     let Some(path) = std::env::var_os("NEXA_MINGW_PE_FIXTURE") else {
@@ -8,6 +16,16 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     };
 
     let bytes = std::fs::read(path).expect("read MinGW-produced PE fixture");
+    let pe_offset = read_u32(&bytes, 0x3c) as usize;
+    let optional_header = pe_offset + 24;
+    let import_directory = optional_header + 112 + 8;
+    let import_rva = read_u32(&bytes, import_directory);
+    let import_size = read_u32(&bytes, import_directory + 4);
+    println!(
+        "Raw PE import directory: RVA={import_rva:#x}, size={import_size:#x}, size_mod_descriptor={}",
+        import_size % 20
+    );
+
     let report = inspect(&bytes).expect("inspect MinGW-produced PE fixture");
 
     assert_eq!(report.format, "PE32+");

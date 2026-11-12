@@ -111,6 +111,7 @@ jobs:
           x86_64-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
             -o target/pe-corpus/mingw-x86_64.exe \
             engine/pe-inspector/tests/fixtures/mingw_layout.c
+          x86_64-w64-mingw32-objdump -p target/pe-corpus/mingw-x86_64.exe | sed -n '/The Data Directory/,+20p'
           echo "NEXA_MINGW_PE_FIXTURE=$PWD/target/pe-corpus/mingw-x86_64.exe" >> "$GITHUB_ENV"
           echo "NEXA_MINGW_COMPILER_VERSION=$(cat target/pe-corpus/compiler-version.txt)" >> "$GITHUB_ENV"
       - name: Inspect and plan external compiler output
