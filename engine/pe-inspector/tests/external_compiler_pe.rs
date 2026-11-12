@@ -147,3 +147,79 @@ fn inspects_independently_compiled_mingw_pe32_x86_when_configured() {
         report.sections.len()
     );
 }
+
+
+#[test]
+fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_LLVM_PE_FIXTURE") else {
+        eprintln!("skipping external LLVM/LLD PE32+ fixture: NEXA_LLVM_PE_FIXTURE is not set");
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read LLVM/LLD-produced PE32+ fixture");
+    let report = inspect(&bytes).expect("inspect LLVM/LLD-produced PE32+ fixture");
+
+    assert_eq!(report.format, "PE32+");
+    assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+    assert!(!report.sections.is_empty());
+
+    assert!(
+        report.sections.iter().any(|section| section.raw_size > 0 && section.virtual_size > 0),
+        "expected initialized data from LLVM/LLD fixture"
+    );
+    assert!(
+        report.sections.iter().any(|section| section.virtual_size > section.raw_size),
+        "expected virtual-only storage from LLVM/LLD fixture"
+    );
+    assert!(
+        report.sections.iter().any(|section| section.virtual_size > 0 && section.raw_size > section.virtual_size),
+        "expected file-alignment padding from LLVM/LLD fixture"
+    );
+
+    let plan = plan_image_layout(
+        &report,
+        bytes.len() as u64,
+        ImageLayoutLimits {
+            max_image_size: 256 * 1024 * 1024,
+            max_sections: 96,
+        },
+    )
+    .expect("plan LLVM/LLD-produced PE32+ image");
+
+    assert_eq!(plan.image_size, u64::from(report.size_of_image));
+    assert!(plan.total_copy_bytes >= plan.headers.length);
+    assert!(plan.total_zero_fill_bytes > 0);
+    assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
+
+    for section in report.sections.iter().filter(|section| section.virtual_size > 0) {
+        let layout = plan.sections.iter().find(|layout| {
+            layout.name == section.name
+                && layout.image_rva == u64::from(section.virtual_address)
+        }).expect("every nonempty virtual section has a layout");
+        assert_eq!(layout.mapped_size, u64::from(section.virtual_size));
+        if section.raw_size > 0 {
+            assert_eq!(
+                layout.copy.as_ref().map(|copy| copy.length),
+                Some(u64::from(section.raw_size.min(section.virtual_size))),
+                "copy length must exclude raw alignment padding for {}",
+                section.name
+            );
+        }
+    }
+
+    if let Ok(version) = std::env::var("NEXA_LLVM_COMPILER_VERSION") {
+        println!("External LLVM compiler: {version}");
+    }
+    if let Ok(version) = std::env::var("NEXA_LLD_LINKER_VERSION") {
+        println!("External LLD linker: {version}");
+    }
+    println!(
+        "LLVM/LLD PE32+ fixture: {} bytes, {} sections, {} copy bytes, {} zero-fill bytes",
+        bytes.len(),
+        report.sections.len(),
+        plan.total_copy_bytes,
+        plan.total_zero_fill_bytes
+    );
+}
