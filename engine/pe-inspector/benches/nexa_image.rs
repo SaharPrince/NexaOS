@@ -117,7 +117,11 @@ fn main() {
         input.len()
     );
     report_rate("planning", planning_elapsed, planning_iterations);
-    report_rate("image_buffer_allocation", allocation_elapsed, buffer_iterations);
+    report_rate(
+        "image_buffer_allocation",
+        allocation_elapsed,
+        buffer_iterations,
+    );
     report_rate("population_only", population_elapsed, buffer_iterations);
     println!(
         "logical_image_buffer_allocations: allocation_only={}, population_runs={}",
