@@ -418,7 +418,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let mut imports = Vec::new();
     if let Some(x) = getdir(1) {
         if x.address != 0 && x.size > 0 {
-            if x.size < 20 || x.size % 20 != 0 {
+            if x.size < 20 {
                 return Err(PeError::Invalid("invalid import directory size"));
             }
             let (start, _) = map_rva_range(x.address, x.size as usize)?;
@@ -849,6 +849,21 @@ mod tests {
     #[test]
     fn extracts_valid_import_library_and_symbol() {
         let report = inspect(&pe64_with_one_import()).unwrap();
+        assert_eq!(report.imports.len(), 1);
+        assert_eq!(report.imports[0].name, "KERNEL32.dll");
+        assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+    }
+
+    #[test]
+    fn accepts_import_directory_size_covering_other_import_data() {
+        let mut b = pe64_with_one_import();
+        let import_dir = 0x98 + 112 + 8;
+        // Some linkers size this directory over the complete import-data
+        // region, not only the IMAGE_IMPORT_DESCRIPTOR array. The descriptor
+        // array itself remains terminated by its all-zero entry.
+        b[import_dir + 4..import_dir + 8].copy_from_slice(&0x100u32.to_le_bytes());
+
+        let report = inspect(&b).unwrap();
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.imports[0].name, "KERNEL32.dll");
         assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
