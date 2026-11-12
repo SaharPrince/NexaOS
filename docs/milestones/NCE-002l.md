@@ -10,6 +10,14 @@ The Windows CI runner supplies `%WINDIR%\System32\where.exe` through `NEXA_WINDO
 
 The binary is supplied by the CI operating system and is never executed by the test. No proprietary executable is added to the repository.
 
-## Validation status
+## Validation
 
-The test is newly added. Its first Windows CI result is pending. A failure should trigger a compatibility investigation against the actual section headers and PE metadata; do not weaken bounds or overlap checks merely to make the sample pass.
+The Windows test passed on commit `dcbc2bc`:
+
+- Fixture: `where.exe`, 65,536 bytes.
+- Parsed sections: 7.
+- Planned copy bytes: 50,416.
+- Planned zero-fill bytes: 0.
+- Inspection and image-layout planning both succeeded; execution was not attempted.
+
+This is one Windows system sample, not broad coverage of all Windows versions or application vendors.
