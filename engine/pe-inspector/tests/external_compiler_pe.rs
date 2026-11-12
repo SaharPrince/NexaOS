@@ -11,22 +11,22 @@ fn read_u32(bytes: &[u8], offset: usize) -> u32 {
 #[test]
 fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     let Some(path) = std::env::var_os("NEXA_MINGW_PE_FIXTURE") else {
-        eprintln!("skipping external MinGW fixture: NEXA_MINGW_PE_FIXTURE is not set");
+        eprintln!("skipping external MinGW PE32+ fixture: NEXA_MINGW_PE_FIXTURE is not set");
         return;
     };
 
-    let bytes = std::fs::read(path).expect("read MinGW-produced PE fixture");
+    let bytes = std::fs::read(path).expect("read MinGW-produced PE32+ fixture");
     let pe_offset = read_u32(&bytes, 0x3c) as usize;
     let optional_header = pe_offset + 24;
     let import_directory = optional_header + 112 + 8;
     let import_rva = read_u32(&bytes, import_directory);
     let import_size = read_u32(&bytes, import_directory + 4);
     println!(
-        "Raw PE import directory: RVA={import_rva:#x}, size={import_size:#x}, size_mod_descriptor={}",
+        "Raw PE32+ import directory: RVA={import_rva:#x}, size={import_size:#x}, size_mod_descriptor={}",
         import_size % 20
     );
 
-    let report = inspect(&bytes).expect("inspect MinGW-produced PE fixture");
+    let report = inspect(&bytes).expect("inspect MinGW-produced PE32+ fixture");
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
@@ -65,7 +65,7 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
 
     if let Ok(version) = std::env::var("NEXA_MINGW_COMPILER_VERSION") {
-        println!("External PE fixture compiler: {version}");
+        println!("External PE32+ fixture compiler: {version}");
     }
     println!(
         "MinGW PE32+ fixture: {} bytes, {} sections, {} copy bytes, {} zero-fill bytes",
@@ -73,5 +73,31 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
         report.sections.len(),
         plan.total_copy_bytes,
         plan.total_zero_fill_bytes
+    );
+}
+
+#[test]
+fn inspects_independently_compiled_mingw_pe32_x86_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_MINGW_PE32_FIXTURE") else {
+        eprintln!("skipping external MinGW PE32 fixture: NEXA_MINGW_PE32_FIXTURE is not set");
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read MinGW-produced PE32 fixture");
+    let report = inspect(&bytes).expect("inspect MinGW-produced PE32 fixture");
+
+    assert_eq!(report.format, "PE32");
+    assert_eq!(report.machine_raw, 0x014c);
+    assert_eq!(report.machine, "x86");
+    assert!(!report.sections.is_empty());
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+    if let Ok(version) = std::env::var("NEXA_MINGW_PE32_COMPILER_VERSION") {
+        println!("External PE32 fixture compiler: {version}");
+    }
+    println!(
+        "MinGW PE32 fixture: {} bytes, {} sections; inspection only (planner remains AMD64-only)",
+        bytes.len(),
+        report.sections.len()
     );
 }
