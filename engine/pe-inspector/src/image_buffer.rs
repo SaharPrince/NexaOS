@@ -102,8 +102,6 @@ pub fn allocate_image_buffer(
     Ok(ImageBuffer { bytes })
 }
 
-
-
 /// Validate every planned source and destination range before changing the
 /// buffer. The buffer is consumed so a failed population can never expose a
 /// partially populated image as a successful result.
@@ -124,20 +122,29 @@ pub fn populate_image_buffer(
     let mut zero_total = 0u64;
 
     let mut validate_range = |source: Option<u64>, destination: u64, length: u64| {
-        let end = destination.checked_add(length).ok_or(ImageAllocationError::InvalidPlan)?;
+        let end = destination
+            .checked_add(length)
+            .ok_or(ImageAllocationError::InvalidPlan)?;
         if length == 0 || end > plan.image_size {
             return Err(ImageAllocationError::InvalidPlan);
         }
-        let start = usize::try_from(destination).map_err(|_| ImageAllocationError::InvalidPlan)?;
+        let start =
+            usize::try_from(destination).map_err(|_| ImageAllocationError::InvalidPlan)?;
         let end = usize::try_from(end).map_err(|_| ImageAllocationError::InvalidPlan)?;
         if let Some(source) = source {
-            let source_end = source.checked_add(length).ok_or(ImageAllocationError::InvalidPlan)?;
+            let source_end = source
+                .checked_add(length)
+                .ok_or(ImageAllocationError::InvalidPlan)?;
             if source_end > input.len() as u64 {
                 return Err(ImageAllocationError::InputOutOfBounds);
             }
-            copy_total = copy_total.checked_add(length).ok_or(ImageAllocationError::InvalidPlan)?;
+            copy_total = copy_total
+                .checked_add(length)
+                .ok_or(ImageAllocationError::InvalidPlan)?;
         } else {
-            zero_total = zero_total.checked_add(length).ok_or(ImageAllocationError::InvalidPlan)?;
+            zero_total = zero_total
+                .checked_add(length)
+                .ok_or(ImageAllocationError::InvalidPlan)?;
         }
         if destinations.iter().any(|(a, b)| start < *b && *a < end) {
             return Err(ImageAllocationError::OverlappingDestination);
@@ -146,7 +153,11 @@ pub fn populate_image_buffer(
         Ok(())
     };
 
-    validate_range(Some(plan.headers.file_offset), plan.headers.image_rva, plan.headers.length)?;
+    validate_range(
+        Some(plan.headers.file_offset),
+        plan.headers.image_rva,
+        plan.headers.length,
+    )?;
     for section in &plan.sections {
         if let Some(copy) = &section.copy {
             validate_range(Some(copy.file_offset), copy.image_rva, copy.length)?;
@@ -159,18 +170,24 @@ pub fn populate_image_buffer(
         return Err(ImageAllocationError::InvalidPlan);
     }
 
-    let header_len = usize::try_from(plan.headers.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
+    let header_len =
+        usize::try_from(plan.headers.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
     image.bytes[..header_len].copy_from_slice(&input[..header_len]);
     for section in &plan.sections {
         if let Some(copy) = &section.copy {
-            let src = usize::try_from(copy.file_offset).map_err(|_| ImageAllocationError::InvalidPlan)?;
-            let dst = usize::try_from(copy.image_rva).map_err(|_| ImageAllocationError::InvalidPlan)?;
-            let len = usize::try_from(copy.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
+            let src =
+                usize::try_from(copy.file_offset).map_err(|_| ImageAllocationError::InvalidPlan)?;
+            let dst =
+                usize::try_from(copy.image_rva).map_err(|_| ImageAllocationError::InvalidPlan)?;
+            let len =
+                usize::try_from(copy.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
             image.bytes[dst..dst + len].copy_from_slice(&input[src..src + len]);
         }
         if let Some(zero) = &section.zero_fill {
-            let dst = usize::try_from(zero.image_rva).map_err(|_| ImageAllocationError::InvalidPlan)?;
-            let len = usize::try_from(zero.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
+            let dst =
+                usize::try_from(zero.image_rva).map_err(|_| ImageAllocationError::InvalidPlan)?;
+            let len =
+                usize::try_from(zero.length).map_err(|_| ImageAllocationError::InvalidPlan)?;
             image.bytes[dst..dst + len].fill(0);
         }
     }
@@ -221,7 +238,11 @@ mod tests {
         use crate::{ImageCopyRange, ImageZeroFillRange, SectionImageLayout};
         let plan = ImageLayoutPlan {
             image_size: 0x1000,
-            headers: ImageCopyRange { file_offset: 0, image_rva: 0, length: 4 },
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 4,
+            },
             sections: vec![SectionImageLayout {
                 name: ".text".into(),
                 image_rva: 0x200,
@@ -245,14 +266,21 @@ mod tests {
     fn rejects_out_of_bounds_source_without_returning_image() {
         let plan = ImageLayoutPlan {
             image_size: 16,
-            headers: ImageCopyRange { file_offset: 0, image_rva: 0, length: 4 },
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 4,
+            },
             sections: vec![],
             total_copy_bytes: 4,
             total_zero_fill_bytes: 0,
         };
         let mut allocator = TestAllocator::default();
         let image = allocate_image_buffer(&plan, 16, &mut allocator).unwrap();
-        assert_eq!(populate_image_buffer(&plan, b"abc", image).unwrap_err(), ImageAllocationError::InputOutOfBounds);
+        assert_eq!(
+            populate_image_buffer(&plan, b"abc", image).unwrap_err(),
+            ImageAllocationError::InputOutOfBounds
+        );
     }
 
     #[test]
@@ -260,10 +288,20 @@ mod tests {
         use crate::{ImageCopyRange, SectionImageLayout};
         let plan = ImageLayoutPlan {
             image_size: 32,
-            headers: ImageCopyRange { file_offset: 0, image_rva: 0, length: 8 },
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 8,
+            },
             sections: vec![SectionImageLayout {
-                name: ".bad".into(), image_rva: 4, mapped_size: 4,
-                copy: Some(ImageCopyRange { file_offset: 8, image_rva: 4, length: 4 }),
+                name: ".bad".into(),
+                image_rva: 4,
+                mapped_size: 4,
+                copy: Some(ImageCopyRange {
+                    file_offset: 8,
+                    image_rva: 4,
+                    length: 4,
+                }),
                 zero_fill: None,
             }],
             total_copy_bytes: 12,
@@ -271,21 +309,31 @@ mod tests {
         };
         let mut allocator = TestAllocator::default();
         let image = allocate_image_buffer(&plan, 32, &mut allocator).unwrap();
-        assert_eq!(populate_image_buffer(&plan, b"abcdefghijkl", image).unwrap_err(), ImageAllocationError::OverlappingDestination);
+        assert_eq!(
+            populate_image_buffer(&plan, b"abcdefghijkl", image).unwrap_err(),
+            ImageAllocationError::OverlappingDestination
+        );
     }
 
     #[test]
     fn rejects_inconsistent_accounting() {
         let plan = ImageLayoutPlan {
             image_size: 16,
-            headers: ImageCopyRange { file_offset: 0, image_rva: 0, length: 4 },
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 4,
+            },
             sections: vec![],
             total_copy_bytes: 5,
             total_zero_fill_bytes: 0,
         };
         let mut allocator = TestAllocator::default();
         let image = allocate_image_buffer(&plan, 16, &mut allocator).unwrap();
-        assert_eq!(populate_image_buffer(&plan, b"1234", image).unwrap_err(), ImageAllocationError::InvalidPlan);
+        assert_eq!(
+            populate_image_buffer(&plan, b"1234", image).unwrap_err(),
+            ImageAllocationError::InvalidPlan
+        );
     }
 
     #[test]
