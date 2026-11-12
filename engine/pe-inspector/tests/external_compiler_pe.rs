@@ -148,7 +148,6 @@ fn inspects_independently_compiled_mingw_pe32_x86_when_configured() {
     );
 }
 
-
 #[test]
 fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
     let Some(path) = std::env::var_os("NEXA_LLVM_PE_FIXTURE") else {
@@ -166,15 +165,24 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
     assert!(!report.sections.is_empty());
 
     assert!(
-        report.sections.iter().any(|section| section.raw_size > 0 && section.virtual_size > 0),
+        report
+            .sections
+            .iter()
+            .any(|section| section.raw_size > 0 && section.virtual_size > 0),
         "expected initialized data from LLVM/LLD fixture"
     );
     assert!(
-        report.sections.iter().any(|section| section.virtual_size > section.raw_size),
+        report
+            .sections
+            .iter()
+            .any(|section| section.virtual_size > section.raw_size),
         "expected virtual-only storage from LLVM/LLD fixture"
     );
     assert!(
-        report.sections.iter().any(|section| section.virtual_size > 0 && section.raw_size > section.virtual_size),
+        report
+            .sections
+            .iter()
+            .any(|section| section.virtual_size > 0 && section.raw_size > section.virtual_size),
         "expected file-alignment padding from LLVM/LLD fixture"
     );
 
@@ -193,11 +201,19 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
     assert!(plan.total_zero_fill_bytes > 0);
     assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
 
-    for section in report.sections.iter().filter(|section| section.virtual_size > 0) {
-        let layout = plan.sections.iter().find(|layout| {
-            layout.name == section.name
-                && layout.image_rva == u64::from(section.virtual_address)
-        }).expect("every nonempty virtual section has a layout");
+    for section in report
+        .sections
+        .iter()
+        .filter(|section| section.virtual_size > 0)
+    {
+        let layout = plan
+            .sections
+            .iter()
+            .find(|layout| {
+                layout.name == section.name
+                    && layout.image_rva == u64::from(section.virtual_address)
+            })
+            .expect("every nonempty virtual section has a layout");
         assert_eq!(layout.mapped_size, u64::from(section.virtual_size));
         if section.raw_size > 0 {
             assert_eq!(
