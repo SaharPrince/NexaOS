@@ -5,6 +5,7 @@ volatile unsigned char initialized_payload[4096] = {
 volatile unsigned char zero_initialized_payload[16384];
 
 /* A one-byte section checks raw file-alignment padding from a second linker. */
+#pragma section(".nexa_pad", read, write)
 __declspec(allocate(".nexa_pad")) volatile unsigned char raw_padding_probe = 0x7b;
 
 void entry(void) {
