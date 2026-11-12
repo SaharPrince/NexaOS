@@ -93,7 +93,7 @@ jobs:
           }
 
   external-pe-corpus:
-    name: External compiler PE layout (MinGW)
+    name: External compiler PE layout (MinGW + LLVM/LLD)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
       - name: Install MinGW-w64 cross compilers
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 clang lld
       - name: Build independent PE32+ and PE32 fixtures
         shell: bash
         run: |
@@ -122,6 +122,17 @@ jobs:
           echo "NEXA_MINGW_COMPILER_VERSION=$(cat target/pe-corpus/compiler-x86_64-version.txt)" >> "$GITHUB_ENV"
           echo "NEXA_MINGW_PE32_FIXTURE=$PWD/target/pe-corpus/mingw-i686.exe" >> "$GITHUB_ENV"
           echo "NEXA_MINGW_PE32_COMPILER_VERSION=$(cat target/pe-corpus/compiler-i686-version.txt)" >> "$GITHUB_ENV"
+          clang --version | head -n 1 | tee target/pe-corpus/clang-version.txt
+          ld.lld --version | head -n 1 | tee target/pe-corpus/lld-version.txt
+          clang --target=x86_64-pc-windows-msvc -fuse-ld=lld -nostdlib \
+            -Wl,/entry:entry -Wl,/subsystem:console -Wl,/nodefaultlib \
+            -Wl,/machine:x64 -Wl,/timestamp:0 \
+            -o target/pe-corpus/llvm-lld-x86_64.exe \
+            engine/pe-inspector/tests/fixtures/llvm_layout.c
+          llvm-readobj --file-headers --sections target/pe-corpus/llvm-lld-x86_64.exe
+          echo "NEXA_LLVM_PE_FIXTURE=$PWD/target/pe-corpus/llvm-lld-x86_64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_COMPILER_VERSION=$(cat target/pe-corpus/clang-version.txt)" >> "$GITHUB_ENV"
+          echo "NEXA_LLD_LINKER_VERSION=$(cat target/pe-corpus/lld-version.txt)" >> "$GITHUB_ENV"
       - name: Inspect and plan external compiler output
         run: cargo test --locked -p nexa-inspect --test external_compiler_pe -- --nocapture
 
