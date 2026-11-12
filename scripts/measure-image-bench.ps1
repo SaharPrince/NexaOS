@@ -50,7 +50,12 @@ try {
         Start-Sleep -Milliseconds 5
     }
 
+    # Ensure the process handle has been waited on before reading ExitCode.
+    # HasExited can become true before Process.ExitCode is populated by PowerShell.
+    $process.WaitForExit()
     $process.Refresh()
+    $benchmarkExitCode = $process.ExitCode
+
     if ($process.WorkingSet64 -gt $sampledPeakWorkingSet) {
         $sampledPeakWorkingSet = $process.WorkingSet64
     }
@@ -58,8 +63,8 @@ try {
         $sampledPeakWorkingSet = $process.PeakWorkingSet64
     }
 
-    if ($process.ExitCode -ne 0) {
-        throw "NCE image benchmark failed (exit code $($process.ExitCode))."
+    if ($benchmarkExitCode -ne 0) {
+        throw "NCE image benchmark failed (exit code $benchmarkExitCode)."
     }
 
     if ($sampledPeakWorkingSet -le 0) {
