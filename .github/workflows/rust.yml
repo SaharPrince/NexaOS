@@ -92,6 +92,17 @@ jobs:
             throw "Inspection must never execute the PE32 input"
           }
 
+      - name: Plan a Windows system PE without executing it
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $systemPe = Join-Path $env:WINDIR "System32\\where.exe"
+          if (-not (Test-Path $systemPe)) {
+            throw "Expected Windows system PE fixture was not found: $systemPe"
+          }
+          $env:NEXA_WINDOWS_SYSTEM_PE_FIXTURE = $systemPe
+          cargo test --locked -p nexa-inspect --test external_compiler_pe plans_windows_system_pe_when_configured -- --exact --nocapture
+
   external-pe-corpus:
     name: External compiler PE layout (MinGW + LLVM/LLD)
     runs-on: ubuntu-latest
