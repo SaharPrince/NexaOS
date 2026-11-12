@@ -107,6 +107,21 @@ fn accepts_low_section_alignment_when_file_alignment_matches() {
 }
 
 #[test]
+fn rejects_low_section_alignment_when_raw_offset_differs_from_rva() {
+    let mut input = report(vec![section(".text", 0x200, 0x200, 0x200, 0x400)]);
+    input.size_of_image = 0x1000;
+    input.section_alignment = 0x200;
+    input.file_alignment = 0x200;
+
+    assert!(matches!(
+        plan_image_layout(&input, 0x600, limits()),
+        Err(nexa_inspect::ImageLayoutError::Invalid(
+            "low-alignment section raw offset must equal its RVA"
+        ))
+    ));
+}
+
+#[test]
 fn rejects_low_section_alignment_when_file_alignment_differs() {
     let mut input = report(vec![section(".text", 0x200, 0x200, 0x200, 0x200)]);
     input.size_of_image = 0x1000;
