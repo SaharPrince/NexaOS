@@ -239,3 +239,45 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
         plan.total_zero_fill_bytes
     );
 }
+
+
+#[test]
+fn plans_windows_system_pe_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_WINDOWS_SYSTEM_PE_FIXTURE") else {
+        eprintln!(
+            "skipping Windows system PE fixture: NEXA_WINDOWS_SYSTEM_PE_FIXTURE is not set"
+        );
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read Windows system PE fixture");
+    let report = inspect(&bytes).expect("inspect Windows system PE fixture");
+
+    assert_eq!(report.format, "PE32+");
+    assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+    assert!(!report.sections.is_empty());
+
+    let plan = plan_image_layout(
+        &report,
+        bytes.len() as u64,
+        ImageLayoutLimits {
+            max_image_size: 256 * 1024 * 1024,
+            max_sections: 96,
+        },
+    )
+    .expect("plan Windows system PE image");
+
+    assert_eq!(plan.image_size, u64::from(report.size_of_image));
+    assert!(plan.total_copy_bytes >= plan.headers.length);
+    assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
+
+    println!(
+        "Windows system PE fixture: {} bytes, {} sections, {} copy bytes, {} zero-fill bytes",
+        bytes.len(),
+        report.sections.len(),
+        plan.total_copy_bytes,
+        plan.total_zero_fill_bytes
+    );
+}
