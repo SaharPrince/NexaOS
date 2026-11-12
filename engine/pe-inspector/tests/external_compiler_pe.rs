@@ -30,6 +30,8 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
     assert!(!report.sections.is_empty());
 
     let has_initialized_section = report
