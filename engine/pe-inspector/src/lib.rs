@@ -4,7 +4,7 @@ use std::fmt;
 mod image_buffer;
 mod image_layout;
 pub use image_buffer::{
-    allocate_image_buffer, populate_image_buffer, ImageAllocationError, ImageAllocator, ImageBuffer, SystemImageAllocator,
+    allocate_image_buffer, populate_image_buffer, ImageAllocationError, ImageAllocator,\n    ImageBuffer, SystemImageAllocator,
 };
 pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
