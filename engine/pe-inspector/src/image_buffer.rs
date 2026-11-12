@@ -308,6 +308,46 @@ mod tests {
     }
 
     #[test]
+    fn does_not_copy_raw_alignment_padding_past_virtual_size() {
+        use crate::{ImageCopyRange, SectionImageLayout};
+
+        let plan = ImageLayoutPlan {
+            image_size: 0x2000,
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 0x200,
+            },
+            sections: vec![SectionImageLayout {
+                name: ".text".into(),
+                image_rva: 0x1000,
+                mapped_size: 0x100,
+                copy: Some(ImageCopyRange {
+                    file_offset: 0x200,
+                    image_rva: 0x1000,
+                    length: 0x100,
+                }),
+                zero_fill: None,
+            }],
+            total_copy_bytes: 0x300,
+            total_zero_fill_bytes: 0,
+        };
+        let mut input = vec![0xa5; 0x600];
+        input[..0x200].fill(0x11);
+        let mut allocator = TestAllocator::default();
+        let image = allocate_image_buffer(&plan, 0x2000, &mut allocator).unwrap();
+        let image = populate_image_buffer(&plan, &input, image).unwrap();
+
+        assert!(image.as_slice()[..0x200].iter().all(|byte| *byte == 0x11));
+        assert!(image.as_slice()[0x1000..0x1100]
+            .iter()
+            .all(|byte| *byte == 0xa5));
+        assert!(image.as_slice()[0x1100..0x1200]
+            .iter()
+            .all(|byte| *byte == 0));
+    }
+
+    #[test]
     fn rejects_out_of_bounds_source_without_returning_image() {
         let plan = ImageLayoutPlan {
             image_size: 16,
