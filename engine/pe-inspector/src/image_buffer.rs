@@ -294,7 +294,7 @@ pub fn populate_image_buffer(
         return Err(ImageAllocationError::InvalidPlan);
     }
 
-    let mut destinations: Vec<(usize, usize)> = Vec::with_capacity(1 + plan.sections.len() * 2);
+    let mut destinations: Vec<(usize, usize)> = Vec::new();
     let mut copy_total = 0u64;
     let mut zero_total = 0u64;
 
