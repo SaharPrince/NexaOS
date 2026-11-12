@@ -36,7 +36,19 @@ try {
     $env:NEXA_BENCH_HOLD_MS = "$HoldMilliseconds"
 
     Write-Host "Benchmark executable: $($benchmark.FullName)"
-    $process = Start-Process -FilePath $benchmark.FullName -PassThru -NoNewWindow
+    # Use a directly owned .NET Process so ExitCode remains available after waiting.
+    # Start-Process can return a wrapper whose ExitCode is not reliably populated
+    # in some Windows PowerShell environments.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $benchmark.FullName
+    $startInfo.WorkingDirectory = $repoRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $false
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) {
+        throw "Failed to start the NCE image benchmark process."
+    }
     [long]$sampledPeakWorkingSet = 0
 
     while (-not $process.HasExited) {
@@ -50,11 +62,10 @@ try {
         Start-Sleep -Milliseconds 5
     }
 
-    # Ensure the process handle has been waited on before reading ExitCode.
-    # HasExited can become true before Process.ExitCode is populated by PowerShell.
+    # Wait on the directly owned process handle before reading its exit status.
     $process.WaitForExit()
     $process.Refresh()
-    $benchmarkExitCode = $process.ExitCode
+    $benchmarkExitCode = [int]$process.ExitCode
 
     if ($process.WorkingSet64 -gt $sampledPeakWorkingSet) {
         $sampledPeakWorkingSet = $process.WorkingSet64
@@ -80,6 +91,9 @@ try {
 finally {
     $env:NEXA_BENCH_PLAN_ITERS = $previousPlanIterations
     $env:NEXA_BENCH_BUFFER_ITERS = $previousBufferIterations
+    if ($null -ne $process) {
+        $process.Dispose()
+    }
     $env:NEXA_BENCH_HOLD_MS = $previousHoldMilliseconds
     Pop-Location
 }
