@@ -359,6 +359,38 @@ mod tests {
     }
 
     #[test]
+    fn validates_full_raw_range_even_when_padding_is_not_copied() {
+        let mut input = report();
+        input.sections[0].virtual_size = 0x100;
+        input.sections[0].raw_size = 0x400;
+        assert!(matches!(
+            plan_image_layout(&input, 0x5ff, limits()),
+            Err(ImageLayoutError::OutOfBounds(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_raw_range_overlap_in_alignment_padding() {
+        let mut input = report();
+        input.sections[0].virtual_size = 0x100;
+        input.sections[0].raw_size = 0x400;
+
+        let mut second = input.sections[0].clone();
+        second.name = ".data".into();
+        second.virtual_address = 0x2000;
+        second.raw_offset = 0x400;
+        second.raw_size = 0x200;
+        second.virtual_size = 0x100;
+        input.size_of_image = 0x3000;
+        input.sections.push(second);
+
+        assert!(matches!(
+            plan_image_layout(&input, 0x800, limits()),
+            Err(ImageLayoutError::Invalid("section raw file ranges overlap"))
+        ));
+    }
+
+    #[test]
     fn rejects_non_amd64_or_pe32_input() {
         let mut input = report();
         input.format = "PE32".into();
