@@ -96,7 +96,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $systemPe = Join-Path $env:WINDIR "System32\\where.exe"
+          $systemPe = Join-Path (Join-Path $env:WINDIR "System32") "where.exe"
           if (-not (Test-Path $systemPe)) {
             throw "Expected Windows system PE fixture was not found: $systemPe"
           }
