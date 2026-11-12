@@ -68,10 +68,7 @@ fn plans_initialized_section_without_unnecessary_zero_fill() {
     let plan = plan_image_layout(&input, 0x400, limits()).unwrap();
 
     assert_eq!(plan.sections.len(), 1);
-    assert_eq!(
-        plan.sections[0].copy.as_ref().unwrap().file_offset,
-        0x200
-    );
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().file_offset, 0x200);
     assert_eq!(plan.sections[0].copy.as_ref().unwrap().length, 0x200);
     assert_eq!(plan.sections[0].zero_fill, None);
     assert_eq!(plan.total_copy_bytes, 0x400);
@@ -100,6 +97,7 @@ fn accepts_low_section_alignment_when_file_alignment_matches() {
     input.size_of_headers = 0x200;
     input.section_alignment = 0x200;
     input.file_alignment = 0x200;
+    input.entry_point_rva = 0x200;
 
     let plan = plan_image_layout(&input, 0x400, limits()).unwrap();
 
