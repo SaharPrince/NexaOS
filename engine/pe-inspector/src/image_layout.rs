@@ -335,9 +335,22 @@ mod tests {
     }
 
     #[test]
-    fn copies_raw_bytes_even_when_raw_size_exceeds_virtual_size() {
+    fn excludes_file_alignment_padding_when_raw_size_exceeds_virtual_size() {
         let mut input = report();
         input.sections[0].virtual_size = 0x100;
+        input.sections[0].raw_size = 0x400;
+        let plan = plan_image_layout(&input, 0x600, limits()).unwrap();
+        assert_eq!(plan.sections[0].mapped_size, 0x100);
+        assert_eq!(plan.sections[0].copy.as_ref().unwrap().length, 0x100);
+        assert_eq!(plan.sections[0].zero_fill, None);
+        assert_eq!(plan.total_copy_bytes, 0x300);
+        assert_eq!(plan.total_zero_fill_bytes, 0);
+    }
+
+    #[test]
+    fn uses_raw_size_when_virtual_size_is_zero() {
+        let mut input = report();
+        input.sections[0].virtual_size = 0;
         input.sections[0].raw_size = 0x400;
         let plan = plan_image_layout(&input, 0x600, limits()).unwrap();
         assert_eq!(plan.sections[0].mapped_size, 0x400);
