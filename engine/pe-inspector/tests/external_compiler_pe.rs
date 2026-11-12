@@ -33,6 +33,12 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     assert_eq!(report.machine, "AMD64");
     assert_eq!(report.execution, "NOT_ATTEMPTED");
     assert!(!report.sections.is_empty());
+    for section in &report.sections {
+        println!(
+            "PE32+ section {}: RVA={:#x}, VirtualSize={:#x}, SizeOfRawData={:#x}",
+            section.name, section.virtual_address, section.virtual_size, section.raw_size
+        );
+    }
 
     let has_initialized_section = report
         .sections
