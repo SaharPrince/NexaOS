@@ -21,7 +21,7 @@ The fixture is only read and inspected. It is never launched by this test.
 
 ## Validation status
 
-The integration test is committed for execution by the Windows CI job. Its acceptance depends on the latest commit's Windows test result, alongside Linux tests, formatting, Clippy, fuzz smoke, and dependency audit.
+The integration test passed in the Windows CI job on commit `eb51ef9`. The same revision also passed Linux tests, formatting, Clippy, the independent MinGW compiler fixtures, bounded fuzz smoke, and the workspace/fuzz dependency audit.
 
 This remains compiler-produced sample coverage, not an exhaustive third-party PE corpus. The existing MinGW job continues to exercise independently compiled PE32+ AMD64 planning and PE32 x86 parsing.
 
