@@ -527,5 +527,4 @@ mod tests {
         plan.sections[0].mapped_size = 0;
         assert_invalid_population_plan(&plan);
     }
-
 }
