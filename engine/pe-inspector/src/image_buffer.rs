@@ -444,4 +444,88 @@ mod tests {
         ));
         assert_eq!(allocator.calls, 0);
     }
+
+    fn populated_section_plan() -> ImageLayoutPlan {
+        use crate::{ImageCopyRange, ImageZeroFillRange, SectionImageLayout};
+        ImageLayoutPlan {
+            image_size: 64,
+            headers: ImageCopyRange {
+                file_offset: 0,
+                image_rva: 0,
+                length: 8,
+            },
+            sections: vec![SectionImageLayout {
+                name: ".data".into(),
+                image_rva: 16,
+                mapped_size: 12,
+                copy: Some(ImageCopyRange {
+                    file_offset: 8,
+                    image_rva: 16,
+                    length: 8,
+                }),
+                zero_fill: Some(ImageZeroFillRange {
+                    image_rva: 24,
+                    length: 4,
+                }),
+            }],
+            total_copy_bytes: 16,
+            total_zero_fill_bytes: 4,
+        }
+    }
+
+    fn assert_invalid_population_plan(plan: &ImageLayoutPlan) {
+        let mut allocator = TestAllocator::default();
+        let image = allocate_image_buffer(plan, 64, &mut allocator).unwrap();
+        assert_eq!(
+            populate_image_buffer(plan, b"0123456789abcdefghijklmnop", image).unwrap_err(),
+            ImageAllocationError::InvalidPlan
+        );
+    }
+
+    #[test]
+    fn rejects_section_copy_not_matching_declared_image_rva() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].copy.as_mut().unwrap().image_rva = 17;
+        assert_invalid_population_plan(&plan);
+    }
+
+    #[test]
+    fn rejects_section_ranges_that_do_not_cover_mapped_size() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].zero_fill.as_mut().unwrap().length = 3;
+        plan.total_zero_fill_bytes = 3;
+        assert_invalid_population_plan(&plan);
+    }
+
+    #[test]
+    fn rejects_zero_fill_not_immediately_following_copy() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].zero_fill.as_mut().unwrap().image_rva = 25;
+        assert_invalid_population_plan(&plan);
+    }
+
+    #[test]
+    fn rejects_overlapping_source_ranges_in_forged_plan() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].copy.as_mut().unwrap().file_offset = 4;
+        assert_invalid_population_plan(&plan);
+    }
+
+    #[test]
+    fn rejects_section_range_overflow_in_forged_plan() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].image_rva = u64::MAX - 4;
+        plan.sections[0].copy.as_mut().unwrap().image_rva = u64::MAX - 4;
+        assert_invalid_population_plan(&plan);
+    }
+
+    #[test]
+    fn rejects_section_without_copy_or_zero_fill() {
+        let mut plan = populated_section_plan();
+        plan.sections[0].copy = None;
+        plan.sections[0].zero_fill = None;
+        plan.sections[0].mapped_size = 0;
+        assert_invalid_population_plan(&plan);
+    }
+
 }
