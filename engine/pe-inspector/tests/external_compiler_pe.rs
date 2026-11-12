@@ -48,9 +48,10 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
         .sections
         .iter()
         .any(|section| section.virtual_size > section.raw_size);
-    let has_raw_alignment_padding = report.sections.iter().any(|section| {
-        section.virtual_size > 0 && section.raw_size > section.virtual_size
-    });
+    let has_raw_alignment_padding = report
+        .sections
+        .iter()
+        .any(|section| section.virtual_size > 0 && section.raw_size > section.virtual_size);
     assert!(has_initialized_section, "expected initialized section data");
     assert!(
         has_virtual_only_storage,
@@ -79,7 +80,11 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     );
     assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
 
-    for section in report.sections.iter().filter(|section| section.virtual_size > 0) {
+    for section in report
+        .sections
+        .iter()
+        .filter(|section| section.virtual_size > 0)
+    {
         let layout = plan
             .sections
             .iter()
