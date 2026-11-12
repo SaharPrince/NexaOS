@@ -103,6 +103,11 @@ jobs:
           $env:NEXA_WINDOWS_SYSTEM_PE_FIXTURE = $systemPe
           cargo test --locked -p nexa-inspect --test external_compiler_pe plans_windows_system_pe_when_configured -- --exact --nocapture
 
+      - name: Smoke-test Windows peak working-set benchmark helper
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: ./scripts/measure-image-bench.ps1 -PlanIterations 5 -BufferIterations 2
+
   external-pe-corpus:
     name: External compiler PE layout (MinGW + LLVM/LLD)
     runs-on: ubuntu-latest
