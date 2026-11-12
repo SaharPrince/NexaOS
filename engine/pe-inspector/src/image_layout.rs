@@ -167,10 +167,19 @@ pub fn plan_image_layout(
     for section in &report.sections {
         let raw_size = section.raw_size as u64;
         let virtual_size = section.virtual_size as u64;
-        let mapped_size = raw_size.max(virtual_size);
+        // VirtualSize is the logical in-memory extent. SizeOfRawData is
+        // file-aligned and can include trailing padding beyond that extent.
+        // Some images use a zero VirtualSize; retain the raw-size fallback
+        // for that ambiguous legacy case rather than silently dropping data.
+        let mapped_size = if virtual_size == 0 {
+            raw_size
+        } else {
+            virtual_size
+        };
         if mapped_size == 0 {
             continue;
         }
+        let copy_size = raw_size.min(mapped_size);
 
         let image_rva = section.virtual_address as u64;
         if !image_rva.is_multiple_of(section_alignment) {
@@ -196,7 +205,7 @@ pub fn plan_image_layout(
         }
         ranges.push((image_rva, image_end));
 
-        let copy = if raw_size == 0 {
+        let copy = if copy_size == 0 {
             None
         } else {
             let file_offset = section.raw_offset as u64;
@@ -225,16 +234,16 @@ pub fn plan_image_layout(
             }
             source_ranges.push((file_offset, file_end));
             total_copy_bytes = total_copy_bytes
-                .checked_add(raw_size)
+                .checked_add(copy_size)
                 .ok_or(ImageLayoutError::OutOfBounds("total copy byte count"))?;
             Some(ImageCopyRange {
                 file_offset,
                 image_rva,
-                length: raw_size,
+                length: copy_size,
             })
         };
 
-        let zero_fill_size = mapped_size - raw_size;
+        let zero_fill_size = mapped_size - copy_size;
         let zero_fill = if zero_fill_size == 0 {
             None
         } else {
