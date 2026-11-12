@@ -42,10 +42,17 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
         .sections
         .iter()
         .any(|section| section.virtual_size > section.raw_size);
+    let has_raw_alignment_padding = report.sections.iter().any(|section| {
+        section.virtual_size > 0 && section.raw_size > section.virtual_size
+    });
     assert!(has_initialized_section, "expected initialized section data");
     assert!(
         has_virtual_only_storage,
         "expected virtual-only section storage for zero-initialized data"
+    );
+    assert!(
+        has_raw_alignment_padding,
+        "expected a file-aligned raw section larger than its logical virtual size"
     );
 
     let plan = plan_image_layout(
@@ -65,6 +72,32 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
         "expected zero-fill mapping for virtual-only section storage"
     );
     assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
+
+    for section in report.sections.iter().filter(|section| section.virtual_size > 0) {
+        let layout = plan
+            .sections
+            .iter()
+            .find(|layout| {
+                layout.name == section.name
+                    && layout.image_rva == u64::from(section.virtual_address)
+            })
+            .expect("every nonempty virtual section has a layout");
+        assert_eq!(
+            layout.mapped_size,
+            u64::from(section.virtual_size),
+            "mapped extent must follow VirtualSize for section {}",
+            section.name
+        );
+        if section.raw_size > 0 {
+            let expected_copy = section.raw_size.min(section.virtual_size);
+            assert_eq!(
+                layout.copy.as_ref().map(|copy| copy.length),
+                Some(u64::from(expected_copy)),
+                "copy must exclude file-alignment padding for section {}",
+                section.name
+            );
+        }
+    }
 
     if let Ok(version) = std::env::var("NEXA_MINGW_COMPILER_VERSION") {
         println!("External PE32+ fixture compiler: {version}");
