@@ -240,13 +240,10 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
     );
 }
 
-
 #[test]
 fn plans_windows_system_pe_when_configured() {
     let Some(path) = std::env::var_os("NEXA_WINDOWS_SYSTEM_PE_FIXTURE") else {
-        eprintln!(
-            "skipping Windows system PE fixture: NEXA_WINDOWS_SYSTEM_PE_FIXTURE is not set"
-        );
+        eprintln!("skipping Windows system PE fixture: NEXA_WINDOWS_SYSTEM_PE_FIXTURE is not set");
         return;
     };
 
