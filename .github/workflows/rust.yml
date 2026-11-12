@@ -111,11 +111,13 @@ jobs:
           x86_64-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
             -o target/pe-corpus/mingw-x86_64.exe \
             engine/pe-inspector/tests/fixtures/mingw_layout.c
+          x86_64-w64-mingw32-objdump -h target/pe-corpus/mingw-x86_64.exe
           x86_64-w64-mingw32-objdump -p target/pe-corpus/mingw-x86_64.exe | sed -n '/The Data Directory/,+20p'
           i686-w64-mingw32-gcc --version | head -n 1 | tee target/pe-corpus/compiler-i686-version.txt
           i686-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
             -o target/pe-corpus/mingw-i686.exe \
             engine/pe-inspector/tests/fixtures/mingw_layout.c
+          i686-w64-mingw32-objdump -h target/pe-corpus/mingw-i686.exe
           echo "NEXA_MINGW_PE_FIXTURE=$PWD/target/pe-corpus/mingw-x86_64.exe" >> "$GITHUB_ENV"
           echo "NEXA_MINGW_COMPILER_VERSION=$(cat target/pe-corpus/compiler-x86_64-version.txt)" >> "$GITHUB_ENV"
           echo "NEXA_MINGW_PE32_FIXTURE=$PWD/target/pe-corpus/mingw-i686.exe" >> "$GITHUB_ENV"
