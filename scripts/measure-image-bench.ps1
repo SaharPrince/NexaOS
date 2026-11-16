@@ -22,13 +22,16 @@ try {
         throw "Failed to build the NCE image benchmark (exit code $LASTEXITCODE)."
     }
 
-    $benchDirectory = Join-Path $repoRoot "target\release\deps"
-    $benchmark = Get-ChildItem -Path $benchDirectory -Filter "nexa_image-*.exe" -File |
+    $benchDirectory = Join-Path $repoRoot "target\release"
+    # Cargo places harness-free bench executables under the package build output
+    # directory on some toolchains, rather than target\release\deps. Search the
+    # release tree so the helper works with both layouts.
+    $benchmark = Get-ChildItem -Path $benchDirectory -Filter "nexa_image-*.exe" -File -Recurse |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
 
     if ($null -eq $benchmark) {
-        throw "Could not find the compiled nexa_image benchmark in $benchDirectory."
+        throw "Could not find the compiled nexa_image benchmark anywhere under $benchDirectory."
     }
 
     $env:NEXA_BENCH_PLAN_ITERS = "$PlanIterations"
