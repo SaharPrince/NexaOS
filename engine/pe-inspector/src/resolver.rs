@@ -338,6 +338,40 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_export_names() {
+        let mut bad = module();
+        bad.directory.names.push(bad.directory.names[0].clone());
+        let error =
+            ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
+        assert_eq!(
+            error,
+            ExportCatalogueError::DuplicateExportName {
+                module_index: 0,
+                export_index: 1
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_forwarders_over_configured_string_limit() {
+        let mut bad = module();
+        let limits = ExportCatalogueLimits {
+            max_forwarder_bytes: 4,
+            ..ExportCatalogueLimits::default()
+        };
+        let error = ExportCatalogue::new(vec![bad.clone()], limits).unwrap_err();
+        assert_eq!(
+            error,
+            ExportCatalogueError::ForwarderTooLong {
+                module_index: 0,
+                function_index: 2
+            }
+        );
+        bad.directory.functions[2].forwarder = Some("OK".into());
+        assert!(ExportCatalogue::new(vec![bad], limits).is_ok());
+    }
+
+    #[test]
     fn rejects_inconsistent_name_associations() {
         let mut bad = module();
         bad.directory.names[0].function_index = 2;
