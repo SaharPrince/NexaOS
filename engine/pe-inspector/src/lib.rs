@@ -36,7 +36,11 @@ pub struct PeReport {
     pub subsystem: String,
     pub directories: Vec<DataDirectory>,
     pub imports: Vec<ImportLibrary>,
+    /// Lossless import metadata used by NCE-003. Legacy `imports` remains stable.
+    pub import_metadata: Vec<ParsedImportLibrary>,
     pub exports: Vec<String>,
+    /// Complete export address/name tables when an export directory is present.
+    pub export_metadata: Option<ParsedExportDirectory>,
     pub relocation_blocks: usize,
     pub relocation_entries: usize,
     /// Total input file length in bytes.
@@ -94,6 +98,54 @@ pub struct DebugDirectoryEntry {
 pub struct ImportLibrary {
     pub name: String,
     pub symbols: Vec<String>,
+}
+
+/// A parsed import symbol with the original lookup and IAT slot locations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ParsedImportSymbol {
+    Name { name: String, hint: u16 },
+    Ordinal { ordinal: u16 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ParsedImportEntry {
+    pub symbol: ParsedImportSymbol,
+    pub lookup_rva: u32,
+    pub iat_rva: u32,
+    pub pointer_width: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ParsedImportLibrary {
+    pub name: String,
+    pub original_first_thunk: u32,
+    pub first_thunk: u32,
+    pub symbols: Vec<ParsedImportEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ExportFunctionSlot {
+    /// Public PE ordinal: ordinal_base + function-table index.
+    pub ordinal: u32,
+    /// None represents an unused (zero) function-table slot.
+    pub function_rva: Option<u32>,
+    /// Present when the function RVA points into the export directory.
+    pub forwarder: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ExportNameAssociation {
+    pub name: String,
+    pub function_index: u32,
+    pub ordinal: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ParsedExportDirectory {
+    pub ordinal_base: u32,
+    pub functions: Vec<ExportFunctionSlot>,
+    pub names: Vec<ExportNameAssociation>,
 }
 
 #[derive(Debug)]
@@ -452,6 +504,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
 
     let getdir = |i: usize| directories.iter().find(|x| x.index == i).cloned();
     let mut imports = Vec::new();
+    let mut import_metadata = Vec::new();
     if let Some(x) = getdir(1) {
         if x.address != 0 && x.size > 0 {
             if x.size < 20 {
@@ -488,11 +541,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     return Err(PeError::Invalid("import descriptor has no thunk table"));
                 }
                 let mut symbols = Vec::new();
+                let mut parsed_symbols = Vec::new();
                 let width = if magic == 0x20b { 8usize } else { 4usize };
+                let pointer_width = width as u8;
                 let (mut to, thunk_available) = map_rva_range(thunk, width)?;
                 let thunk_count = (thunk_available / width).min(4096);
                 let mut thunk_terminated = false;
-                for _ in 0..thunk_count {
+                for thunk_index in 0..thunk_count {
                     let value = if width == 8 {
                         u64at(d, to, "import thunk")?
                     } else {
@@ -511,16 +566,43 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                                 "ordinal import thunk has nonzero reserved bits",
                             ));
                         }
-                        symbols.push(format!("ordinal:{}", value & 0xffff));
+                        let ordinal = (value & 0xffff) as u16;
+                        symbols.push(format!("ordinal:{}", ordinal));
+                        parsed_symbols.push(ParsedImportEntry {
+                            symbol: ParsedImportSymbol::Ordinal { ordinal },
+                            lookup_rva: thunk.checked_add(
+                                u32::try_from(thunk_index * width)
+                                    .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
+                            ).ok_or(PeError::OutOfBounds("import lookup RVA"))?,
+                            iat_rva: iat.checked_add(
+                                u32::try_from(thunk_index * width)
+                                    .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
+                            ).ok_or(PeError::OutOfBounds("IAT RVA"))?,
+                            pointer_width,
+                        });
                     } else {
                         let name_rva = u32::try_from(value).map_err(|_| {
                             PeError::Invalid("import name RVA exceeds 32-bit range")
                         })?;
                         let (no, name_len) = map_rva_range(name_rva, 3)?;
+                        let hint = u16at(d, no, "import hint")?;
                         let hn = no
                             .checked_add(2)
                             .ok_or(PeError::OutOfBounds("hint/name offset"))?;
-                        symbols.push(cstr(d, hn, name_len - 2, 512, "import symbol")?);
+                        let name = cstr(d, hn, name_len - 2, 512, "import symbol")?;
+                        symbols.push(name.clone());
+                        parsed_symbols.push(ParsedImportEntry {
+                            symbol: ParsedImportSymbol::Name { name, hint },
+                            lookup_rva: thunk.checked_add(
+                                u32::try_from(thunk_index * width)
+                                    .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
+                            ).ok_or(PeError::OutOfBounds("import lookup RVA"))?,
+                            iat_rva: iat.checked_add(
+                                u32::try_from(thunk_index * width)
+                                    .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
+                            ).ok_or(PeError::OutOfBounds("IAT RVA"))?,
+                            pointer_width,
+                        });
                     }
                     to = to
                         .checked_add(width)
@@ -529,7 +611,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 if !thunk_terminated {
                     return Err(PeError::Invalid("unterminated import thunk table"));
                 }
-                imports.push(ImportLibrary { name, symbols });
+                imports.push(ImportLibrary { name: name.clone(), symbols });
+                import_metadata.push(ParsedImportLibrary {
+                    name,
+                    original_first_thunk: lookup,
+                    first_thunk: iat,
+                    symbols: parsed_symbols,
+                });
             }
             if !terminated {
                 return Err(PeError::Invalid("unterminated import descriptor table"));
@@ -537,12 +625,14 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         }
     }
     let mut exports = Vec::new();
+    let mut export_metadata = None;
     if let Some(x) = getdir(0) {
         if x.address != 0 && x.size > 0 {
             if x.size < 40 {
                 return Err(PeError::Invalid("truncated export directory"));
             }
             let (o, _) = map_rva_range(x.address, x.size as usize)?;
+            let ordinal_base = u32at(d, o + 16, "export ordinal base")?;
             let function_count = u32at(d, o + 20, "export function count")? as usize;
             let name_count = u32at(d, o + 24, "export name count")? as usize;
             if function_count > 16384 || name_count > 8192 {
@@ -554,6 +644,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             let functions_rva = u32at(d, o + 28, "export function table")?;
             let names_rva = u32at(d, o + 32, "export name table")?;
             let ordinals_rva = u32at(d, o + 36, "export ordinal table")?;
+            let mut function_slots = Vec::with_capacity(function_count);
             if function_count > 0 {
                 if functions_rva == 0 {
                     return Err(PeError::Invalid("missing export function table"));
@@ -565,20 +656,31 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 let export_end = x.address as u64 + x.size as u64;
                 for i in 0..function_count {
                     let function_rva = u32at(d, functions_offset + i * 4, "export function RVA")?;
-                    if function_rva != 0
+                    let forwarder = if function_rva != 0
                         && (function_rva as u64) >= x.address as u64
                         && (function_rva as u64) < export_end
                     {
                         // An address-table entry inside the export directory is
-                        // a forwarder string, not a code/data RVA. Its terminator
-                        // must occur before the export directory's declared end.
+                        // a forwarder string, not a code/data RVA.
                         let (forwarder_offset, file_available) = map_rva_range(function_rva, 1)?;
                         let directory_available = (export_end - function_rva as u64) as usize;
                         let available = file_available.min(directory_available);
-                        let _ = cstr(d, forwarder_offset, available, 4096, "export forwarder")?;
-                    }
+                        Some(cstr(d, forwarder_offset, available, 4096, "export forwarder")?)
+                    } else {
+                        None
+                    };
+                    let index = u32::try_from(i)
+                        .map_err(|_| PeError::OutOfBounds("export function index"))?;
+                    let ordinal = ordinal_base.checked_add(index)
+                        .ok_or(PeError::OutOfBounds("export ordinal"))?;
+                    function_slots.push(ExportFunctionSlot {
+                        ordinal,
+                        function_rva: (function_rva != 0).then_some(function_rva),
+                        forwarder,
+                    });
                 }
             }
+            let mut name_associations = Vec::with_capacity(name_count);
             if name_count > 0 {
                 if names_rva == 0 || ordinals_rva == 0 {
                     return Err(PeError::Invalid("missing export name or ordinal table"));
@@ -602,9 +704,24 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         return Err(PeError::Invalid("export name has a zero RVA"));
                     }
                     let (name_offset, name_available) = map_rva_range(name_rva, 1)?;
-                    exports.push(cstr(d, name_offset, name_available, 512, "export name")?);
+                    let name = cstr(d, name_offset, name_available, 512, "export name")?;
+                    let function_index = u32::try_from(ordinal)
+                        .map_err(|_| PeError::OutOfBounds("export name function index"))?;
+                    let public_ordinal = ordinal_base.checked_add(function_index)
+                        .ok_or(PeError::OutOfBounds("export name ordinal"))?;
+                    exports.push(name.clone());
+                    name_associations.push(ExportNameAssociation {
+                        name,
+                        function_index,
+                        ordinal: public_ordinal,
+                    });
                 }
             }
+            export_metadata = Some(ParsedExportDirectory {
+                ordinal_base,
+                functions: function_slots,
+                names: name_associations,
+            });
         }
     }
     let mut debug_entries = Vec::new();
@@ -728,7 +845,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         subsystem: sub,
         directories,
         imports,
+        import_metadata,
         exports,
+        export_metadata,
         relocation_blocks,
         relocation_entries,
         file_size,
