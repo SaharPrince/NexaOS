@@ -2,7 +2,7 @@
 
 ## Status
 
-**NCE-004a.1 implemented and validated.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
+**NCE-004a.1 implemented and validated; NCE-004a.2 implemented, validation pending.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
 
 The parser now validates relocation-directory block framing and retains bounded typed relocation entries. The existing counters remain for compatibility; relocation planning consumes the typed metadata and independently validates its inputs.
 
@@ -144,3 +144,10 @@ The parser now exposes `ParsedRelocationDirectory`, `ParsedRelocationBlock`, and
 The existing `relocation_blocks` and `relocation_entries` counters remain available. Parsing enforces fixed ceilings of 4,096 blocks and 65,536 entries, validates block framing and 4-KiB page alignment, uses checked count/offset arithmetic, and rejects incomplete trailing directory bytes. Absent directories produce `None` metadata and zero counters.
 
 Focused tests cover lossless DIR64/unknown-type decoding, missing metadata, incomplete trailing bytes, and both metadata ceilings. Local Windows validation passed formatting, Clippy, and all 144 workspace tests. GitHub Actions on commit `6672374968b60102558a4a13adba652ae0d59e76` passed formatting, Clippy, Ubuntu and Windows workspace tests, external compiler fixture validation, dependency audit, and fuzz smoke. No relocation patch planning or image mutation has been added yet.
+
+
+## Implementation progress — NCE-004a.2
+
+A pure `plan_base_relocations` API now accepts the image format and machine, preferred and requested bases, mapped image size and bytes, parsed relocation metadata, and caller-supplied limits. It supports only ABSOLUTE (0) and DIR64 (10), applies checked positive or negative base deltas to planned values, validates complete eight-byte targets, checks metadata consistency and configured ceilings, and rejects unsupported types, missing metadata for rebasing, arithmetic failures, and overlapping targets. It returns image-relative patches in metadata order and does not mutate the image.
+
+Focused planner tests cover equal bases without relocation metadata, positive and negative DIR64 deltas, ABSOLUTE no-ops, unsupported HIGHLOW/unknown types, missing metadata, out-of-bounds targets, overlapping targets, arithmetic overflow/underflow, forged metadata, resource limits, and unsupported format/machine. Formatting, Clippy, workspace tests, and CI validation for this stage are pending. ImageBuffer mutation remains unimplemented.
