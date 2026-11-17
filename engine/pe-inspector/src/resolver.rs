@@ -339,7 +339,8 @@ mod tests {
 
     #[test]
     fn rejects_duplicate_export_names() {
-        let mut bad = module();
+        let bad = module();
+        let mut bad = bad;
         bad.directory.names.push(bad.directory.names[0].clone());
         let error =
             ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
