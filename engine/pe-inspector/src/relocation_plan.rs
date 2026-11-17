@@ -51,6 +51,7 @@ pub enum RelocationPlanFailure {
     EmptyImage,
     ImageSizeMismatch,
     MissingRelocationData,
+    NoUsableRelocations,
     InvalidMetadata,
     TooManyBlocks,
     TooManyEntries,
@@ -137,6 +138,12 @@ pub fn plan_base_relocations(
     if metadata.directory_rva == 0 || metadata.directory_size == 0 {
         return Err(fail(None, None, RelocationPlanFailure::InvalidMetadata));
     }
+    let directory_end = u64::from(metadata.directory_rva)
+        .checked_add(u64::from(metadata.directory_size))
+        .ok_or_else(|| fail(None, None, RelocationPlanFailure::InvalidMetadata))?;
+    if directory_end > image_size {
+        return Err(fail(None, None, RelocationPlanFailure::InvalidMetadata));
+    }
     if metadata.blocks.len() > limits.max_blocks {
         return Err(fail(None, None, RelocationPlanFailure::TooManyBlocks));
     }
@@ -144,7 +151,9 @@ pub fn plan_base_relocations(
     let mut total_entries = 0usize;
     let mut encoded_directory_size = 0u64;
     for (block_index, block) in metadata.blocks.iter().enumerate() {
-        if !block.page_rva.is_multiple_of(0x1000) {
+        if !block.page_rva.is_multiple_of(0x1000)
+            || u64::from(block.page_rva) >= image_size
+        {
             return Err(fail(
                 Some(block_index),
                 None,
@@ -288,6 +297,10 @@ pub fn plan_base_relocations(
         }
     }
 
+    if patches.is_empty() {
+        return Err(fail(None, None, RelocationPlanFailure::NoUsableRelocations));
+    }
+
     target_ranges.sort_unstable_by_key(|range| range.0);
     for pair in target_ranges.windows(2) {
         let previous_end = pair[0]
@@ -392,9 +405,11 @@ mod tests {
     #[test]
     fn absolute_entries_are_noops() {
         let image = vec![0; 0x2000];
-        let metadata = metadata(vec![entry(0)]);
+        let metadata = metadata(vec![entry(0), entry(0xa123)]);
+        let image = image_with_value(0x1123, 0x1400_1234);
         let result = plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000).unwrap();
-        assert!(result.patches.is_empty());
+        assert_eq!(result.patches.len(), 1);
+        assert_eq!(result.patches[0].target_rva, 0x1123);
     }
 
     #[test]
@@ -410,6 +425,18 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn rejects_an_absolute_only_directory_when_rebasing() {
+        let image = vec![0; 0x2000];
+        let metadata = metadata(vec![entry(0)]);
+        assert_eq!(
+            plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
+            RelocationPlanFailure::NoUsableRelocations
+        );
     }
 
     #[test]
