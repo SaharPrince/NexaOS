@@ -170,3 +170,41 @@ Synthetic tests cover:
 - A debug-directory size that is not a whole number of 28-byte records.
 
 The parser caps debug-directory entry processing at 4,096 records. No debug payload is decoded, interpreted, executed, or copied into the image buffer. No production planner acceptance rules changed. These are synthetic metadata tests, not evidence of broad third-party corpus compatibility.
+
+
+## Local Windows debug, overlay, and signature-type checkpoint — 2026-11-17
+
+A follow-up read-only inspection was performed on the same four Windows System32 files using the inspector JSON report and PowerShell `Get-AuthenticodeSignature`. This resolves the apparent mismatch between a zero Security directory and a valid Authenticode result.
+
+| Sample | File size | Debug records | Security directory | Trailing overlay |
+|---|---:|---:|---|---|
+| `where.exe` | 65,536 bytes | 4 | offset 0, size 0 | None |
+| `notepad.exe` | 360,448 bytes | 4 | offset 0, size 0 | None |
+| `cmd.exe` | 339,968 bytes | 4 | offset 0, size 0 | None |
+| `powershell.exe` | 495,616 bytes | 4 | offset 0, size 0 | None |
+
+Across all 16 debug-directory records, the reported `AddressOfRawData`, `PointerToRawData`, and RVA-mapped file offset were equal. The four records in each file had type codes 2, 13, 16, and 20. All declared debug payload file ranges were within the input files. No trailing overlay was reported for these samples.
+
+PowerShell reported the following for every file:
+
+- `Status = Valid`
+- `SignatureType = Catalog`
+- `IsOSBinary = True`
+- Signer: `CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US`
+- Status message: `Signature verified.`
+
+### Interpretation
+
+There is no contradiction between the valid Authenticode results and the zero PE Security directory entries. These four files are catalog-signed on the inspected Windows host; the trust signature is supplied through the Windows catalog mechanism rather than an embedded PE Certificate Table. The zero Security directory therefore does not indicate a parser failure and must not be interpreted as proof that a file is unsigned.
+
+This observation also demonstrates why PE structural metadata and host trust verification must be kept separate:
+
+- The PE inspector reports whether the file declares an embedded Certificate Table and validates that file range when present.
+- Windows Authenticode verification may report a valid catalog signature even when the PE Security directory is empty.
+- The inspector does not perform catalog lookup, certificate-chain validation, revocation checking, or a general trust decision.
+
+### Decision
+
+No parser code change is justified by these four results. Preserve the current distinction between embedded certificate-table metadata and external catalog-signature trust. Future documentation and user-facing output must avoid equating an empty Security directory with an unsigned or untrusted executable.
+
+These four files provide useful examples of catalog-signed Windows system binaries with four debug records and no reported trailing overlay. They remain a small, same-host system sample set, not a diverse third-party application corpus or proof of broad compatibility.
