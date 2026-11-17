@@ -15,7 +15,8 @@ pub use image_layout::{
 };
 pub use resolver::{
     ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup, ExportLookupResult,
-    ExportModule,
+    ExportModule, ImportResolutionError, ImportResolutionFailure, ImportResolutionLimits,
+    ImportResolutionPlan, ResolvedImport, resolve_imports,
 };
 pub use typed_metadata::{
     typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
