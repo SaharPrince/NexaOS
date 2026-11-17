@@ -3,6 +3,7 @@ use std::fmt;
 
 mod image_buffer;
 mod image_layout;
+mod iat_patch;
 mod resolver;
 mod typed_metadata;
 pub use image_buffer::{
@@ -12,6 +13,10 @@ pub use image_buffer::{
 pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
     ImageZeroFillRange, SectionImageLayout,
+};
+pub use iat_patch::{
+    validate_iat_patch_plan, IatPatch, IatPatchPlan, IatPatchPlanError,
+    IatPatchPlanFailure, IatPatchPlanLimits,
 };
 pub use resolver::{
     resolve_imports, ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup,
