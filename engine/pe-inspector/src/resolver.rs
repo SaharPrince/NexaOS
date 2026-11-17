@@ -410,10 +410,10 @@ fn same_forwarder_target(
 /// Resolve all imports using only the caller-supplied export catalogue.
 ///
 /// Module names are matched case-insensitively, export names exactly, and
-/// forwarders are followed only through entries already present in the
-/// catalogue. No filesystem discovery, DLL loading, address rebasing, or
-/// IAT modification occurs. Forwarder module names must match catalogue keys;
-/// this function does not append extensions or search for aliases.
+/// forwarders are followed only through entries already in the catalogue.
+/// A forwarder module token may match a catalogue key directly or by adding
+/// the conventional `.dll` suffix. No filesystem discovery, DLL loading,
+/// address rebasing, or IAT modification occurs.
 pub fn resolve_imports(
     imports: &[crate::ParsedImportLibrary],
     catalogue: &ExportCatalogue,
