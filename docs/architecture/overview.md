@@ -64,4 +64,4 @@ The [NCE-002 design specification](../milestones/NCE-002.md) defines a staged PE
 
 ## NCE-004a relocation boundary
 
-The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. Only ABSOLUTE padding and DIR64 are initially supported; all other relocation types are rejected. This is a prerequisite stage, not application execution or the Windows x64 ABI runtime.
+The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. The parser's typed metadata stage (NCE-004a.1) is implemented; planning and application are not yet implemented. Only ABSOLUTE padding and DIR64 are intended for initial planner support; all other relocation types will be rejected. This is a prerequisite stage, not application execution or the Windows x64 ABI runtime.
