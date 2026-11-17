@@ -39,7 +39,11 @@ pub struct MetadataError {
 
 impl fmt::Display for MetadataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid ordinal import encoding at symbol index {}", self.index)
+        write!(
+            f,
+            "invalid ordinal import encoding at symbol index {}",
+            self.index
+        )
     }
 }
 
@@ -52,7 +56,9 @@ fn typed_library(library: &ImportLibrary) -> Result<ImportLibraryMetadata, Metad
         .enumerate()
         .map(|(index, symbol)| {
             if let Some(ordinal) = symbol.strip_prefix("ordinal:") {
-                let value = ordinal.parse::<u16>().map_err(|_| MetadataError { index })?;
+                let value = ordinal
+                    .parse::<u16>()
+                    .map_err(|_| MetadataError { index })?;
                 Ok(ImportSymbol::Ordinal(value))
             } else {
                 Ok(ImportSymbol::Name(symbol.clone()))
