@@ -158,10 +158,23 @@ pub fn plan_base_relocations(
             .ok()
             .and_then(|count| count.checked_mul(2))
             .and_then(|bytes| bytes.checked_add(8))
-            .ok_or_else(|| fail(Some(block_index), None, RelocationPlanFailure::InvalidMetadata))?;
-        encoded_directory_size = encoded_directory_size
-            .checked_add(block_bytes)
-            .ok_or_else(|| fail(Some(block_index), None, RelocationPlanFailure::InvalidMetadata))?;
+            .ok_or_else(|| {
+                fail(
+                    Some(block_index),
+                    None,
+                    RelocationPlanFailure::InvalidMetadata,
+                )
+            })?;
+        encoded_directory_size =
+            encoded_directory_size
+                .checked_add(block_bytes)
+                .ok_or_else(|| {
+                    fail(
+                        Some(block_index),
+                        None,
+                        RelocationPlanFailure::InvalidMetadata,
+                    )
+                })?;
         for (entry_index, entry) in block.entries.iter().enumerate() {
             if entry.relocation_type != (entry.raw >> 12) as u8
                 || entry.offset != (entry.raw & 0x0fff)
@@ -218,15 +231,13 @@ pub fn plan_base_relocations(
                         RelocationPlanFailure::TargetRvaOverflow,
                     )
                 })?;
-            let target_end = u64::from(target_rva)
-                .checked_add(8)
-                .ok_or_else(|| {
-                    fail(
-                        Some(block_index),
-                        Some(entry_index),
-                        RelocationPlanFailure::TargetRvaOverflow,
-                    )
-                })?;
+            let target_end = u64::from(target_rva).checked_add(8).ok_or_else(|| {
+                fail(
+                    Some(block_index),
+                    Some(entry_index),
+                    RelocationPlanFailure::TargetRvaOverflow,
+                )
+            })?;
             if target_end > image_size {
                 return Err(fail(
                     Some(block_index),
@@ -360,11 +371,14 @@ mod tests {
         let image = image_with_value(0x1123, 0x1400_1234);
         let metadata = metadata(vec![entry(0xa123)]);
         let result = plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000).unwrap();
-        assert_eq!(result.patches, vec![RelocationPatch {
-            target_rva: 0x1123,
-            original_value: 0x1400_1234,
-            relocated_value: 0x1500_1234,
-        }]);
+        assert_eq!(
+            result.patches,
+            vec![RelocationPatch {
+                target_rva: 0x1123,
+                original_value: 0x1400_1234,
+                relocated_value: 0x1500_1234,
+            }]
+        );
     }
 
     #[test]
@@ -402,7 +416,9 @@ mod tests {
     fn rejects_missing_metadata_when_rebasing() {
         let image = vec![0; 0x2000];
         assert_eq!(
-            plan(None, &image, 0x1400_0000, 0x1500_0000).unwrap_err().failure,
+            plan(None, &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::MissingRelocationData
         );
     }
@@ -412,7 +428,9 @@ mod tests {
         let image = vec![0; 0x2000];
         let metadata = metadata(vec![entry(0xafff)]);
         assert_eq!(
-            plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000).unwrap_err().failure,
+            plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::TargetOutOfBounds
         );
     }
@@ -439,12 +457,16 @@ mod tests {
         let metadata = metadata(vec![entry(0xa123)]);
         let overflow_image = image_with_value(0x1123, u64::MAX);
         assert_eq!(
-            plan(Some(&metadata), &overflow_image, 1, 2).unwrap_err().failure,
+            plan(Some(&metadata), &overflow_image, 1, 2)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::BaseDeltaOverflow
         );
         let underflow_image = image_with_value(0x1123, 0);
         assert_eq!(
-            plan(Some(&metadata), &underflow_image, 2, 1).unwrap_err().failure,
+            plan(Some(&metadata), &underflow_image, 2, 1)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::BaseDeltaOverflow
         );
     }
@@ -455,7 +477,9 @@ mod tests {
         let mut forged = metadata(vec![entry(0xa123)]);
         forged.blocks[0].entries[0].offset = 0x124;
         assert_eq!(
-            plan(Some(&forged), &image, 0x1400_0000, 0x1500_0000).unwrap_err().failure,
+            plan(Some(&forged), &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::InvalidMetadata
         );
 
