@@ -149,6 +149,27 @@ jobs:
           echo "NEXA_LLVM_PE_FIXTURE=$PWD/target/pe-corpus/llvm-lld-x86_64.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_COMPILER_VERSION=$(cat target/pe-corpus/clang-version.txt)" >> "$GITHUB_ENV"
           echo "NEXA_LLD_LINKER_VERSION=$(cat target/pe-corpus/lld-version.txt)" >> "$GITHUB_ENV"
+          sha256sum \
+            target/pe-corpus/mingw-x86_64.exe \
+            target/pe-corpus/mingw-i686.exe \
+            target/pe-corpus/llvm-lld-x86_64.exe \
+            > target/pe-corpus/SHA256SUMS
+          stat -c '%n %s bytes' \
+            target/pe-corpus/mingw-x86_64.exe \
+            target/pe-corpus/mingw-i686.exe \
+            target/pe-corpus/llvm-lld-x86_64.exe \
+            > target/pe-corpus/fixture-sizes.txt
+      - name: Upload reproducible PE corpus fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/pe-corpus/*.exe
+            target/pe-corpus/*-version.txt
+            target/pe-corpus/SHA256SUMS
+            target/pe-corpus/fixture-sizes.txt
+          if-no-files-found: error
+          retention-days: 3
       - name: Inspect and plan external compiler output
         run: cargo test --locked -p nexa-inspect --test external_compiler_pe -- --nocapture
 
