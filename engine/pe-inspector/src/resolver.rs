@@ -55,15 +55,38 @@ pub enum ExportLookupResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExportCatalogueError {
     TooManyModules,
-    EmptyModuleName { index: usize },
-    ModuleNameTooLong { index: usize },
-    DuplicateModuleName { index: usize },
-    TooManyExports { index: usize },
-    ExportNameTooLong { module_index: usize, export_index: usize },
-    DuplicateExportName { module_index: usize, export_index: usize },
-    ForwarderTooLong { module_index: usize, function_index: usize },
-    InvalidNameAssociation { module_index: usize, name_index: usize },
-    InvalidOrdinalSequence { module_index: usize, function_index: usize },
+    EmptyModuleName {
+        index: usize,
+    },
+    ModuleNameTooLong {
+        index: usize,
+    },
+    DuplicateModuleName {
+        index: usize,
+    },
+    TooManyExports {
+        index: usize,
+    },
+    ExportNameTooLong {
+        module_index: usize,
+        export_index: usize,
+    },
+    DuplicateExportName {
+        module_index: usize,
+        export_index: usize,
+    },
+    ForwarderTooLong {
+        module_index: usize,
+        function_index: usize,
+    },
+    InvalidNameAssociation {
+        module_index: usize,
+        name_index: usize,
+    },
+    InvalidOrdinalSequence {
+        module_index: usize,
+        function_index: usize,
+    },
 }
 
 impl fmt::Display for ExportCatalogueError {
@@ -329,12 +352,13 @@ mod tests {
             name: "kernel32.DLL".into(),
             directory: module().directory,
         };
-        let error = ExportCatalogue::new(
-            vec![module(), duplicate],
-            ExportCatalogueLimits::default(),
-        )
-        .unwrap_err();
-        assert_eq!(error, ExportCatalogueError::DuplicateModuleName { index: 1 });
+        let error =
+            ExportCatalogue::new(vec![module(), duplicate], ExportCatalogueLimits::default())
+                .unwrap_err();
+        assert_eq!(
+            error,
+            ExportCatalogueError::DuplicateModuleName { index: 1 }
+        );
     }
 
     #[test]
@@ -342,8 +366,7 @@ mod tests {
         let bad = module();
         let mut bad = bad;
         bad.directory.names.push(bad.directory.names[0].clone());
-        let error =
-            ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
+        let error = ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
         assert_eq!(
             error,
             ExportCatalogueError::DuplicateExportName {
@@ -376,8 +399,7 @@ mod tests {
     fn rejects_inconsistent_name_associations() {
         let mut bad = module();
         bad.directory.names[0].function_index = 2;
-        let error =
-            ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
+        let error = ExportCatalogue::new(vec![bad], ExportCatalogueLimits::default()).unwrap_err();
         assert_eq!(
             error,
             ExportCatalogueError::InvalidNameAssociation {
