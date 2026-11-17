@@ -1,6 +1,5 @@
 use nexa_inspect::{inspect, plan_image_layout, ImageLayoutLimits, PeReport};
 
-
 fn print_section_transition_diagnostics(report: &PeReport) {
     let alignment = u64::from(report.section_alignment);
     if alignment == 0 || !alignment.is_power_of_two() {
@@ -48,7 +47,7 @@ fn print_section_transition_diagnostics(report: &PeReport) {
         };
 
         println!(
-            "Section transition {index}: {} -> {}; extent_source={extent_source};              previous_rva={:#x}; aligned_extent={aligned_extent:#x};              expected_next_rva={expected_next_rva:#x}; actual_next_rva={actual_next_rva:#x};              classification={classification}",
+            "Section transition {index}: {} -> {}; extent_source={extent_source}; previous_rva={:#x}; aligned_extent={aligned_extent:#x}; expected_next_rva={expected_next_rva:#x}; actual_next_rva={actual_next_rva:#x}; classification={classification}",
             previous.name, next.name, previous.virtual_address, next.virtual_address
         );
     }
