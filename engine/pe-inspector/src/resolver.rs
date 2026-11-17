@@ -12,6 +12,7 @@ pub struct ExportCatalogueLimits {
     pub max_exports_per_module: usize,
     pub max_module_name_bytes: usize,
     pub max_export_name_bytes: usize,
+    pub max_forwarder_bytes: usize,
 }
 
 impl Default for ExportCatalogueLimits {
@@ -21,6 +22,7 @@ impl Default for ExportCatalogueLimits {
             max_exports_per_module: 16_384,
             max_module_name_bytes: 512,
             max_export_name_bytes: 512,
+            max_forwarder_bytes: 4096,
         }
     }
 }
@@ -58,6 +60,8 @@ pub enum ExportCatalogueError {
     DuplicateModuleName { index: usize },
     TooManyExports { index: usize },
     ExportNameTooLong { module_index: usize, export_index: usize },
+    DuplicateExportName { module_index: usize, export_index: usize },
+    ForwarderTooLong { module_index: usize, function_index: usize },
     InvalidNameAssociation { module_index: usize, name_index: usize },
     InvalidOrdinalSequence { module_index: usize, function_index: usize },
 }
@@ -107,6 +111,15 @@ impl ExportCatalogue {
                         export_index: name_index,
                     });
                 }
+                if directory.names[..name_index]
+                    .iter()
+                    .any(|previous| previous.name == association.name)
+                {
+                    return Err(ExportCatalogueError::DuplicateExportName {
+                        module_index: index,
+                        export_index: name_index,
+                    });
+                }
                 let slot = usize::try_from(association.function_index).ok();
                 let Some(slot) = slot.filter(|slot| *slot < directory.functions.len()) else {
                     return Err(ExportCatalogueError::InvalidNameAssociation {
@@ -123,6 +136,16 @@ impl ExportCatalogue {
             }
 
             for (function_index, slot) in directory.functions.iter().enumerate() {
+                if slot
+                    .forwarder
+                    .as_ref()
+                    .is_some_and(|forwarder| forwarder.len() > limits.max_forwarder_bytes)
+                {
+                    return Err(ExportCatalogueError::ForwarderTooLong {
+                        module_index: index,
+                        function_index,
+                    });
+                }
                 let index_u32 = u32::try_from(function_index).map_err(|_| {
                     ExportCatalogueError::InvalidOrdinalSequence {
                         module_index: index,
