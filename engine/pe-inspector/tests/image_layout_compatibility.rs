@@ -266,3 +266,48 @@ fn checked_alignment_rejects_invalid_values_and_overflow() {
     assert_eq!(align_up_checked(0x1000, 3), None);
     assert_eq!(align_up_checked(u64::MAX, 2), None);
 }
+
+
+#[test]
+fn plans_zero_virtual_size_raw_only_section_using_documented_fallback_policy() {
+    let input = report(vec![section(".legacy", 0, 0x1000, 0x200, 0x200)]);
+    let plan = plan_image_layout(&input, 0x400, limits()).unwrap();
+
+    assert_eq!(plan.sections.len(), 1);
+    assert_eq!(plan.sections[0].mapped_size, 0x200);
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().image_rva, 0x1000);
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().file_offset, 0x200);
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().length, 0x200);
+    assert_eq!(plan.sections[0].zero_fill, None);
+    assert_eq!(plan.total_copy_bytes, 0x400);
+    assert_eq!(plan.total_zero_fill_bytes, 0);
+}
+
+#[test]
+fn ignores_section_with_zero_virtual_and_raw_sizes() {
+    let input = report(vec![section(".empty", 0, 0x1000, 0, 0)]);
+    let plan = plan_image_layout(&input, 0x200, limits()).unwrap();
+
+    assert!(plan.sections.is_empty());
+    assert_eq!(plan.total_copy_bytes, 0x200);
+    assert_eq!(plan.total_zero_fill_bytes, 0);
+}
+
+#[test]
+fn accepts_section_alignment_just_below_page_size() {
+    let mut input = report(vec![section(".text", 0x800, 0x800, 0x800, 0x800)]);
+    input.size_of_image = 0x1000;
+    input.size_of_headers = 0x800;
+    input.section_alignment = 0x800;
+    input.file_alignment = 0x800;
+    input.entry_point_rva = 0x800;
+
+    let plan = plan_image_layout(&input, 0x1000, limits()).unwrap();
+
+    assert_eq!(plan.image_size, 0x1000);
+    assert_eq!(plan.sections.len(), 1);
+    assert_eq!(plan.sections[0].image_rva, 0x800);
+    assert_eq!(plan.sections[0].mapped_size, 0x800);
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().file_offset, 0x800);
+    assert_eq!(plan.sections[0].copy.as_ref().unwrap().length, 0x800);
+}
