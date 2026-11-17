@@ -2,9 +2,9 @@
 
 ## Status
 
-**NCE-004a.1 implemented; validation pending.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
+**NCE-004a.1 implemented and validated.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
 
-The current parser validates relocation-directory block framing and reports block/entry counts, but it does not retain typed relocation entries. NCE-004a must extend that metadata before relocation planning can safely consume it. Do not infer that the current counters are sufficient relocation input.
+The parser now validates relocation-directory block framing and retains bounded typed relocation entries. The existing counters remain for compatibility; relocation planning consumes the typed metadata and independently validates its inputs.
 
 ## Goal
 
@@ -143,4 +143,4 @@ The parser now exposes `ParsedRelocationDirectory`, `ParsedRelocationBlock`, and
 
 The existing `relocation_blocks` and `relocation_entries` counters remain available. Parsing enforces fixed ceilings of 4,096 blocks and 65,536 entries, validates block framing and 4-KiB page alignment, uses checked count/offset arithmetic, and rejects incomplete trailing directory bytes. Absent directories produce `None` metadata and zero counters.
 
-Focused tests cover lossless DIR64/unknown-type decoding, missing metadata, incomplete trailing bytes, and both metadata ceilings. Formatting, Clippy, workspace tests, and CI validation are pending on this implementation head. No relocation patch planning or image mutation has been added.
+Focused tests cover lossless DIR64/unknown-type decoding, missing metadata, incomplete trailing bytes, and both metadata ceilings. Local Windows validation passed formatting, Clippy, and all 144 workspace tests. GitHub Actions on commit `6672374968b60102558a4a13adba652ae0d59e76` passed formatting, Clippy, Ubuntu and Windows workspace tests, external compiler fixture validation, dependency audit, and fuzz smoke. No relocation patch planning or image mutation has been added yet.
