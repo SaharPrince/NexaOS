@@ -2,7 +2,7 @@
 
 ## Status
 
-**Design specified; implementation not started.** This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
+**NCE-004a.1 implemented; validation pending.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
 
 The current parser validates relocation-directory block framing and reports block/entry counts, but it does not retain typed relocation entries. NCE-004a must extend that metadata before relocation planning can safely consume it. Do not infer that the current counters are sufficient relocation input.
 
@@ -135,3 +135,12 @@ Malformed input and forged public plans must return errors, never panic.
 ## Release gates retained from NCE-002
 
 The broader third-party PE corpus and representative low-end hardware measurements remain mandatory before enabling real application loading. Passing this isolated relocation milestone does not waive those gates or establish production readiness.
+
+
+## Implementation progress — NCE-004a.1
+
+The parser now exposes `ParsedRelocationDirectory`, `ParsedRelocationBlock`, and `ParsedRelocationEntry` through `PeReport.relocation_metadata`. Each entry retains its original 16-bit value plus the decoded four-bit type and twelve-bit offset. Unknown type values are preserved without parser-side interpretation. The declared directory RVA and size, page RVAs, block order, and entry order are retained.
+
+The existing `relocation_blocks` and `relocation_entries` counters remain available. Parsing enforces fixed ceilings of 4,096 blocks and 65,536 entries, validates block framing and 4-KiB page alignment, uses checked count/offset arithmetic, and rejects incomplete trailing directory bytes. Absent directories produce `None` metadata and zero counters.
+
+Focused tests cover lossless DIR64/unknown-type decoding, missing metadata, incomplete trailing bytes, and both metadata ceilings. Formatting, Clippy, workspace tests, and CI validation are pending on this implementation head. No relocation patch planning or image mutation has been added.
