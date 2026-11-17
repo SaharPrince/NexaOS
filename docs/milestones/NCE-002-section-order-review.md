@@ -229,3 +229,41 @@ The sample set exercises both initialized section copying and virtual zero-fill.
 ### Scope and limitations
 
 These are four system binaries from one Windows host, not four independent application vendors or a broad third-party corpus. The results support the current section-order and aligned-adjacency assertions for these particular files only. They do not establish universal Windows loader behavior, nor do they justify tightening production planner acceptance rules. Keep the broader licensed PE corpus review open and continue to inspect samples without executing them.
+
+
+## Dell Latitude E5530 independent compiler corpus checkpoint — 2026-11-17
+
+The corrected CI artifact `nexa-pe-corpus-44075332508-1` was downloaded and extracted on the Dell Latitude E5530. All three executable fixture SHA-256 values matched the artifact's `SHA256SUMS` manifest before testing.
+
+The configured command
+
+```powershell
+cargo test --locked -p nexa-inspect --test external_compiler_pe -- --nocapture
+```
+
+completed with **4 passed, 0 failed**. The optional Windows System32 fixture was not configured and was explicitly skipped; its test harness entry completed without failure.
+
+### Compiler-produced fixtures
+
+| Producer | Format / machine | File size | Sections | Copy bytes | Zero-fill bytes | Result |
+|---|---|---:|---:|---:|---:|---|
+| MinGW-w64 GCC 13-win32 | PE32+ AMD64 | 129,570 bytes | 19 | 93,151 | 16,800 | Parse and layout plan passed |
+| MinGW-w64 GCC 13-win32 | PE32 x86 | 118,302 bytes | 17 | Not planned | Not planned | Parser inspection passed |
+| Clang 21.1.8 + LLD 21.1.8 | PE32+ AMD64 | 6,144 bytes | 3 | 5,168 | 16,384 | Parse and layout plan passed |
+
+For the two PE32+ fixtures, all **20 consecutive-section transitions** printed by the integration assertions were classified as adjacent after rounding the previous section's `VirtualSize` to `SectionAlignment`: 18 transitions in the MinGW fixture and 2 in the LLVM/LLD fixture. The MinGW PE32 x86 fixture has 17 sections and was inspected only; the planner remains AMD64-only.
+
+The MinGW PE32+ report includes a virtual-only `.bss` section (`VirtualSize = 0x41a0`, `SizeOfRawData = 0`) and sections whose raw size exceeds their virtual size, providing useful independently compiled examples for zero-fill and raw-padding policy. The LLVM/LLD fixture reports three sections and 16,384 zero-fill bytes. These results are from the exact fixture builds and assertions in the CI workflow, now replayed locally against the downloaded, checksum-verified artifacts.
+
+### Scope and limitations
+
+- The fixtures were generated in CI from NexaOS-owned C sources; no third-party binary was downloaded or redistributed.
+- All binaries were parsed and planned as data. None was executed.
+- This checkpoint validates these two PE32+ compiler outputs and one PE32 parser input; it does not establish universal Windows loader behavior or broad third-party application compatibility.
+- The PE32 x86 fixture does not validate the AMD64-only layout planner.
+- The optional Windows System32 fixture was not part of this run; the separate four-file Latitude checkpoint above remains the evidence for that path.
+- The artifact was extracted under `C:\\Windows\\system32\\target\\pe-corpus-ce39e59` because that was the working directory when the extraction command was first run. This did not affect the test: the configured absolute fixture paths resolved and all tests passed. For future housekeeping, the corpus can be moved under the repository's `target` directory and the environment variables reset.
+
+### Updated assessment
+
+This closes an important reproducibility gap: checksum-verified MinGW and LLVM/LLD PE fixtures generated in CI can now be independently inspected and planned on the low-end Latitude host without installing compiler toolchains locally. It strengthens NCE-002 evidence but does not, by itself, complete the broader corpus review or milestone acceptance. Keep NCE-003 blocked pending the remaining corpus and acceptance review.
