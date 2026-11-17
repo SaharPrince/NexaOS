@@ -21,6 +21,7 @@ fn report(sections: Vec<Section>) -> PeReport {
         export_metadata: None,
         relocation_blocks: 0,
         relocation_entries: 0,
+        relocation_metadata: None,
         file_size: 0,
         overlay: None,
         debug_entries: Vec::new(),
