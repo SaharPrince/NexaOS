@@ -61,3 +61,7 @@ NCE-001 is a read-only metadata inspector. It must not map executable sections i
 ## NCE-002 design boundary
 
 The [NCE-002 design specification](../milestones/NCE-002.md) defines a staged PE32+ AMD64 image-layout plan. Its first implementation must use bounded, non-executable memory and must not transfer control to an image entry point. Layout planning, allocation, population, relocation, import resolution, and execution remain separate stages. The specification is design-only until the corresponding implementation and automated acceptance tests exist.
+
+## NCE-004a relocation boundary
+
+The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. Only ABSOLUTE padding and DIR64 are initially supported; all other relocation types are rejected. This is a prerequisite stage, not application execution or the Windows x64 ABI runtime.
