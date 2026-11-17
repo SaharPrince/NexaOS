@@ -422,7 +422,7 @@ mod tests {
         let image = image_with_value(0x1123, 1);
         let metadata = ParsedRelocationDirectory {
             directory_rva: 0x800,
-            directory_size: 20,
+            directory_size: 12,
             blocks: vec![ParsedRelocationBlock {
                 page_rva: 0x1000,
                 entries: vec![entry(0xa123), entry(0xa124)],
