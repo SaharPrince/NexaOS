@@ -1061,6 +1061,19 @@ mod tests {
         b
     }
 
+    fn pe64_with_relocation_payload(payload_size: usize) -> Vec<u8> {
+        let mut b = pe64();
+        b.resize(0x200 + payload_size, 0);
+        let section = 0x188;
+        let raw_size = u32::try_from(payload_size).unwrap();
+        b[section + 8..section + 12].copy_from_slice(&raw_size.to_le_bytes());
+        b[section + 16..section + 20].copy_from_slice(&raw_size.to_le_bytes());
+        let image_size = (0x1000usize + payload_size + 0xfff) & !0xfff;
+        b[0x98 + 56..0x98 + 60]
+            .copy_from_slice(&u32::try_from(image_size).unwrap().to_le_bytes());
+        b
+    }
+
     fn pe64_with_one_export() -> Vec<u8> {
         let mut b = pe64();
         let export_dir = 0x98 + 112;
@@ -1138,6 +1151,49 @@ mod tests {
         assert_eq!(report.relocation_blocks, 0);
         assert_eq!(report.relocation_entries, 0);
         assert!(report.relocation_metadata.is_none());
+    }
+
+    #[test]
+    fn rejects_relocation_block_count_above_limit() {
+        let block_count = MAX_RELOCATION_BLOCKS + 1;
+        let directory_size = block_count * 8;
+        let payload_size = (directory_size + 0x1ff) & !0x1ff;
+        let mut b = pe64_with_relocation_payload(payload_size);
+        let reloc_dir = 0x98 + 112 + 5 * 8;
+        b[reloc_dir..reloc_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[reloc_dir + 4..reloc_dir + 8]
+            .copy_from_slice(&u32::try_from(directory_size).unwrap().to_le_bytes());
+        for index in 0..block_count {
+            let offset = 0x200 + index * 8;
+            b[offset..offset + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+            b[offset + 4..offset + 8].copy_from_slice(&8u32.to_le_bytes());
+        }
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "relocation block count exceeds safety limit"
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_relocation_entry_count_above_limit() {
+        let entry_count = MAX_RELOCATION_ENTRIES + 1;
+        let block_size = 8 + entry_count * 2;
+        let payload_size = (block_size + 0x1ff) & !0x1ff;
+        let mut b = pe64_with_relocation_payload(payload_size);
+        let reloc_dir = 0x98 + 112 + 5 * 8;
+        b[reloc_dir..reloc_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[reloc_dir + 4..reloc_dir + 8]
+            .copy_from_slice(&u32::try_from(block_size).unwrap().to_le_bytes());
+        b[0x200..0x204].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[0x204..0x208].copy_from_slice(&u32::try_from(block_size).unwrap().to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "relocation entry count exceeds safety limit"
+            ))
+        ));
     }
 
     #[test]
