@@ -312,6 +312,9 @@ mod tests {
             exports: Vec::new(),
             relocation_blocks: 0,
             relocation_entries: 0,
+            file_size: 0,
+            overlay: None,
+            debug_entries: Vec::new(),
         }
     }
 
