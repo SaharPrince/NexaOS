@@ -13,7 +13,7 @@ pub use image_layout::{
     ImageZeroFillRange, SectionImageLayout,
 };
 pub use typed_metadata::{
-    typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol,
+    typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
 };
 
 const MAX_SECTIONS: usize = 96;
