@@ -529,6 +529,59 @@ mod tests {
     }
 
     #[test]
+    fn enforces_entry_patch_and_directory_bounds() {
+        let image = image_with_value(0x1123, 0x1400_1234);
+        let metadata = metadata(vec![entry(0xa123)]);
+        let entry_limit = plan_base_relocations(
+            "PE32+",
+            0x8664,
+            0x1400_0000,
+            0x1500_0000,
+            image.len() as u64,
+            Some(&metadata),
+            &image,
+            RelocationPlanLimits {
+                max_blocks: 1,
+                max_entries: 0,
+                max_patches: 1,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(entry_limit.failure, RelocationPlanFailure::TooManyEntries);
+
+        let patch_limit = plan_base_relocations(
+            "PE32+",
+            0x8664,
+            0x1400_0000,
+            0x1500_0000,
+            image.len() as u64,
+            Some(&metadata),
+            &image,
+            RelocationPlanLimits {
+                max_blocks: 1,
+                max_entries: 1,
+                max_patches: 0,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(patch_limit.failure, RelocationPlanFailure::TooManyPatches);
+
+        let mut out_of_bounds = metadata.clone();
+        out_of_bounds.directory_rva = 0x1ff8;
+        assert_eq!(
+            plan(
+                Some(&out_of_bounds),
+                &image,
+                0x1400_0000,
+                0x1500_0000
+            )
+            .unwrap_err()
+            .failure,
+            RelocationPlanFailure::InvalidMetadata
+        );
+    }
+
+    #[test]
     fn rejects_invalid_image_identity() {
         let image = vec![0; 0x2000];
         assert_eq!(
