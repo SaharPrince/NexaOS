@@ -19,13 +19,13 @@ pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
     ImageZeroFillRange, SectionImageLayout,
 };
+pub use relocation_metadata::{
+    ParsedRelocationBlock, ParsedRelocationDirectory, ParsedRelocationEntry,
+};
 pub use resolver::{
     resolve_imports, ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup,
     ExportLookupResult, ExportModule, ImportResolutionError, ImportResolutionFailure,
     ImportResolutionLimits, ImportResolutionPlan, ResolvedImport,
-};
-pub use relocation_metadata::{
-    ParsedRelocationBlock, ParsedRelocationDirectory, ParsedRelocationEntry,
 };
 pub use typed_metadata::{
     typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
@@ -887,7 +887,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     .checked_add(1)
                     .ok_or(PeError::Invalid("relocation block count overflow"))?;
                 if relocation_blocks > MAX_RELOCATION_BLOCKS {
-                    return Err(PeError::Invalid("relocation block count exceeds safety limit"));
+                    return Err(PeError::Invalid(
+                        "relocation block count exceeds safety limit",
+                    ));
                 }
 
                 let entry_count = (block_size - 8) / 2;
@@ -895,7 +897,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     .checked_add(entry_count)
                     .ok_or(PeError::Invalid("relocation entry count overflow"))?;
                 if relocation_entries > MAX_RELOCATION_ENTRIES {
-                    return Err(PeError::Invalid("relocation entry count exceeds safety limit"));
+                    return Err(PeError::Invalid(
+                        "relocation entry count exceeds safety limit",
+                    ));
                 }
 
                 let mut entries = Vec::with_capacity(entry_count);
@@ -1069,8 +1073,7 @@ mod tests {
         b[section + 8..section + 12].copy_from_slice(&raw_size.to_le_bytes());
         b[section + 16..section + 20].copy_from_slice(&raw_size.to_le_bytes());
         let image_size = (0x1000usize + payload_size + 0xfff) & !0xfff;
-        b[0x98 + 56..0x98 + 60]
-            .copy_from_slice(&u32::try_from(image_size).unwrap().to_le_bytes());
+        b[0x98 + 56..0x98 + 60].copy_from_slice(&u32::try_from(image_size).unwrap().to_le_bytes());
         b
     }
 
