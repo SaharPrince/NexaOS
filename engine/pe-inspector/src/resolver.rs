@@ -357,7 +357,7 @@ fn parse_forwarder(
         || target.is_empty()
         || module.len() > limits.max_module_name_bytes
         || module.contains('/')
-        || module.contains('\\\\')
+        || module.bytes().any(|byte| matches!(byte, 0x2f | 0x5c | 0x3a))
         || module.contains(':')
         || target.len() > limits.max_symbol_name_bytes
     {
@@ -583,6 +583,10 @@ mod tests {
                     name: "ExitProcess".into(),
                     function_index: 0,
                     ordinal: 10,
+                }, ExportNameAssociation {
+                    name: "Forwarded".into(),
+                    function_index: 2,
+                    ordinal: 12,
                 }],
             },
         }
@@ -777,9 +781,12 @@ mod tests {
             ExportCatalogueLimits::default(),
         )
         .unwrap();
-        let mut import = import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 });
+        let named_import = import_library(crate::ParsedImportSymbol::Name {
+            name: "Forwarded".into(),
+            hint: 0,
+        });
         let plan = resolve_imports(
-            &[import.clone()],
+            &[named_import],
             &catalogue,
             ImportResolutionLimits::default(),
         )
@@ -789,7 +796,7 @@ mod tests {
         assert_eq!(plan.imports[0].function_rva, 0x2200);
         assert_eq!(plan.imports[0].forwarder_hops, 1);
 
-        import.symbols[0].symbol = crate::ParsedImportSymbol::Ordinal { ordinal: 12 };
+        let import = import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 });
         let mut source = module();
         source.directory.functions[2].forwarder = Some("OTHER.#20".into());
         let ordinal_catalogue =
