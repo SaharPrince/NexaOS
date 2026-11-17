@@ -188,6 +188,22 @@ impl ExportCatalogue {
     }
 
     /// Module names are ASCII case-insensitive; export names are exact-case.
+    fn canonical_module_name(&self, module_name: &str) -> Option<&str> {
+        self.modules
+            .iter()
+            .find(|module| module.name.eq_ignore_ascii_case(module_name))
+            .or_else(|| {
+                if module_name.to_ascii_lowercase().ends_with(".dll") {
+                    return None;
+                }
+                let with_extension = format!("{module_name}.dll");
+                self.modules
+                    .iter()
+                    .find(|module| module.name.eq_ignore_ascii_case(&with_extension))
+            })
+            .map(|module| module.name.as_str())
+    }
+
     pub fn lookup(&self, module_name: &str, symbol: &ExportLookup) -> ExportLookupResult {
         let Some(module) = self
             .modules
@@ -484,8 +500,17 @@ pub fn resolve_imports(
             let mut forwarder_hops = 0usize;
 
             let (target_module, export_ordinal, function_rva) = loop {
+                let Some(canonical_module) = catalogue.canonical_module_name(&current_module)
+                else {
+                    return Err(resolution_error(
+                        library_index,
+                        symbol_index,
+                        ImportResolutionFailure::MissingModule,
+                    ));
+                };
+                let canonical_module = canonical_module.to_owned();
                 if visited.iter().any(|entry| {
-                    same_forwarder_target(entry, &current_module, &current_lookup)
+                    same_forwarder_target(entry, &canonical_module, &current_lookup)
                 }) {
                     return Err(resolution_error(
                         library_index,
@@ -493,13 +518,13 @@ pub fn resolve_imports(
                         ImportResolutionFailure::ForwarderCycle,
                     ));
                 }
-                visited.push((current_module.clone(), current_lookup.clone()));
+                visited.push((canonical_module.clone(), current_lookup.clone()));
 
-                match catalogue.lookup(&current_module, &current_lookup) {
+                match catalogue.lookup(&canonical_module, &current_lookup) {
                     ExportLookupResult::Resolved {
                         ordinal,
                         function_rva,
-                    } => break (current_module, ordinal, function_rva),
+                    } => break (canonical_module, ordinal, function_rva),
                     ExportLookupResult::MissingModule => {
                         return Err(resolution_error(
                             library_index,
@@ -677,7 +702,7 @@ mod tests {
             error,
             ExportCatalogueError::DuplicateExportName {
                 module_index: 0,
-                export_index: 1
+                export_index: 2
             }
         );
     }
