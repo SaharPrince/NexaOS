@@ -356,9 +356,9 @@ fn parse_forwarder(
     if module.is_empty()
         || target.is_empty()
         || module.len() > limits.max_module_name_bytes
-        || module.contains('/')
-        || module.bytes().any(|byte| matches!(byte, 0x2f | 0x5c | 0x3a))
-        || module.contains(':')
+        || module
+            .bytes()
+            .any(|byte| matches!(byte, 0x2f | 0x5c | 0x3a))
         || target.len() > limits.max_symbol_name_bytes
     {
         return Err(resolution_error(
