@@ -356,7 +356,9 @@ fn parse_forwarder(
     if module.is_empty()
         || target.is_empty()
         || module.len() > limits.max_module_name_bytes
-        || module.contains(['/', '\\\\', ':'])
+        || module.contains('/')
+        || module.contains('\\\\')
+        || module.contains(':')
         || target.len() > limits.max_symbol_name_bytes
     {
         return Err(resolution_error(
@@ -693,6 +695,206 @@ mod tests {
         );
         bad.directory.functions[2].forwarder = Some("OK".into());
         assert!(ExportCatalogue::new(vec![bad], limits).is_ok());
+    }
+
+    fn import_library(symbol: crate::ParsedImportSymbol) -> crate::ParsedImportLibrary {
+        crate::ParsedImportLibrary {
+            name: "KERNEL32.dll".into(),
+            original_first_thunk: 0x2000,
+            first_thunk: 0x3000,
+            symbols: vec![crate::ParsedImportEntry {
+                symbol,
+                lookup_rva: 0x2000,
+                iat_rva: 0x3000,
+                pointer_width: 8,
+            }],
+        }
+    }
+
+    fn forwarder_module(name: &str, target: &str) -> ExportModule {
+        ExportModule {
+            name: name.into(),
+            directory: ParsedExportDirectory {
+                module_name: Some(name.into()),
+                ordinal_base: 1,
+                functions: vec![ExportFunctionSlot {
+                    ordinal: 1,
+                    function_rva: None,
+                    forwarder: Some(target.into()),
+                }],
+                names: vec![ExportNameAssociation {
+                    name: "Func".into(),
+                    function_index: 0,
+                    ordinal: 1,
+                }],
+            },
+        }
+    }
+
+    fn target_module() -> ExportModule {
+        ExportModule {
+            name: "OTHER".into(),
+            directory: ParsedExportDirectory {
+                module_name: Some("OTHER".into()),
+                ordinal_base: 20,
+                functions: vec![ExportFunctionSlot {
+                    ordinal: 20,
+                    function_rva: Some(0x2200),
+                    forwarder: None,
+                }],
+                names: vec![ExportNameAssociation {
+                    name: "Func".into(),
+                    function_index: 0,
+                    ordinal: 20,
+                }],
+            },
+        }
+    }
+
+    #[test]
+    fn resolves_named_imports_to_module_rvas_without_writing_iat() {
+        let plan = resolve_imports(
+            &[import_library(crate::ParsedImportSymbol::Name {
+                name: "ExitProcess".into(),
+                hint: 0,
+            })],
+            &catalogue(),
+            ImportResolutionLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(plan.imports.len(), 1);
+        assert_eq!(plan.imports[0].iat_rva, 0x3000);
+        assert_eq!(plan.imports[0].pointer_width, 8);
+        assert_eq!(plan.imports[0].target_module, "KERNEL32.dll");
+        assert_eq!(plan.imports[0].function_rva, 0x1000);
+        assert_eq!(plan.imports[0].forwarder_hops, 0);
+    }
+
+    #[test]
+    fn follows_named_forwarders_only_through_supplied_catalogue() {
+        let catalogue = ExportCatalogue::new(
+            vec![module(), target_module()],
+            ExportCatalogueLimits::default(),
+        )
+        .unwrap();
+        let mut import = import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 });
+        let plan = resolve_imports(
+            &[import.clone()],
+            &catalogue,
+            ImportResolutionLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(plan.imports[0].target_module, "OTHER");
+        assert_eq!(plan.imports[0].export_ordinal, 20);
+        assert_eq!(plan.imports[0].function_rva, 0x2200);
+        assert_eq!(plan.imports[0].forwarder_hops, 1);
+
+        import.symbols[0].symbol = crate::ParsedImportSymbol::Ordinal { ordinal: 12 };
+        let mut source = module();
+        source.directory.functions[2].forwarder = Some("OTHER.#20".into());
+        let ordinal_catalogue =
+            ExportCatalogue::new(vec![source, target_module()], ExportCatalogueLimits::default())
+                .unwrap();
+        let ordinal_plan = resolve_imports(
+            &[import],
+            &ordinal_catalogue,
+            ImportResolutionLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(ordinal_plan.imports[0].function_rva, 0x2200);
+    }
+
+    #[test]
+    fn rejects_forwarder_cycles_and_hop_limit_exhaustion() {
+        let cycle_catalogue = ExportCatalogue::new(
+            vec![
+                forwarder_module("A.dll", "B.Func"),
+                forwarder_module("B.dll", "A.Func"),
+            ],
+            ExportCatalogueLimits::default(),
+        )
+        .unwrap();
+        let cycle_import = crate::ParsedImportLibrary {
+            name: "A.dll".into(),
+            original_first_thunk: 0x2000,
+            first_thunk: 0x3000,
+            symbols: vec![crate::ParsedImportEntry {
+                symbol: crate::ParsedImportSymbol::Name {
+                    name: "Func".into(),
+                    hint: 0,
+                },
+                lookup_rva: 0x2000,
+                iat_rva: 0x3000,
+                pointer_width: 8,
+            }],
+        };
+        assert_eq!(
+            resolve_imports(
+                &[cycle_import],
+                &cycle_catalogue,
+                ImportResolutionLimits::default()
+            )
+            .unwrap_err()
+            .failure,
+            ImportResolutionFailure::ForwarderCycle
+        );
+
+        assert_eq!(
+            resolve_imports(
+                &[import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 })],
+                &ExportCatalogue::new(
+                    vec![module(), target_module()],
+                    ExportCatalogueLimits::default()
+                )
+                .unwrap(),
+                ImportResolutionLimits {
+                    max_forwarder_hops: 0,
+                    ..ImportResolutionLimits::default()
+                }
+            )
+            .unwrap_err()
+            .failure,
+            ImportResolutionFailure::ForwarderHopLimit
+        );
+    }
+
+    #[test]
+    fn rejects_missing_imports_invalid_forwarders_and_non_amd64_widths() {
+        let missing = resolve_imports(
+            &[import_library(crate::ParsedImportSymbol::Name {
+                name: "NotThere".into(),
+                hint: 0,
+            })],
+            &catalogue(),
+            ImportResolutionLimits::default(),
+        )
+        .unwrap_err();
+        assert_eq!(missing.failure, ImportResolutionFailure::MissingSymbol);
+
+        let mut bad_forwarder = module();
+        bad_forwarder.directory.functions[2].forwarder = Some("not-a-forwarder".into());
+        let bad_catalogue =
+            ExportCatalogue::new(vec![bad_forwarder], ExportCatalogueLimits::default()).unwrap();
+        let invalid = resolve_imports(
+            &[import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 })],
+            &bad_catalogue,
+            ImportResolutionLimits::default(),
+        )
+        .unwrap_err();
+        assert_eq!(invalid.failure, ImportResolutionFailure::InvalidForwarder);
+
+        let mut pe32_import = import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 10 });
+        pe32_import.symbols[0].pointer_width = 4;
+        let width = resolve_imports(
+            &[pe32_import],
+            &catalogue(),
+            ImportResolutionLimits::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            width.failure,
+            ImportResolutionFailure::UnsupportedPointerWidth { pointer_width: 4 }
+        );
     }
 
     #[test]
