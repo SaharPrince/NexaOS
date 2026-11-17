@@ -143,6 +143,8 @@ pub struct ExportNameAssociation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ParsedExportDirectory {
+    /// Optional module name stored in IMAGE_EXPORT_DIRECTORY.Name.
+    pub module_name: Option<String>,
     pub ordinal_base: u32,
     pub functions: Vec<ExportFunctionSlot>,
     pub names: Vec<ExportNameAssociation>,
@@ -536,6 +538,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 }
                 let (name_offset, name_available) = map_rva_range(name_rva, 1)?;
                 let name = cstr(d, name_offset, name_available, 512, "import DLL name")?;
+                if iat == 0 {
+                    return Err(PeError::Invalid("import descriptor has no IAT"));
+                }
                 let thunk = if lookup != 0 { lookup } else { iat };
                 if thunk == 0 {
                     return Err(PeError::Invalid("import descriptor has no thunk table"));
@@ -632,6 +637,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 return Err(PeError::Invalid("truncated export directory"));
             }
             let (o, _) = map_rva_range(x.address, x.size as usize)?;
+            let module_name_rva = u32at(d, o + 12, "export module name RVA")?;
+            let module_name = if module_name_rva == 0 {
+                None
+            } else {
+                let (module_offset, module_available) = map_rva_range(module_name_rva, 1)?;
+                Some(cstr(d, module_offset, module_available, 512, "export module name")?)
+            };
             let ordinal_base = u32at(d, o + 16, "export ordinal base")?;
             let function_count = u32at(d, o + 20, "export function count")? as usize;
             let name_count = u32at(d, o + 24, "export name count")? as usize;
@@ -718,6 +730,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 }
             }
             export_metadata = Some(ParsedExportDirectory {
+                module_name,
                 ordinal_base,
                 functions: function_slots,
                 names: name_associations,
@@ -1001,6 +1014,11 @@ mod tests {
         b[0x240..0x244].copy_from_slice(&0x8000_0007u32.to_le_bytes());
         let report = inspect(&b).unwrap();
         assert_eq!(report.imports[0].symbols, vec!["ordinal:7"]);
+        assert_eq!(
+            report.import_metadata[0].symbols[0].symbol,
+            ParsedImportSymbol::Ordinal { ordinal: 7 }
+        );
+        assert_eq!(report.import_metadata[0].symbols[0].pointer_width, 4);
     }
 
     #[test]
@@ -1044,6 +1062,46 @@ mod tests {
     fn extracts_valid_named_export() {
         let report = inspect(&pe64_with_one_export()).unwrap();
         assert_eq!(report.exports, vec!["NexaEntry"]);
+        let metadata = report.export_metadata.unwrap();
+        assert_eq!(metadata.ordinal_base, 0);
+        assert_eq!(metadata.functions.len(), 1);
+        assert_eq!(metadata.functions[0].function_rva, Some(0x1080));
+        assert_eq!(metadata.names[0].name, "NexaEntry");
+        assert_eq!(metadata.names[0].function_index, 0);
+        assert_eq!(metadata.names[0].ordinal, 0);
+    }
+
+    #[test]
+    fn retains_export_ordinal_base_sparse_slots_and_forwarders() {
+        let mut b = pe64_with_one_export();
+        let export_dir = 0x98 + 112;
+        b[export_dir + 4..export_dir + 8].copy_from_slice(&0x80u32.to_le_bytes());
+        b[0x200 + 16..0x200 + 20].copy_from_slice(&10u32.to_le_bytes());
+        b[0x200 + 20..0x200 + 24].copy_from_slice(&3u32.to_le_bytes());
+        b[0x200 + 28..0x200 + 32].copy_from_slice(&0x1040u32.to_le_bytes());
+        b[0x200 + 32..0x200 + 36].copy_from_slice(&0x104c_u32.to_le_bytes());
+        b[0x200 + 36..0x200 + 40].copy_from_slice(&0x1050u32.to_le_bytes());
+        b[0x240..0x244].copy_from_slice(&0x1080u32.to_le_bytes());
+        b[0x244..0x248].copy_from_slice(&0u32.to_le_bytes());
+        b[0x248..0x24c].copy_from_slice(&0x1070u32.to_le_bytes());
+        b[0x24c..0x250].copy_from_slice(&0x1060u32.to_le_bytes());
+        b[0x250..0x252].copy_from_slice(&2u16.to_le_bytes());
+        b[0x260..0x26a].copy_from_slice(b"NexaEntry\0");
+        b[0x270..0x27a].copy_from_slice(b"OTHER.Func");
+        b[0x27a] = 0;
+
+        let report = inspect(&b).unwrap();
+        let metadata = report.export_metadata.unwrap();
+        assert_eq!(metadata.ordinal_base, 10);
+        assert_eq!(metadata.functions.len(), 3);
+        assert_eq!(metadata.functions[0].ordinal, 10);
+        assert_eq!(metadata.functions[0].function_rva, Some(0x1080));
+        assert_eq!(metadata.functions[1].ordinal, 11);
+        assert_eq!(metadata.functions[1].function_rva, None);
+        assert_eq!(metadata.functions[2].ordinal, 12);
+        assert_eq!(metadata.functions[2].forwarder.as_deref(), Some("OTHER.Func"));
+        assert_eq!(metadata.names[0].function_index, 2);
+        assert_eq!(metadata.names[0].ordinal, 12);
     }
 
     #[test]
@@ -1089,6 +1147,17 @@ mod tests {
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.imports[0].name, "KERNEL32.dll");
         assert_eq!(report.imports[0].symbols, vec!["ExitProcess"]);
+        assert_eq!(report.import_metadata.len(), 1);
+        let library = &report.import_metadata[0];
+        assert_eq!(library.original_first_thunk, 0x1040);
+        assert_eq!(library.first_thunk, 0x1050);
+        assert_eq!(library.symbols[0].lookup_rva, 0x1040);
+        assert_eq!(library.symbols[0].iat_rva, 0x1050);
+        assert_eq!(library.symbols[0].pointer_width, 8);
+        assert_eq!(
+            library.symbols[0].symbol,
+            ParsedImportSymbol::Name { name: "ExitProcess".into(), hint: 0 }
+        );
     }
 
     #[test]
