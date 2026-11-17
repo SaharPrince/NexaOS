@@ -404,7 +404,6 @@ mod tests {
 
     #[test]
     fn absolute_entries_are_noops() {
-        let image = vec![0; 0x2000];
         let metadata = metadata(vec![entry(0), entry(0xa123)]);
         let image = image_with_value(0x1123, 0x1400_1234);
         let result = plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000).unwrap();
