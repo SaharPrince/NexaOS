@@ -14,8 +14,8 @@ pub use image_layout::{
     ImageZeroFillRange, SectionImageLayout,
 };
 pub use resolver::{
-    ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup,
-    ExportLookupResult, ExportModule,
+    ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup, ExportLookupResult,
+    ExportModule,
 };
 pub use typed_metadata::{
     typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
