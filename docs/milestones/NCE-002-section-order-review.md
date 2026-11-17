@@ -96,7 +96,7 @@ For every selected sample, record:
 - Certificate-table presence, debug-directory presence, and overlay byte count where safely measurable.
 - Inspector result, planner result, tool commit, and any rejection reason.
 
-All processing remains read-only. Never launch a corpus sample. No sample has been selected or validated by this documentation update; metadata schema inspection and license review are still required before any download.
+All processing remains read-only. Never launch a corpus sample. At the time of this dataset-access triage, no Assemblage sample had been selected; metadata schema inspection and license review remain required before downloading one.
 
 ### Revised next step
 
