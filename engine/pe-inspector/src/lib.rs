@@ -4,6 +4,7 @@ use std::fmt;
 mod iat_patch;
 mod image_buffer;
 mod image_layout;
+mod relocation_metadata;
 mod resolver;
 mod typed_metadata;
 pub use iat_patch::{
@@ -23,6 +24,9 @@ pub use resolver::{
     ExportLookupResult, ExportModule, ImportResolutionError, ImportResolutionFailure,
     ImportResolutionLimits, ImportResolutionPlan, ResolvedImport,
 };
+pub use relocation_metadata::{
+    ParsedRelocationBlock, ParsedRelocationDirectory, ParsedRelocationEntry,
+};
 pub use typed_metadata::{
     typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
 };
@@ -30,6 +34,8 @@ pub use typed_metadata::{
 const MAX_SECTIONS: usize = 96;
 const MAX_DIRECTORIES: usize = 16;
 const MAX_DEBUG_DIRECTORY_ENTRIES: usize = 4096;
+const MAX_RELOCATION_BLOCKS: usize = 4096;
+const MAX_RELOCATION_ENTRIES: usize = 65_536;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PeReport {
@@ -54,6 +60,8 @@ pub struct PeReport {
     pub export_metadata: Option<ParsedExportDirectory>,
     pub relocation_blocks: usize,
     pub relocation_entries: usize,
+    /// Ordered, lossless relocation metadata when a nonempty directory exists.
+    pub relocation_metadata: Option<ParsedRelocationDirectory>,
     /// Total input file length in bytes.
     pub file_size: u64,
     /// Trailing bytes after the headers and all section raw-data ranges.
@@ -852,31 +860,67 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         size: file_size - overlay_offset,
     });
 
+    let mut relocation_metadata = None;
     let (mut relocation_blocks, mut relocation_entries) = (0usize, 0usize);
-    if let Some(x) = getdir(5) {
-        if x.address != 0 && x.size > 0 {
-            let (mut o, _) = map_rva_range(x.address, x.size as usize)?;
-            let end = o
-                .checked_add(x.size as usize)
+    if let Some(directory) = getdir(5) {
+        if directory.address != 0 && directory.size > 0 {
+            let (mut offset, _) = map_rva_range(directory.address, directory.size as usize)?;
+            let end = offset
+                .checked_add(directory.size as usize)
                 .ok_or(PeError::OutOfBounds("relocation directory"))?;
-            while o < end {
-                if end - o < 8 {
+            let mut blocks = Vec::new();
+            while offset < end {
+                if end - offset < 8 {
                     return Err(PeError::Invalid("incomplete relocation block"));
                 }
-                let page_rva = u32at(d, o, "relocation page RVA")?;
+                let page_rva = u32at(d, offset, "relocation page RVA")?;
                 if !page_rva.is_multiple_of(0x1000) {
                     return Err(PeError::Invalid(
                         "relocation block page RVA is not 4KiB aligned",
                     ));
                 }
-                let size = u32at(d, o + 4, "relocation block size")? as usize;
-                if size < 8 || size > end - o || !size.is_multiple_of(2) {
+                let block_size = u32at(d, offset + 4, "relocation block size")? as usize;
+                if block_size < 8 || block_size > end - offset || !block_size.is_multiple_of(2) {
                     return Err(PeError::Invalid("invalid relocation block size"));
                 }
-                relocation_blocks += 1;
-                relocation_entries += (size - 8) / 2;
-                o += size;
+                relocation_blocks = relocation_blocks
+                    .checked_add(1)
+                    .ok_or(PeError::Invalid("relocation block count overflow"))?;
+                if relocation_blocks > MAX_RELOCATION_BLOCKS {
+                    return Err(PeError::Invalid("relocation block count exceeds safety limit"));
+                }
+
+                let entry_count = (block_size - 8) / 2;
+                relocation_entries = relocation_entries
+                    .checked_add(entry_count)
+                    .ok_or(PeError::Invalid("relocation entry count overflow"))?;
+                if relocation_entries > MAX_RELOCATION_ENTRIES {
+                    return Err(PeError::Invalid("relocation entry count exceeds safety limit"));
+                }
+
+                let mut entries = Vec::with_capacity(entry_count);
+                for entry_index in 0..entry_count {
+                    let entry_offset = offset
+                        .checked_add(8)
+                        .and_then(|value| value.checked_add(entry_index.checked_mul(2)?))
+                        .ok_or(PeError::OutOfBounds("relocation entry"))?;
+                    let raw = u16at(d, entry_offset, "relocation entry")?;
+                    entries.push(ParsedRelocationEntry {
+                        raw,
+                        relocation_type: (raw >> 12) as u8,
+                        offset: raw & 0x0fff,
+                    });
+                }
+                blocks.push(ParsedRelocationBlock { page_rva, entries });
+                offset = offset
+                    .checked_add(block_size)
+                    .ok_or(PeError::OutOfBounds("relocation block"))?;
             }
+            relocation_metadata = Some(ParsedRelocationDirectory {
+                directory_rva: directory.address,
+                directory_size: directory.size,
+                blocks,
+            });
         }
     }
     Ok(PeReport {
@@ -899,6 +943,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         export_metadata,
         relocation_blocks,
         relocation_entries,
+        relocation_metadata,
         file_size,
         overlay,
         debug_entries,
@@ -1062,6 +1107,18 @@ mod tests {
         let report = inspect(&pe64_with_one_relocation_block(12)).unwrap();
         assert_eq!(report.relocation_blocks, 1);
         assert_eq!(report.relocation_entries, 2);
+        let metadata = report.relocation_metadata.unwrap();
+        assert_eq!(metadata.directory_rva, 0x1000);
+        assert_eq!(metadata.directory_size, 12);
+        assert_eq!(metadata.blocks.len(), 1);
+        assert_eq!(metadata.blocks[0].page_rva, 0x1000);
+        assert_eq!(metadata.blocks[0].entries.len(), 2);
+        assert_eq!(metadata.blocks[0].entries[0].raw, 0x3000);
+        assert_eq!(metadata.blocks[0].entries[0].relocation_type, 3);
+        assert_eq!(metadata.blocks[0].entries[0].offset, 0);
+        assert_eq!(metadata.blocks[0].entries[1].raw, 0);
+        assert_eq!(metadata.blocks[0].entries[1].relocation_type, 0);
+        assert_eq!(metadata.blocks[0].entries[1].offset, 0);
     }
 
     #[test]
