@@ -137,7 +137,6 @@ fn rejects_low_section_alignment_when_file_alignment_differs() {
     ));
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
 enum SectionTransitionKind {
     Adjacent,
@@ -174,8 +173,7 @@ fn section_transition(
         u64::from(previous.virtual_size)
     };
     let aligned_extent = align_up_checked(mapped_size, alignment)?;
-    let expected_next_rva =
-        u64::from(previous.virtual_address).checked_add(aligned_extent)?;
+    let expected_next_rva = u64::from(previous.virtual_address).checked_add(aligned_extent)?;
     let actual_next_rva = u64::from(next.virtual_address);
 
     let kind = if actual_next_rva < u64::from(previous.virtual_address) {
