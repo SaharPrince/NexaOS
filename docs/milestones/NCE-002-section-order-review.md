@@ -208,3 +208,24 @@ This observation also demonstrates why PE structural metadata and host trust ver
 No parser code change is justified by these four results. Preserve the current distinction between embedded certificate-table metadata and external catalog-signature trust. Future documentation and user-facing output must avoid equating an empty Security directory with an unsigned or untrusted executable.
 
 These four files provide useful examples of catalog-signed Windows system binaries with four debug records and no reported trailing overlay. They remain a small, same-host system sample set, not a diverse third-party application corpus or proof of broad compatibility.
+
+
+## Dell Latitude E5530 Windows PE integration checkpoint — 2026-11-17
+
+The configured `plans_windows_system_pe_when_configured` integration test was run on the Dell Latitude E5530 against four executables from that host's Windows System32 directory. Each file was inspected and planned as data; the test did not execute the inspected executable.
+
+| Sample | File size | Sections | Copy bytes | Zero-fill bytes | Section transitions |
+|---|---:|---:|---:|---:|---:|
+| `where.exe` | 43,008 bytes | 6 | 41,182 | 1,448 | 5/5 adjacent |
+| `notepad.exe` | 200,704 bytes | 7 | 199,211 | 6,424 | 6/6 adjacent |
+| `cmd.exe` | 289,792 bytes | 7 | 288,253 | 113,232 | 6/6 adjacent |
+| `powershell.exe` | 455,680 bytes | 6 | 454,355 | 1,900 | 5/5 adjacent |
+| **Total** | **989,184 bytes** | **26** | **983,001** | **123,004** | **22/22 adjacent** |
+
+All 22 transitions were reported as exactly adjacent after rounding the previous section's `VirtualSize` to `SectionAlignment`. Every transition used `VirtualSize` as its extent source. The integration test passed individually for all four files (four successful test invocations, one per executable).
+
+The sample set exercises both initialized section copying and virtual zero-fill. In particular, `cmd.exe` required 113,232 zero-fill bytes. It does not exercise the zero-`VirtualSize` fallback because all reported transitions used `VirtualSize`; this test output alone does not establish that any sample contained a zero-`VirtualSize` section.
+
+### Scope and limitations
+
+These are four system binaries from one Windows host, not four independent application vendors or a broad third-party corpus. The results support the current section-order and aligned-adjacency assertions for these particular files only. They do not establish universal Windows loader behavior, nor do they justify tightening production planner acceptance rules. Keep the broader licensed PE corpus review open and continue to inspect samples without executing them.
