@@ -101,3 +101,41 @@ All processing remains read-only. Never launch a corpus sample. No sample has be
 ### Revised next step
 
 Build a metadata-only shortlist first, then inspect a handful of individually license-checked binaries. Use those observations to decide whether section ordering/adjacency or the zero-`VirtualSize` fallback needs code changes. Until those results exist, retain the current planner behavior and keep NCE-003 blocked.
+
+## Local Windows corpus checkpoint — 2026-11-17
+
+This checkpoint records read-only measurements supplied from a Windows host and CI execution on commit `66e680a82fb797d69f048d9ebf6fdca20abcbd0e`. It does not change planner acceptance rules.
+
+### Signed Windows system samples
+
+Four local System32 executables were inspected and planned without execution: `where.exe`, `notepad.exe`, `cmd.exe`, and `WindowsPowerShell\\v1.0\\powershell.exe`.
+
+All four had PE32+ AMD64 format, `SectionAlignment = 0x1000`, `FileAlignment = 0x1000`, ascending section-table RVA order, and exact adjacency between consecutive section extents after rounding the previous section's `VirtualSize` up to `SectionAlignment`. Across the four files, all 26 consecutive-section transitions were adjacent. Each file had nonzero `VirtualSize` for every listed section, so this sample set does not exercise the zero-`VirtualSize` fallback.
+
+All four files returned a valid Authenticode signature with signer `CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US` on the inspected host. Recorded SHA-256 values:
+
+| Sample | Sections | SHA-256 |
+|---|---:|---|
+| `where.exe` | 7 | `F51FAB8041E5023D7290B540A2106F051EF0BD2BC3443C9DAF318628B560FA29` |
+| `notepad.exe` | 8 | `468FFE129C395ABF6B21A09EFDF261910A95FB98AA982EAD73CAA7B2B684577E` |
+| `cmd.exe` | 8 | `15CD209C995B7D3009C91CA40892D5B8F1FB162F3E5F10716642EA278E8E0D7B` |
+| `powershell.exe` | 7 | `60C9B29843624DD8AF6B6A7B26147753BE6AEEF65098B9A503CC50850AFE410F` |
+
+The `where.exe` sample was also run through the configured integration test on the user's host. It was 65,536 bytes, had 7 sections, and produced 50,416 copy bytes and 0 zero-fill bytes. Its six section transitions were individually reported as adjacent. The test result was 1 passed, 0 failed. The other three files were checked by the same local metadata-reporting workflow; their exact transition counts were 7, 7, and 6 respectively.
+
+These four files are useful signed system samples, but they are not a diverse third-party application corpus. Their shared `fothk` section name is recorded as an observed property only; valid Authenticode signatures were verified on the inspected host. No conclusion about the origin or generality of that section name is drawn here.
+
+### Independent compiler CI checkpoint
+
+The GitHub Actions run for commit `66e680a` completed successfully. In particular, the `External compiler PE layout (MinGW + LLVM/LLD)` job completed both the fixture-generation step and the `Inspect and plan external compiler output` step. That workflow generates its MinGW-w64 GCC PE32+ AMD64 and PE32 x86 fixtures and Clang/LLD PE32+ AMD64 fixture from NexaOS-owned C sources; the generated executables are temporary CI artifacts and are not committed or executed.
+
+The configured PE32+ tests check initialized data, virtual-only storage, raw-padding behavior, and successful layout planning. They also print section-transition diagnostics. The job's successful conclusion establishes that its current assertions passed; it does **not**, by itself, establish that every printed transition was adjacent, because the current integration tests do not assert section ordering or adjacency. Preserve that distinction until the CI diagnostic output is reviewed or explicit corpus assertions are added.
+
+The Windows CI job also passed its configured `where.exe` layout test. The user's local configured `where.exe` test independently reported six adjacent transitions as recorded above.
+
+### Updated decision
+
+The signed Windows sample set supports ascending order and aligned adjacency for these four particular system files. It is not enough to establish universal loader acceptance rules, and the independently compiled fixture transition classifications have not yet been captured as asserted results. Keep the production planner permissive; do not reject gaps or out-of-order inputs solely on this evidence.
+
+The zero-`VirtualSize` fallback remains untested by these four system files. Further corpus work should prioritize compiler-generated cases with zero virtual size, raw-only and empty sections, non-default alignments, and files from unrelated licensed source projects. Keep all samples read-only and outside the repository unless redistribution rights are explicit.
+
