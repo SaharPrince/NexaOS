@@ -151,9 +151,7 @@ pub fn plan_base_relocations(
     let mut total_entries = 0usize;
     let mut encoded_directory_size = 0u64;
     for (block_index, block) in metadata.blocks.iter().enumerate() {
-        if !block.page_rva.is_multiple_of(0x1000)
-            || u64::from(block.page_rva) >= image_size
-        {
+        if !block.page_rva.is_multiple_of(0x1000) || u64::from(block.page_rva) >= image_size {
             return Err(fail(
                 Some(block_index),
                 None,
@@ -473,7 +471,9 @@ mod tests {
             }],
         };
         assert_eq!(
-            plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000).unwrap_err().failure,
+            plan(Some(&metadata), &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::OverlappingTargets
         );
     }
@@ -569,14 +569,9 @@ mod tests {
         let mut out_of_bounds = metadata.clone();
         out_of_bounds.directory_rva = 0x1ff8;
         assert_eq!(
-            plan(
-                Some(&out_of_bounds),
-                &image,
-                0x1400_0000,
-                0x1500_0000
-            )
-            .unwrap_err()
-            .failure,
+            plan(Some(&out_of_bounds), &image, 0x1400_0000, 0x1500_0000)
+                .unwrap_err()
+                .failure,
             RelocationPlanFailure::InvalidMetadata
         );
     }
