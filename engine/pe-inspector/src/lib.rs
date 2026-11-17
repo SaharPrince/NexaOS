@@ -14,6 +14,7 @@ pub use image_layout::{
 
 const MAX_SECTIONS: usize = 96;
 const MAX_DIRECTORIES: usize = 16;
+const MAX_DEBUG_DIRECTORY_ENTRIES: usize = 4096;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PeReport {
@@ -34,6 +35,15 @@ pub struct PeReport {
     pub exports: Vec<String>,
     pub relocation_blocks: usize,
     pub relocation_entries: usize,
+    /// Total input file length in bytes.
+    pub file_size: u64,
+    /// Trailing bytes after the headers and all section raw-data ranges.
+    /// This may include certificate and unmapped debug data.
+    pub overlay: Option<FileRange>,
+    /// Metadata for IMAGE_DEBUG_DIRECTORY entries. Raw file pointers and
+    /// mapped RVAs are retained separately because they describe different
+    /// address spaces.
+    pub debug_entries: Vec<DebugDirectoryEntry>,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct Section {
@@ -54,6 +64,28 @@ pub struct DataDirectory {
     pub address_kind: String,
     pub size: u32,
 }
+#[derive(Debug, Clone, Serialize)]
+pub struct FileRange {
+    pub offset: u64,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DebugDirectoryEntry {
+    pub characteristics: u32,
+    pub timestamp: u32,
+    pub major_version: u16,
+    pub minor_version: u16,
+    pub type_code: u32,
+    pub size_of_data: u32,
+    pub address_of_raw_data: u32,
+    pub pointer_to_raw_data: u32,
+    /// File offset obtained by mapping AddressOfRawData as an RVA.
+    /// None means the debug data is not mapped (AddressOfRawData is zero)
+    /// or its declared data size is zero.
+    pub mapped_file_offset: Option<u32>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ImportLibrary {
     pub name: String,
@@ -571,6 +603,90 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
             }
         }
     }
+    let mut debug_entries = Vec::new();
+    if let Some(debug_directory) = getdir(6) {
+        if debug_directory.address != 0 {
+            const DEBUG_DIRECTORY_ENTRY_SIZE: usize = 28;
+            let directory_size = debug_directory.size as usize;
+            if !directory_size.is_multiple_of(DEBUG_DIRECTORY_ENTRY_SIZE) {
+                return Err(PeError::Invalid(
+                    "debug directory size is not a multiple of entry size",
+                ));
+            }
+            let entry_count = directory_size / DEBUG_DIRECTORY_ENTRY_SIZE;
+            if entry_count > MAX_DEBUG_DIRECTORY_ENTRIES {
+                return Err(PeError::Invalid(
+                    "debug directory entry count exceeds safety limit",
+                ));
+            }
+            let (directory_offset, _) =
+                map_rva_range(debug_directory.address, directory_size)?;
+            debug_entries.reserve(entry_count);
+
+            for index in 0..entry_count {
+                let offset = directory_offset
+                    .checked_add(index * DEBUG_DIRECTORY_ENTRY_SIZE)
+                    .ok_or(PeError::OutOfBounds("debug directory entry"))?;
+                let size_of_data = u32at(d, offset + 16, "debug data size")?;
+                let address_of_raw_data =
+                    u32at(d, offset + 20, "debug data RVA")?;
+                let pointer_to_raw_data =
+                    u32at(d, offset + 24, "debug data file pointer")?;
+
+                // PointerToRawData is a file offset. Validate it directly;
+                // never feed it to the RVA mapper.
+                if pointer_to_raw_data != 0 && size_of_data != 0 {
+                    bytes(
+                        d,
+                        pointer_to_raw_data as usize,
+                        size_of_data as usize,
+                        "debug data file range",
+                    )?;
+                }
+
+                // AddressOfRawData is an RVA when nonzero. Some debug data is
+                // intentionally file-only and therefore has a zero RVA.
+                let mapped_file_offset =
+                    if address_of_raw_data != 0 && size_of_data != 0 {
+                        let (mapped_offset, _) =
+                            map_rva_range(address_of_raw_data, size_of_data as usize)?;
+                        Some(u32::try_from(mapped_offset).map_err(|_| {
+                            PeError::OutOfBounds("debug data mapped file offset")
+                        })?)
+                    } else {
+                        None
+                    };
+
+                debug_entries.push(DebugDirectoryEntry {
+                    characteristics: u32at(d, offset, "debug characteristics")?,
+                    timestamp: u32at(d, offset + 4, "debug timestamp")?,
+                    major_version: u16at(d, offset + 8, "debug major version")?,
+                    minor_version: u16at(d, offset + 10, "debug minor version")?,
+                    type_code: u32at(d, offset + 12, "debug type")?,
+                    size_of_data,
+                    address_of_raw_data,
+                    pointer_to_raw_data,
+                    mapped_file_offset,
+                });
+            }
+        }
+    }
+
+    let file_size = d.len() as u64;
+    let last_section_raw_end = sections
+        .iter()
+        .filter(|section| section.raw_size != 0)
+        .map(|section| {
+            u64::from(section.raw_offset) + u64::from(section.raw_size)
+        })
+        .max()
+        .unwrap_or(0);
+    let overlay_offset = u64::from(size_of_headers).max(last_section_raw_end);
+    let overlay = (overlay_offset < file_size).then_some(FileRange {
+        offset: overlay_offset,
+        size: file_size - overlay_offset,
+    });
+
     let (mut relocation_blocks, mut relocation_entries) = (0usize, 0usize);
     if let Some(x) = getdir(5) {
         if x.address != 0 && x.size > 0 {
@@ -616,6 +732,9 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
         exports,
         relocation_blocks,
         relocation_entries,
+        file_size,
+        overlay,
+        debug_entries,
     })
 }
 
