@@ -56,6 +56,44 @@ fn print_section_transition_diagnostics(report: &PeReport) {
     }
 }
 
+fn assert_section_order_and_adjacency(report: &PeReport) {
+    let alignment = u64::from(report.section_alignment);
+    assert!(
+        alignment != 0 && alignment.is_power_of_two(),
+        "fixture has invalid SectionAlignment: {alignment:#x}"
+    );
+
+    for (index, pair) in report.sections.windows(2).enumerate() {
+        let previous = &pair[0];
+        let next = &pair[1];
+        let mapped_size = if previous.virtual_size == 0 {
+            u64::from(previous.raw_size)
+        } else {
+            u64::from(previous.virtual_size)
+        };
+        let aligned_extent = mapped_size
+            .checked_add(alignment - 1)
+            .map(|rounded| rounded & !(alignment - 1))
+            .expect("aligned section extent must not overflow");
+        let expected_next_rva = u64::from(previous.virtual_address)
+            .checked_add(aligned_extent)
+            .expect("expected next section RVA must not overflow");
+        let actual_next_rva = u64::from(next.virtual_address);
+
+        assert!(
+            actual_next_rva > u64::from(previous.virtual_address),
+            "section table is not in strictly ascending RVA order at transition {index}: {} -> {}",
+            previous.name,
+            next.name
+        );
+        assert_eq!(
+            actual_next_rva, expected_next_rva,
+            "compiler-produced fixture has a non-adjacent aligned section transition {index}: {} -> {}",
+            previous.name, next.name
+        );
+    }
+}
+
 fn read_u32(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(
         bytes[offset..offset + 4]
@@ -84,6 +122,7 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
 
     let report = inspect(&bytes).expect("inspect MinGW-produced PE32+ fixture");
     print_section_transition_diagnostics(&report);
+    assert_section_order_and_adjacency(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
@@ -215,6 +254,7 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
     let bytes = std::fs::read(path).expect("read LLVM/LLD-produced PE32+ fixture");
     let report = inspect(&bytes).expect("inspect LLVM/LLD-produced PE32+ fixture");
     print_section_transition_diagnostics(&report);
+    assert_section_order_and_adjacency(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
@@ -308,6 +348,7 @@ fn plans_windows_system_pe_when_configured() {
     let bytes = std::fs::read(path).expect("read Windows system PE fixture");
     let report = inspect(&bytes).expect("inspect Windows system PE fixture");
     print_section_transition_diagnostics(&report);
+    assert_section_order_and_adjacency(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
