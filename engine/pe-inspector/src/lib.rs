@@ -575,14 +575,18 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         symbols.push(format!("ordinal:{}", ordinal));
                         parsed_symbols.push(ParsedImportEntry {
                             symbol: ParsedImportSymbol::Ordinal { ordinal },
-                            lookup_rva: thunk.checked_add(
-                                u32::try_from(thunk_index * width)
-                                    .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
-                            ).ok_or(PeError::OutOfBounds("import lookup RVA"))?,
-                            iat_rva: iat.checked_add(
-                                u32::try_from(thunk_index * width)
-                                    .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
-                            ).ok_or(PeError::OutOfBounds("IAT RVA"))?,
+                            lookup_rva: thunk
+                                .checked_add(
+                                    u32::try_from(thunk_index * width)
+                                        .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
+                                )
+                                .ok_or(PeError::OutOfBounds("import lookup RVA"))?,
+                            iat_rva: iat
+                                .checked_add(
+                                    u32::try_from(thunk_index * width)
+                                        .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
+                                )
+                                .ok_or(PeError::OutOfBounds("IAT RVA"))?,
                             pointer_width,
                         });
                     } else {
@@ -616,7 +620,10 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 if !thunk_terminated {
                     return Err(PeError::Invalid("unterminated import thunk table"));
                 }
-                imports.push(ImportLibrary { name: name.clone(), symbols });
+                imports.push(ImportLibrary {
+                    name: name.clone(),
+                    symbols,
+                });
                 import_metadata.push(ParsedImportLibrary {
                     name,
                     original_first_thunk: lookup,
@@ -642,7 +649,13 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                 None
             } else {
                 let (module_offset, module_available) = map_rva_range(module_name_rva, 1)?;
-                Some(cstr(d, module_offset, module_available, 512, "export module name")?)
+                Some(cstr(
+                    d,
+                    module_offset,
+                    module_available,
+                    512,
+                    "export module name",
+                )?)
             };
             let ordinal_base = u32at(d, o + 16, "export ordinal base")?;
             let function_count = u32at(d, o + 20, "export function count")? as usize;
@@ -677,13 +690,20 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         let (forwarder_offset, file_available) = map_rva_range(function_rva, 1)?;
                         let directory_available = (export_end - function_rva as u64) as usize;
                         let available = file_available.min(directory_available);
-                        Some(cstr(d, forwarder_offset, available, 4096, "export forwarder")?)
+                        Some(cstr(
+                            d,
+                            forwarder_offset,
+                            available,
+                            4096,
+                            "export forwarder",
+                        )?)
                     } else {
                         None
                     };
                     let index = u32::try_from(i)
                         .map_err(|_| PeError::OutOfBounds("export function index"))?;
-                    let ordinal = ordinal_base.checked_add(index)
+                    let ordinal = ordinal_base
+                        .checked_add(index)
                         .ok_or(PeError::OutOfBounds("export ordinal"))?;
                     function_slots.push(ExportFunctionSlot {
                         ordinal,
@@ -719,7 +739,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     let name = cstr(d, name_offset, name_available, 512, "export name")?;
                     let function_index = u32::try_from(ordinal)
                         .map_err(|_| PeError::OutOfBounds("export name function index"))?;
-                    let public_ordinal = ordinal_base.checked_add(function_index)
+                    let public_ordinal = ordinal_base
+                        .checked_add(function_index)
                         .ok_or(PeError::OutOfBounds("export name ordinal"))?;
                     exports.push(name.clone());
                     name_associations.push(ExportNameAssociation {
@@ -1099,7 +1120,10 @@ mod tests {
         assert_eq!(metadata.functions[1].ordinal, 11);
         assert_eq!(metadata.functions[1].function_rva, None);
         assert_eq!(metadata.functions[2].ordinal, 12);
-        assert_eq!(metadata.functions[2].forwarder.as_deref(), Some("OTHER.Func"));
+        assert_eq!(
+            metadata.functions[2].forwarder.as_deref(),
+            Some("OTHER.Func")
+        );
         assert_eq!(metadata.names[0].function_index, 2);
         assert_eq!(metadata.names[0].ordinal, 12);
     }
@@ -1156,7 +1180,10 @@ mod tests {
         assert_eq!(library.symbols[0].pointer_width, 8);
         assert_eq!(
             library.symbols[0].symbol,
-            ParsedImportSymbol::Name { name: "ExitProcess".into(), hint: 0 }
+            ParsedImportSymbol::Name {
+                name: "ExitProcess".into(),
+                hint: 0
+            }
         );
     }
 
