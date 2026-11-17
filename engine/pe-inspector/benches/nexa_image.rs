@@ -56,6 +56,7 @@ fn fixture() -> (PeReport, Vec<u8>) {
         export_metadata: None,
         relocation_blocks: 0,
         relocation_entries: 0,
+        relocation_metadata: None,
         file_size: file_size as u64,
         overlay: None,
         debug_entries: Vec::new(),
