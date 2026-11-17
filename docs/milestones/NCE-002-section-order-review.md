@@ -139,3 +139,34 @@ The signed Windows sample set supports ascending order and aligned adjacency for
 
 The zero-`VirtualSize` fallback remains untested by these four system files. Further corpus work should prioritize compiler-generated cases with zero virtual size, raw-only and empty sections, non-default alignments, and files from unrelated licensed source projects. Keep all samples read-only and outside the repository unless redistribution rights are explicit.
 
+
+## File-only certificate, debug, and overlay metadata — 2026-11-17
+
+The read-only inspector now reports the file length, trailing overlay range, and parsed IMAGE_DEBUG_DIRECTORY entries without changing image-layout planning or executing the input.
+
+### Address-space handling
+
+- The Security / Certificate Table directory remains a file-offset range. Its WIN_CERTIFICATE records are validated as file data and are not mapped into the image.
+- The Debug data-directory entry itself is an RVA and is resolved through the existing RVA-to-file mapping.
+- Each 28-byte IMAGE_DEBUG_DIRECTORY record retains both AddressOfRawData (RVA) and PointerToRawData (file offset) as separate fields.
+- A nonzero PointerToRawData plus SizeOfData is bounds-checked directly against the input file. A nonzero AddressOfRawData plus SizeOfData is independently resolved as an RVA. A zero RVA is retained as file-only debug data; its file pointer is not passed to the RVA mapper.
+- The report includes the file offset obtained from mapping AddressOfRawData, when present. It does not silently replace either declared address with the other or impose an equality rule between them.
+
+Microsoft documents that debug-directory entries are 28 bytes, that AddressOfRawData can be zero for data not covered by a section header, and that PointerToRawData is a file pointer. The certificate table is likewise file-offset based and is not loaded as part of the image.
+
+Reference: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
+
+### Overlay reporting policy
+
+The reported trailing overlay begins at the greater of SizeOfHeaders and the end of the furthest section raw-data range, and ends at the physical end of the input file. It is a file-layout observation only. It can include certificate-table bytes and unmapped debug data; those separately reported ranges may therefore overlap the overlay range. This field does not classify gaps between earlier file ranges as overlay and does not imply that all trailing bytes have the same purpose.
+
+### Regression coverage and limits
+
+Synthetic tests cover:
+- A mapped debug payload, preserving its RVA-derived file offset separately from the declared raw file pointer.
+- An unmapped debug payload referenced by file offset in the trailing overlay.
+- A generic trailing overlay after the last section raw-data range.
+- An out-of-bounds debug file pointer.
+- A debug-directory size that is not a whole number of 28-byte records.
+
+The parser caps debug-directory entry processing at 4,096 records. No debug payload is decoded, interpreted, executed, or copied into the image buffer. No production planner acceptance rules changed. These are synthetic metadata tests, not evidence of broad third-party corpus compatibility.
