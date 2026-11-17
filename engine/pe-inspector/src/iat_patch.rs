@@ -81,10 +81,7 @@ impl fmt::Display for IatPatchPlanError {
 
 impl std::error::Error for IatPatchPlanError {}
 
-fn fail(
-    patch_index: Option<usize>,
-    failure: IatPatchPlanFailure,
-) -> IatPatchPlanError {
+fn fail(patch_index: Option<usize>, failure: IatPatchPlanFailure) -> IatPatchPlanError {
     IatPatchPlanError {
         patch_index,
         failure,
@@ -117,31 +114,19 @@ pub fn validate_iat_patch_plan(
 
     for (index, import) in resolution.imports.iter().enumerate() {
         if import.import_library.is_empty() || import.target_module.is_empty() {
-            return Err(fail(
-                Some(index),
-                IatPatchPlanFailure::EmptyModuleName,
-            ));
+            return Err(fail(Some(index), IatPatchPlanFailure::EmptyModuleName));
         }
         if import.import_library.len() > limits.max_module_name_bytes
             || import.target_module.len() > limits.max_module_name_bytes
         {
-            return Err(fail(
-                Some(index),
-                IatPatchPlanFailure::ModuleNameTooLong,
-            ));
+            return Err(fail(Some(index), IatPatchPlanFailure::ModuleNameTooLong));
         }
         if let ParsedImportSymbol::Name { name, .. } = &import.import_symbol {
             if name.is_empty() {
-                return Err(fail(
-                    Some(index),
-                    IatPatchPlanFailure::EmptySymbolName,
-                ));
+                return Err(fail(Some(index), IatPatchPlanFailure::EmptySymbolName));
             }
             if name.len() > limits.max_symbol_name_bytes {
-                return Err(fail(
-                    Some(index),
-                    IatPatchPlanFailure::SymbolNameTooLong,
-                ));
+                return Err(fail(Some(index), IatPatchPlanFailure::SymbolNameTooLong));
             }
         }
         if import.pointer_width != 8 {
@@ -253,10 +238,7 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.patch_index, Some(0));
-        assert_eq!(
-            error.failure,
-            IatPatchPlanFailure::DestinationOutOfBounds
-        );
+        assert_eq!(error.failure, IatPatchPlanFailure::DestinationOutOfBounds);
     }
 
     #[test]
@@ -270,10 +252,7 @@ mod tests {
             .unwrap_err();
 
             assert_eq!(error.patch_index, Some(1));
-            assert_eq!(
-                error.failure,
-                IatPatchPlanFailure::OverlappingDestinations
-            );
+            assert_eq!(error.failure, IatPatchPlanFailure::OverlappingDestinations);
         }
     }
 
@@ -281,12 +260,9 @@ mod tests {
     fn rejects_non_amd64_pointer_width() {
         let mut invalid = patch(0x100);
         invalid.pointer_width = 4;
-        let error = validate_iat_patch_plan(
-            &plan(vec![invalid]),
-            0x200,
-            IatPatchPlanLimits::default(),
-        )
-        .unwrap_err();
+        let error =
+            validate_iat_patch_plan(&plan(vec![invalid]), 0x200, IatPatchPlanLimits::default())
+                .unwrap_err();
 
         assert_eq!(
             error.failure,
@@ -299,13 +275,9 @@ mod tests {
         let mut empty = patch(0x100);
         empty.target_module.clear();
         assert_eq!(
-            validate_iat_patch_plan(
-                &plan(vec![empty]),
-                0x200,
-                IatPatchPlanLimits::default()
-            )
-            .unwrap_err()
-            .failure,
+            validate_iat_patch_plan(&plan(vec![empty]), 0x200, IatPatchPlanLimits::default())
+                .unwrap_err()
+                .failure,
             IatPatchPlanFailure::EmptyModuleName
         );
 
@@ -340,25 +312,18 @@ mod tests {
             IatPatchPlanFailure::TooManyPatches
         );
         assert_eq!(
-            validate_iat_patch_plan(
-                &resolution,
-                0,
-                IatPatchPlanLimits::default()
-            )
-            .unwrap_err()
-            .failure,
+            validate_iat_patch_plan(&resolution, 0, IatPatchPlanLimits::default())
+                .unwrap_err()
+                .failure,
             IatPatchPlanFailure::EmptyImage
         );
     }
 
     #[test]
     fn allows_an_empty_import_plan_for_a_nonempty_image() {
-        let validated = validate_iat_patch_plan(
-            &plan(Vec::new()),
-            0x200,
-            IatPatchPlanLimits::default(),
-        )
-        .unwrap();
+        let validated =
+            validate_iat_patch_plan(&plan(Vec::new()), 0x200, IatPatchPlanLimits::default())
+                .unwrap();
 
         assert!(validated.patches.is_empty());
     }
