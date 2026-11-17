@@ -1056,8 +1056,8 @@ mod tests {
         b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&block_size.max(8).to_le_bytes());
         b[0x200..0x204].copy_from_slice(&0x1000u32.to_le_bytes());
         b[0x204..0x208].copy_from_slice(&block_size.to_le_bytes());
-        b[0x208..0x20a].copy_from_slice(&0x3000u16.to_le_bytes());
-        b[0x20a..0x20c].copy_from_slice(&0u16.to_le_bytes());
+        b[0x208..0x20a].copy_from_slice(&0xa123u16.to_le_bytes());
+        b[0x20a..0x20c].copy_from_slice(&0xfabcu16.to_le_bytes());
         b
     }
 
@@ -1113,12 +1113,31 @@ mod tests {
         assert_eq!(metadata.blocks.len(), 1);
         assert_eq!(metadata.blocks[0].page_rva, 0x1000);
         assert_eq!(metadata.blocks[0].entries.len(), 2);
-        assert_eq!(metadata.blocks[0].entries[0].raw, 0x3000);
-        assert_eq!(metadata.blocks[0].entries[0].relocation_type, 3);
-        assert_eq!(metadata.blocks[0].entries[0].offset, 0);
-        assert_eq!(metadata.blocks[0].entries[1].raw, 0);
-        assert_eq!(metadata.blocks[0].entries[1].relocation_type, 0);
-        assert_eq!(metadata.blocks[0].entries[1].offset, 0);
+        assert_eq!(metadata.blocks[0].entries[0].raw, 0xa123);
+        assert_eq!(metadata.blocks[0].entries[0].relocation_type, 10);
+        assert_eq!(metadata.blocks[0].entries[0].offset, 0x123);
+        assert_eq!(metadata.blocks[0].entries[1].raw, 0xfabc);
+        assert_eq!(metadata.blocks[0].entries[1].relocation_type, 15);
+        assert_eq!(metadata.blocks[0].entries[1].offset, 0xabc);
+    }
+
+    #[test]
+    fn preserves_relocation_directory_trailing_bytes_as_malformed() {
+        let mut b = pe64_with_one_relocation_block(12);
+        let reloc_dir = 0x98 + 112 + 5 * 8;
+        b[reloc_dir + 4..reloc_dir + 8].copy_from_slice(&14u32.to_le_bytes());
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid("incomplete relocation block"))
+        ));
+    }
+
+    #[test]
+    fn reports_no_relocation_metadata_when_directory_is_absent() {
+        let report = inspect(&pe64()).unwrap();
+        assert_eq!(report.relocation_blocks, 0);
+        assert_eq!(report.relocation_entries, 0);
+        assert!(report.relocation_metadata.is_none());
     }
 
     #[test]
