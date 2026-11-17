@@ -267,7 +267,6 @@ fn checked_alignment_rejects_invalid_values_and_overflow() {
     assert_eq!(align_up_checked(u64::MAX, 2), None);
 }
 
-
 #[test]
 fn plans_zero_virtual_size_raw_only_section_using_documented_fallback_policy() {
     let input = report(vec![section(".legacy", 0, 0x1000, 0x200, 0x200)]);
