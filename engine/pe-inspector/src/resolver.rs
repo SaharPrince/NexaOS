@@ -445,13 +445,11 @@ pub fn resolve_imports(
                 ImportResolutionFailure::ModuleNameTooLong,
             ));
         }
-        total_symbols = total_symbols.checked_add(library.symbols.len()).ok_or_else(|| {
-            resolution_error(
-                library_index,
-                0,
-                ImportResolutionFailure::TooManySymbols,
-            )
-        })?;
+        total_symbols = total_symbols
+            .checked_add(library.symbols.len())
+            .ok_or_else(|| {
+                resolution_error(library_index, 0, ImportResolutionFailure::TooManySymbols)
+            })?;
         if total_symbols > limits.max_symbols {
             return Err(resolution_error(
                 library_index,
@@ -470,7 +468,11 @@ pub fn resolve_imports(
                     },
                 ));
             }
-            if import.iat_rva.checked_add(u32::from(import.pointer_width)).is_none() {
+            if import
+                .iat_rva
+                .checked_add(u32::from(import.pointer_width))
+                .is_none()
+            {
                 return Err(resolution_error(
                     library_index,
                     symbol_index,
@@ -509,9 +511,10 @@ pub fn resolve_imports(
                     ));
                 };
                 let canonical_module = canonical_module.to_owned();
-                if visited.iter().any(|entry| {
-                    same_forwarder_target(entry, &canonical_module, &current_lookup)
-                }) {
+                if visited
+                    .iter()
+                    .any(|entry| same_forwarder_target(entry, &canonical_module, &current_lookup))
+                {
                     return Err(resolution_error(
                         library_index,
                         symbol_index,
@@ -547,12 +550,8 @@ pub fn resolve_imports(
                                 ImportResolutionFailure::ForwarderHopLimit,
                             ));
                         }
-                        let (module, lookup) = parse_forwarder(
-                            &forwarder,
-                            limits,
-                            library_index,
-                            symbol_index,
-                        )?;
+                        let (module, lookup) =
+                            parse_forwarder(&forwarder, limits, library_index, symbol_index)?;
                         current_module = module;
                         current_lookup = lookup;
                         forwarder_hops += 1;
@@ -604,15 +603,18 @@ mod tests {
                         forwarder: Some("OTHER.Func".into()),
                     },
                 ],
-                names: vec![ExportNameAssociation {
-                    name: "ExitProcess".into(),
-                    function_index: 0,
-                    ordinal: 10,
-                }, ExportNameAssociation {
-                    name: "Forwarded".into(),
-                    function_index: 2,
-                    ordinal: 12,
-                }],
+                names: vec![
+                    ExportNameAssociation {
+                        name: "ExitProcess".into(),
+                        function_index: 0,
+                        ordinal: 10,
+                    },
+                    ExportNameAssociation {
+                        name: "Forwarded".into(),
+                        function_index: 2,
+                        ordinal: 12,
+                    },
+                ],
             },
         }
     }
@@ -824,9 +826,11 @@ mod tests {
         let import = import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 });
         let mut source = module();
         source.directory.functions[2].forwarder = Some("OTHER.#20".into());
-        let ordinal_catalogue =
-            ExportCatalogue::new(vec![source, target_module()], ExportCatalogueLimits::default())
-                .unwrap();
+        let ordinal_catalogue = ExportCatalogue::new(
+            vec![source, target_module()],
+            ExportCatalogueLimits::default(),
+        )
+        .unwrap();
         let ordinal_plan = resolve_imports(
             &[import],
             &ordinal_catalogue,
@@ -873,7 +877,9 @@ mod tests {
 
         assert_eq!(
             resolve_imports(
-                &[import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 })],
+                &[import_library(crate::ParsedImportSymbol::Ordinal {
+                    ordinal: 12
+                })],
                 &ExportCatalogue::new(
                     vec![module(), target_module()],
                     ExportCatalogueLimits::default()
@@ -908,7 +914,9 @@ mod tests {
         let bad_catalogue =
             ExportCatalogue::new(vec![bad_forwarder], ExportCatalogueLimits::default()).unwrap();
         let invalid = resolve_imports(
-            &[import_library(crate::ParsedImportSymbol::Ordinal { ordinal: 12 })],
+            &[import_library(crate::ParsedImportSymbol::Ordinal {
+                ordinal: 12,
+            })],
             &bad_catalogue,
             ImportResolutionLimits::default(),
         )
