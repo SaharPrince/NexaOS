@@ -1,4 +1,58 @@
-use nexa_inspect::{inspect, plan_image_layout, ImageLayoutLimits};
+use nexa_inspect::{inspect, plan_image_layout, ImageLayoutLimits, PeReport};
+
+
+fn print_section_transition_diagnostics(report: &PeReport) {
+    let alignment = u64::from(report.section_alignment);
+    if alignment == 0 || !alignment.is_power_of_two() {
+        println!(
+            "Section transition diagnostics unavailable: invalid SectionAlignment {alignment:#x}"
+        );
+        return;
+    }
+
+    for (index, pair) in report.sections.windows(2).enumerate() {
+        let previous = &pair[0];
+        let next = &pair[1];
+        let mapped_size = if previous.virtual_size == 0 {
+            u64::from(previous.raw_size)
+        } else {
+            u64::from(previous.virtual_size)
+        };
+        let Some(aligned_extent) = mapped_size
+            .checked_add(alignment - 1)
+            .map(|rounded| rounded & !(alignment - 1))
+        else {
+            println!("Section transition {index}: aligned extent overflow");
+            continue;
+        };
+        let Some(expected_next_rva) =
+            u64::from(previous.virtual_address).checked_add(aligned_extent)
+        else {
+            println!("Section transition {index}: expected RVA overflow");
+            continue;
+        };
+        let actual_next_rva = u64::from(next.virtual_address);
+        let classification = if actual_next_rva < u64::from(previous.virtual_address) {
+            "out-of-order"
+        } else if actual_next_rva < expected_next_rva {
+            "overlap"
+        } else if actual_next_rva > expected_next_rva {
+            "gap"
+        } else {
+            "adjacent"
+        };
+        let extent_source = if previous.virtual_size == 0 {
+            "raw-size-fallback"
+        } else {
+            "VirtualSize"
+        };
+
+        println!(
+            "Section transition {index}: {} -> {}; extent_source={extent_source};              previous_rva={:#x}; aligned_extent={aligned_extent:#x};              expected_next_rva={expected_next_rva:#x}; actual_next_rva={actual_next_rva:#x};              classification={classification}",
+            previous.name, next.name, previous.virtual_address, next.virtual_address
+        );
+    }
+}
 
 fn read_u32(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(
@@ -27,6 +81,7 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     );
 
     let report = inspect(&bytes).expect("inspect MinGW-produced PE32+ fixture");
+    print_section_transition_diagnostics(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
@@ -157,6 +212,7 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
 
     let bytes = std::fs::read(path).expect("read LLVM/LLD-produced PE32+ fixture");
     let report = inspect(&bytes).expect("inspect LLVM/LLD-produced PE32+ fixture");
+    print_section_transition_diagnostics(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
@@ -249,6 +305,7 @@ fn plans_windows_system_pe_when_configured() {
 
     let bytes = std::fs::read(path).expect("read Windows system PE fixture");
     let report = inspect(&bytes).expect("inspect Windows system PE fixture");
+    print_section_transition_diagnostics(&report);
 
     assert_eq!(report.format, "PE32+");
     assert_eq!(report.machine_raw, 0x8664);
