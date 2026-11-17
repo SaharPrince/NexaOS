@@ -619,8 +619,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     "debug directory entry count exceeds safety limit",
                 ));
             }
-            let (directory_offset, _) =
-                map_rva_range(debug_directory.address, directory_size)?;
+            let (directory_offset, _) = map_rva_range(debug_directory.address, directory_size)?;
             debug_entries.reserve(entry_count);
 
             for index in 0..entry_count {
@@ -628,10 +627,8 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                     .checked_add(index * DEBUG_DIRECTORY_ENTRY_SIZE)
                     .ok_or(PeError::OutOfBounds("debug directory entry"))?;
                 let size_of_data = u32at(d, offset + 16, "debug data size")?;
-                let address_of_raw_data =
-                    u32at(d, offset + 20, "debug data RVA")?;
-                let pointer_to_raw_data =
-                    u32at(d, offset + 24, "debug data file pointer")?;
+                let address_of_raw_data = u32at(d, offset + 20, "debug data RVA")?;
+                let pointer_to_raw_data = u32at(d, offset + 24, "debug data file pointer")?;
 
                 // PointerToRawData is a file offset. Validate it directly;
                 // never feed it to the RVA mapper.
@@ -646,16 +643,16 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
 
                 // AddressOfRawData is an RVA when nonzero. Some debug data is
                 // intentionally file-only and therefore has a zero RVA.
-                let mapped_file_offset =
-                    if address_of_raw_data != 0 && size_of_data != 0 {
-                        let (mapped_offset, _) =
-                            map_rva_range(address_of_raw_data, size_of_data as usize)?;
-                        Some(u32::try_from(mapped_offset).map_err(|_| {
-                            PeError::OutOfBounds("debug data mapped file offset")
-                        })?)
-                    } else {
-                        None
-                    };
+                let mapped_file_offset = if address_of_raw_data != 0 && size_of_data != 0 {
+                    let (mapped_offset, _) =
+                        map_rva_range(address_of_raw_data, size_of_data as usize)?;
+                    Some(
+                        u32::try_from(mapped_offset)
+                            .map_err(|_| PeError::OutOfBounds("debug data mapped file offset"))?,
+                    )
+                } else {
+                    None
+                };
 
                 debug_entries.push(DebugDirectoryEntry {
                     characteristics: u32at(d, offset, "debug characteristics")?,
@@ -676,9 +673,7 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
     let last_section_raw_end = sections
         .iter()
         .filter(|section| section.raw_size != 0)
-        .map(|section| {
-            u64::from(section.raw_offset) + u64::from(section.raw_size)
-        })
+        .map(|section| u64::from(section.raw_offset) + u64::from(section.raw_size))
         .max()
         .unwrap_or(0);
     let overlay_offset = u64::from(size_of_headers).max(last_section_raw_end);
