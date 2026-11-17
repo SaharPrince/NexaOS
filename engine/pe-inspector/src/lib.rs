@@ -3,6 +3,7 @@ use std::fmt;
 
 mod image_buffer;
 mod image_layout;
+mod resolver;
 mod typed_metadata;
 pub use image_buffer::{
     allocate_image_buffer, populate_image_buffer, ImageAllocationError, ImageAllocator,
@@ -11,6 +12,10 @@ pub use image_buffer::{
 pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
     ImageZeroFillRange, SectionImageLayout,
+};
+pub use resolver::{
+    ExportCatalogue, ExportCatalogueError, ExportCatalogueLimits, ExportLookup,
+    ExportLookupResult, ExportModule,
 };
 pub use typed_metadata::{
     typed_exports, typed_imports, ExportSymbol, ImportLibraryMetadata, ImportSymbol, MetadataError,
