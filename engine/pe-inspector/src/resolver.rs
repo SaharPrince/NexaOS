@@ -249,6 +249,306 @@ impl ExportCatalogue {
     }
 }
 
+/// Limits for resolving one parsed import table against an explicit catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImportResolutionLimits {
+    pub max_libraries: usize,
+    pub max_symbols: usize,
+    pub max_module_name_bytes: usize,
+    pub max_symbol_name_bytes: usize,
+    pub max_forwarder_hops: usize,
+}
+
+impl Default for ImportResolutionLimits {
+    fn default() -> Self {
+        Self {
+            max_libraries: 256,
+            max_symbols: 65_536,
+            max_module_name_bytes: 512,
+            max_symbol_name_bytes: 512,
+            max_forwarder_hops: 16,
+        }
+    }
+}
+
+/// One resolved import request. The target remains an RVA in its named module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedImport {
+    pub import_library: String,
+    pub import_symbol: crate::ParsedImportSymbol,
+    pub iat_rva: u32,
+    pub pointer_width: u8,
+    pub target_module: String,
+    pub export_ordinal: u32,
+    pub function_rva: u32,
+    pub forwarder_hops: usize,
+}
+
+/// Deterministic resolution output; it contains no process addresses or writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportResolutionPlan {
+    pub imports: Vec<ResolvedImport>,
+}
+
+/// A specific failure while resolving an import request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportResolutionFailure {
+    TooManyLibraries,
+    TooManySymbols,
+    EmptyModuleName,
+    ModuleNameTooLong,
+    SymbolNameTooLong,
+    UnsupportedPointerWidth { pointer_width: u8 },
+    IatRangeOverflow,
+    MissingModule,
+    MissingSymbol,
+    InvalidForwarder,
+    ForwarderCycle,
+    ForwarderHopLimit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportResolutionError {
+    pub library_index: usize,
+    pub symbol_index: usize,
+    pub failure: ImportResolutionFailure,
+}
+
+impl fmt::Display for ImportResolutionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "import resolution failed at library {} symbol {}: {:?}",
+            self.library_index, self.symbol_index, self.failure
+        )
+    }
+}
+
+impl std::error::Error for ImportResolutionError {}
+
+fn resolution_error(
+    library_index: usize,
+    symbol_index: usize,
+    failure: ImportResolutionFailure,
+) -> ImportResolutionError {
+    ImportResolutionError {
+        library_index,
+        symbol_index,
+        failure,
+    }
+}
+
+fn parse_forwarder(
+    value: &str,
+    limits: ImportResolutionLimits,
+    library_index: usize,
+    symbol_index: usize,
+) -> Result<(String, ExportLookup), ImportResolutionError> {
+    let Some(separator) = value.rfind('.') else {
+        return Err(resolution_error(
+            library_index,
+            symbol_index,
+            ImportResolutionFailure::InvalidForwarder,
+        ));
+    };
+    let module = &value[..separator];
+    let target = &value[separator + 1..];
+    if module.is_empty()
+        || target.is_empty()
+        || module.len() > limits.max_module_name_bytes
+        || module.contains(['/', '\\\\', ':'])
+        || target.len() > limits.max_symbol_name_bytes
+    {
+        return Err(resolution_error(
+            library_index,
+            symbol_index,
+            ImportResolutionFailure::InvalidForwarder,
+        ));
+    }
+
+    let lookup = if let Some(ordinal) = target.strip_prefix('#') {
+        let ordinal = ordinal.parse::<u32>().map_err(|_| {
+            resolution_error(
+                library_index,
+                symbol_index,
+                ImportResolutionFailure::InvalidForwarder,
+            )
+        })?;
+        ExportLookup::Ordinal(ordinal)
+    } else {
+        ExportLookup::Name(target.to_owned())
+    };
+    Ok((module.to_owned(), lookup))
+}
+
+fn same_forwarder_target(
+    left: &(String, ExportLookup),
+    module: &str,
+    symbol: &ExportLookup,
+) -> bool {
+    left.0.eq_ignore_ascii_case(module) && left.1 == *symbol
+}
+
+/// Resolve all imports using only the caller-supplied export catalogue.
+///
+/// Module names are matched case-insensitively, export names exactly, and
+/// forwarders are followed only through entries already present in the
+/// catalogue. No filesystem discovery, DLL loading, address rebasing, or
+/// IAT modification occurs. Forwarder module names must match catalogue keys;
+/// this function does not append extensions or search for aliases.
+pub fn resolve_imports(
+    imports: &[crate::ParsedImportLibrary],
+    catalogue: &ExportCatalogue,
+    limits: ImportResolutionLimits,
+) -> Result<ImportResolutionPlan, ImportResolutionError> {
+    if imports.len() > limits.max_libraries {
+        return Err(resolution_error(
+            0,
+            0,
+            ImportResolutionFailure::TooManyLibraries,
+        ));
+    }
+
+    let mut total_symbols = 0usize;
+    let mut resolved = Vec::new();
+
+    for (library_index, library) in imports.iter().enumerate() {
+        if library.name.is_empty() {
+            return Err(resolution_error(
+                library_index,
+                0,
+                ImportResolutionFailure::EmptyModuleName,
+            ));
+        }
+        if library.name.len() > limits.max_module_name_bytes {
+            return Err(resolution_error(
+                library_index,
+                0,
+                ImportResolutionFailure::ModuleNameTooLong,
+            ));
+        }
+        total_symbols = total_symbols.checked_add(library.symbols.len()).ok_or_else(|| {
+            resolution_error(
+                library_index,
+                0,
+                ImportResolutionFailure::TooManySymbols,
+            )
+        })?;
+        if total_symbols > limits.max_symbols {
+            return Err(resolution_error(
+                library_index,
+                0,
+                ImportResolutionFailure::TooManySymbols,
+            ));
+        }
+
+        for (symbol_index, import) in library.symbols.iter().enumerate() {
+            if import.pointer_width != 8 {
+                return Err(resolution_error(
+                    library_index,
+                    symbol_index,
+                    ImportResolutionFailure::UnsupportedPointerWidth {
+                        pointer_width: import.pointer_width,
+                    },
+                ));
+            }
+            if import.iat_rva.checked_add(u32::from(import.pointer_width)).is_none() {
+                return Err(resolution_error(
+                    library_index,
+                    symbol_index,
+                    ImportResolutionFailure::IatRangeOverflow,
+                ));
+            }
+
+            let initial_lookup = match &import.symbol {
+                crate::ParsedImportSymbol::Name { name, .. } => {
+                    if name.len() > limits.max_symbol_name_bytes {
+                        return Err(resolution_error(
+                            library_index,
+                            symbol_index,
+                            ImportResolutionFailure::SymbolNameTooLong,
+                        ));
+                    }
+                    ExportLookup::Name(name.clone())
+                }
+                crate::ParsedImportSymbol::Ordinal { ordinal } => {
+                    ExportLookup::Ordinal(u32::from(*ordinal))
+                }
+            };
+
+            let mut current_module = library.name.clone();
+            let mut current_lookup = initial_lookup;
+            let mut visited: Vec<(String, ExportLookup)> = Vec::new();
+            let mut forwarder_hops = 0usize;
+
+            let (target_module, export_ordinal, function_rva) = loop {
+                if visited.iter().any(|entry| {
+                    same_forwarder_target(entry, &current_module, &current_lookup)
+                }) {
+                    return Err(resolution_error(
+                        library_index,
+                        symbol_index,
+                        ImportResolutionFailure::ForwarderCycle,
+                    ));
+                }
+                visited.push((current_module.clone(), current_lookup.clone()));
+
+                match catalogue.lookup(&current_module, &current_lookup) {
+                    ExportLookupResult::Resolved {
+                        ordinal,
+                        function_rva,
+                    } => break (current_module, ordinal, function_rva),
+                    ExportLookupResult::MissingModule => {
+                        return Err(resolution_error(
+                            library_index,
+                            symbol_index,
+                            ImportResolutionFailure::MissingModule,
+                        ));
+                    }
+                    ExportLookupResult::MissingSymbol => {
+                        return Err(resolution_error(
+                            library_index,
+                            symbol_index,
+                            ImportResolutionFailure::MissingSymbol,
+                        ));
+                    }
+                    ExportLookupResult::Forwarder { forwarder, .. } => {
+                        if forwarder_hops >= limits.max_forwarder_hops {
+                            return Err(resolution_error(
+                                library_index,
+                                symbol_index,
+                                ImportResolutionFailure::ForwarderHopLimit,
+                            ));
+                        }
+                        let (module, lookup) = parse_forwarder(
+                            &forwarder,
+                            limits,
+                            library_index,
+                            symbol_index,
+                        )?;
+                        current_module = module;
+                        current_lookup = lookup;
+                        forwarder_hops += 1;
+                    }
+                }
+            };
+
+            resolved.push(ResolvedImport {
+                import_library: library.name.clone(),
+                import_symbol: import.symbol.clone(),
+                iat_rva: import.iat_rva,
+                pointer_width: import.pointer_width,
+                target_module,
+                export_ordinal,
+                function_rva,
+                forwarder_hops,
+            });
+        }
+    }
+
+    Ok(ImportResolutionPlan { imports: resolved })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
