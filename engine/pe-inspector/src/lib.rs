@@ -602,14 +602,18 @@ pub fn inspect(d: &[u8]) -> Result<PeReport> {
                         symbols.push(name.clone());
                         parsed_symbols.push(ParsedImportEntry {
                             symbol: ParsedImportSymbol::Name { name, hint },
-                            lookup_rva: thunk.checked_add(
-                                u32::try_from(thunk_index * width)
-                                    .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
-                            ).ok_or(PeError::OutOfBounds("import lookup RVA"))?,
-                            iat_rva: iat.checked_add(
-                                u32::try_from(thunk_index * width)
-                                    .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
-                            ).ok_or(PeError::OutOfBounds("IAT RVA"))?,
+                            lookup_rva: thunk
+                                .checked_add(
+                                    u32::try_from(thunk_index * width)
+                                        .map_err(|_| PeError::OutOfBounds("import lookup RVA"))?,
+                                )
+                                .ok_or(PeError::OutOfBounds("import lookup RVA"))?,
+                            iat_rva: iat
+                                .checked_add(
+                                    u32::try_from(thunk_index * width)
+                                        .map_err(|_| PeError::OutOfBounds("IAT RVA"))?,
+                                )
+                                .ok_or(PeError::OutOfBounds("IAT RVA"))?,
                             pointer_width,
                         });
                     }
