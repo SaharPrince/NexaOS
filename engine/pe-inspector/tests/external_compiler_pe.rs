@@ -47,8 +47,11 @@ fn print_section_transition_diagnostics(report: &PeReport) {
         };
 
         println!(
-            "Section transition {index}: {} -> {}; extent_source={extent_source}; previous_rva={:#x}; aligned_extent={aligned_extent:#x}; expected_next_rva={expected_next_rva:#x}; actual_next_rva={actual_next_rva:#x}; classification={classification}",
-            previous.name, next.name, previous.virtual_address, next.virtual_address
+            "Section transition {index}: {previous_name} -> {next_name}; extent_source={extent_source}; previous_rva={previous_rva:#x}; aligned_extent={aligned_extent:#x}; expected_next_rva={expected_next_rva:#x}; actual_next_rva={actual_next_rva:#x}; classification={classification}",
+            previous_name = previous.name,
+            next_name = next.name,
+            previous_rva = previous.virtual_address,
+            actual_next_rva = next.virtual_address,
         );
     }
 }
