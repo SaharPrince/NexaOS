@@ -1231,6 +1231,97 @@ mod tests {
         ));
     }
 
+    fn pe64_with_debug_entry(
+        address_of_raw_data: u32,
+        pointer_to_raw_data: u32,
+        size_of_data: u32,
+        file_size: usize,
+    ) -> Vec<u8> {
+        let mut b = pe64();
+        b.resize(file_size, 0);
+        let debug_directory = 0x98 + 112 + 6 * 8;
+        b[debug_directory..debug_directory + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[debug_directory + 4..debug_directory + 8].copy_from_slice(&28u32.to_le_bytes());
+
+        // IMAGE_DEBUG_DIRECTORY at file offset 0x200.
+        b[0x200..0x204].copy_from_slice(&0u32.to_le_bytes());
+        b[0x204..0x208].copy_from_slice(&0x1234_5678u32.to_le_bytes());
+        b[0x208..0x20a].copy_from_slice(&1u16.to_le_bytes());
+        b[0x20a..0x20c].copy_from_slice(&2u16.to_le_bytes());
+        b[0x20c..0x210].copy_from_slice(&2u32.to_le_bytes());
+        b[0x210..0x214].copy_from_slice(&size_of_data.to_le_bytes());
+        b[0x214..0x218].copy_from_slice(&address_of_raw_data.to_le_bytes());
+        b[0x218..0x21c].copy_from_slice(&pointer_to_raw_data.to_le_bytes());
+        b
+    }
+
+    #[test]
+    fn reports_mapped_debug_data_rva_and_file_pointer_separately() {
+        let b = pe64_with_debug_entry(0x1080, 0x288, 8, 0x300);
+        let report = inspect(&b).unwrap();
+
+        assert_eq!(report.debug_entries.len(), 1);
+        let entry = &report.debug_entries[0];
+        assert_eq!(entry.type_code, 2);
+        assert_eq!(entry.size_of_data, 8);
+        assert_eq!(entry.address_of_raw_data, 0x1080);
+        assert_eq!(entry.pointer_to_raw_data, 0x288);
+        // The mapped RVA resolves to 0x280; the independent raw file pointer
+        // remains 0x288 and is not silently substituted.
+        assert_eq!(entry.mapped_file_offset, Some(0x280));
+    }
+
+    #[test]
+    fn reports_unmapped_debug_data_as_file_only_overlay_bytes() {
+        let b = pe64_with_debug_entry(0, 0x300, 0x10, 0x310);
+        let report = inspect(&b).unwrap();
+
+        assert_eq!(report.debug_entries.len(), 1);
+        assert_eq!(report.debug_entries[0].address_of_raw_data, 0);
+        assert_eq!(report.debug_entries[0].pointer_to_raw_data, 0x300);
+        assert_eq!(report.debug_entries[0].mapped_file_offset, None);
+        assert_eq!(report.overlay.as_ref().unwrap().offset, 0x300);
+        assert_eq!(report.overlay.as_ref().unwrap().size, 0x10);
+        assert_eq!(report.file_size, 0x310);
+    }
+
+    #[test]
+    fn reports_trailing_file_overlay_after_section_raw_data() {
+        let mut b = pe64();
+        b.resize(0x340, 0xa5);
+
+        let report = inspect(&b).unwrap();
+
+        assert_eq!(report.file_size, 0x340);
+        assert_eq!(report.overlay.as_ref().unwrap().offset, 0x300);
+        assert_eq!(report.overlay.as_ref().unwrap().size, 0x40);
+    }
+
+    #[test]
+    fn rejects_debug_data_file_pointer_outside_input() {
+        let b = pe64_with_debug_entry(0, 0x300, 0x10, 0x308);
+
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Truncated("debug data file range"))
+        ));
+    }
+
+    #[test]
+    fn rejects_debug_directory_size_not_divisible_by_entry_size() {
+        let mut b = pe64();
+        let debug_directory = 0x98 + 112 + 6 * 8;
+        b[debug_directory..debug_directory + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        b[debug_directory + 4..debug_directory + 8].copy_from_slice(&29u32.to_le_bytes());
+
+        assert!(matches!(
+            inspect(&b),
+            Err(PeError::Invalid(
+                "debug directory size is not a multiple of entry size"
+            ))
+        ));
+    }
+
     #[test]
     fn parses_pe32_plus() {
         let r = inspect(&pe64()).unwrap();
