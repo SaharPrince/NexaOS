@@ -61,3 +61,43 @@ Prefer a small, diverse, license-checked sample set over a bulk download. Keep t
 - Can the selected samples be tested reproducibly in CI without committing binaries or relying on fragile external downloads?
 
 NCE-002 remains under validation. NCE-003 remains blocked until the corpus review and representative low-end hardware measurements are complete.
+
+
+## Dataset access triage — 2026-11-17
+
+A second review of the published Assemblage Windows PE dataset clarifies the practical selection path:
+
+- The dataset card describes approximately 91,000 Windows PE binaries, with metadata in `binaries.csv` and `functions.csv`, plus a separate binary archive.
+- The Hugging Face listing reports approximately 43.1 GB total; the binary archive alone is listed at approximately 33.8 GB.
+- The dataset documentation says each binary retains its originating source repository's license. The dataset's own hosting/license label must not be mistaken for blanket permission to redistribute every underlying binary.
+- The Assemblage documentation describes per-binary metadata including source repository and license information; the Windows PE dataset card also identifies SHA-256 and `binary_path` as ways to identify files.
+
+References:
+- https://huggingface.co/datasets/changliu8541/Assemblage_PE
+- https://huggingface.co/datasets/changliu8541/Assemblage_PE/tree/main
+- https://assemblagedocs.readthedocs.io/en/latest/dataset.html
+
+### Selection decision
+
+Do **not** download the 33.8 GB binary archive for this milestone. If the metadata database or CSVs can be queried independently, first inspect their actual schema and select a small candidate list using metadata only. For each candidate, verify the source repository, exact version/commit where available, recorded license, architecture, and SHA-256 before retrieving any binary. A license label recorded in metadata is a lead for review, not legal advice or proof that NexaOS may redistribute the file.
+
+The initial candidate set should aim for diversity rather than volume: several unrelated source projects, more than one compiler/linker configuration if available, and samples with different section counts and alignment patterns. Keep downloaded samples outside the repository unless redistribution rights are clear. Store only provenance and measured structural metadata in the repository; do not commit third-party binaries.
+
+### Required per-sample record
+
+For every selected sample, record:
+
+- Dataset record identifier and binary path.
+- Source repository URL, source revision/version, and recorded license.
+- SHA-256 and exact file size.
+- PE format and machine type.
+- `SectionAlignment`, `FileAlignment`, `SizeOfImage`, and `SizeOfHeaders`.
+- Section-table order and each section's RVA, `VirtualSize`, `SizeOfRawData`, and raw file offset.
+- Certificate-table presence, debug-directory presence, and overlay byte count where safely measurable.
+- Inspector result, planner result, tool commit, and any rejection reason.
+
+All processing remains read-only. Never launch a corpus sample. No sample has been selected or validated by this documentation update; metadata schema inspection and license review are still required before any download.
+
+### Revised next step
+
+Build a metadata-only shortlist first, then inspect a handful of individually license-checked binaries. Use those observations to decide whether section ordering/adjacency or the zero-`VirtualSize` fallback needs code changes. Until those results exist, retain the current planner behavior and keep NCE-003 blocked.
