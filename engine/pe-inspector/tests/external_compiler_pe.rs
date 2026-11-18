@@ -378,3 +378,122 @@ fn plans_windows_system_pe_when_configured() {
         plan.total_zero_fill_bytes
     );
 }
+
+
+#[test]
+fn inspects_llvm_coff_source_derived_layout_fixtures_when_configured() {
+    let limits = ImageLayoutLimits {
+        max_image_size: 256 * 1024 * 1024,
+        max_sections: 96,
+    };
+
+    if let Some(path) = std::env::var_os("NEXA_LLVM_SECTION_LAYOUT_FIXTURE") {
+        let bytes = std::fs::read(path).expect("read LLVM section-layout fixture");
+        let report = inspect(&bytes).expect("inspect LLVM section-layout fixture");
+        assert_eq!(report.format, "PE32+");
+        assert_eq!(report.machine, "AMD64");
+        assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+        let section_names: Vec<&str> = report
+            .sections
+            .iter()
+            .map(|section| section.name.as_str())
+            .collect();
+        let text1 = section_names
+            .iter()
+            .position(|name| *name == ".text1")
+            .expect("section-layout fixture contains .text1");
+        let text3 = section_names
+            .iter()
+            .position(|name| *name == ".text3")
+            .expect("section-layout fixture contains .text3");
+        let text2 = section_names
+            .iter()
+            .position(|name| *name == ".text2")
+            .expect("section-layout fixture contains .text2");
+        assert!(
+            text1 < text3 && text3 < text2,
+            "LLD /sectionlayout order must be .text1, .text3, .text2; got {section_names:?}"
+        );
+
+        let plan = plan_image_layout(&report, bytes.len() as u64, limits)
+            .expect("plan LLVM section-layout fixture");
+        assert_eq!(plan.image_size, u64::from(report.size_of_image));
+        assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
+        println!(
+            "LLVM section-layout fixture: {} bytes, {} sections, order={section_names:?}",
+            bytes.len(),
+            report.sections.len()
+        );
+    } else {
+        eprintln!("skipping LLVM section-layout fixture: NEXA_LLVM_SECTION_LAYOUT_FIXTURE is not set");
+    }
+
+    for (variable, expected_alignment) in [
+        ("NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE", 512),
+        ("NEXA_LLVM_FILEALIGN_4096_FIXTURE", 4096),
+    ] {
+        let Some(path) = std::env::var_os(variable) else {
+            eprintln!("skipping {variable}: environment variable is not set");
+            continue;
+        };
+        let bytes = std::fs::read(path).expect("read LLVM file-alignment fixture");
+        let report = inspect(&bytes).expect("inspect LLVM file-alignment fixture");
+        assert_eq!(report.format, "PE32+");
+        assert_eq!(report.machine, "AMD64");
+        assert_eq!(report.file_alignment, expected_alignment);
+        assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+        let plan = plan_image_layout(&report, bytes.len() as u64, limits)
+            .expect("plan LLVM file-alignment fixture");
+        assert_eq!(plan.image_size, u64::from(report.size_of_image));
+        println!(
+            "LLVM file-alignment fixture: alignment={}, {} bytes, {} sections",
+            report.file_alignment,
+            bytes.len(),
+            report.sections.len()
+        );
+    }
+
+    if let Some(path) = std::env::var_os("NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE") {
+        let bytes = std::fs::read(path).expect("read LLVM default-alignment fixture");
+        let report = inspect(&bytes).expect("inspect LLVM default-alignment fixture");
+        assert_eq!(report.format, "PE32+");
+        assert_eq!(report.machine, "AMD64");
+        assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+        let rdata = report
+            .sections
+            .iter()
+            .find(|section| section.name == ".rdata")
+            .expect("default-alignment fixture contains merged .rdata section");
+        let start = rdata.raw_offset as usize;
+        let end = start
+            .checked_add(rdata.raw_size as usize)
+            .expect("raw .rdata range must not overflow");
+        let contents = bytes
+            .get(start..end)
+            .expect("raw .rdata range must be inside the input");
+        assert!(
+            contents.len() >= 17,
+            "merged .rdata section must contain both aligned input contributions"
+        );
+        assert_eq!(contents[0], 1);
+        assert!(
+            contents[1..16].iter().all(|byte| *byte == 0),
+            "default input-section alignment padding must be zero-filled"
+        );
+        assert_eq!(contents[16], 2);
+
+        let plan = plan_image_layout(&report, bytes.len() as u64, limits)
+            .expect("plan LLVM default-alignment fixture");
+        assert_eq!(plan.image_size, u64::from(report.size_of_image));
+        println!(
+            "LLVM default-alignment fixture: {} bytes, .rdata raw size={}, merged input spacing=16",
+            bytes.len(),
+            rdata.raw_size
+        );
+    } else {
+        eprintln!("skipping LLVM default-alignment fixture: NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE is not set");
+    }
+}
