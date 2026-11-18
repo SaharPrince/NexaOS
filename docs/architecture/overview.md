@@ -64,4 +64,8 @@ The [NCE-002 design specification](../milestones/NCE-002.md) defines a staged PE
 
 ## NCE-004a relocation boundary
 
-The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. The parser's typed metadata stage (NCE-004a.1) is implemented; planning and application are not yet implemented. Only ABSOLUTE padding and DIR64 are intended for initial planner support; all other relocation types will be rejected. This is a prerequisite stage, not application execution or the Windows x64 ABI runtime.
+The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. NCE-004a.1, NCE-004a.2, and NCE-004a.3 are implemented and validated for their isolated data-processing scope. This does not enable application loading or execution.
+
+## NCE-004b image-preparation boundary
+
+The [NCE-004b specification](../milestones/NCE-004b.md) defines the next orchestration stage: composing inspection, layout, bounded non-executable allocation, population, explicit-catalogue import resolution, symbolic IAT validation, and image-local relocation into a failure-atomic preparation pipeline. Its output remains non-executable prepared data; it does not write IAT values, load DLLs, set page permissions, or transfer control to an image entry point. NCE-004b is design-only until implemented and validated.
