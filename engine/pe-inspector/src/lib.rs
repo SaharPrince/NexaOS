@@ -22,8 +22,8 @@ pub use image_layout::{
     ImageZeroFillRange, SectionImageLayout,
 };
 pub use image_preparation::{
-    prepare_image, ImagePreparationError, ImagePreparationRequest, ImagePreparationStage,
-    PreparedImage,
+    prepare_image, ImagePreparationCause, ImagePreparationError, ImagePreparationRequest,
+    ImagePreparationStage, PreparedImage,
 };
 pub use relocation_metadata::{
     ParsedRelocationBlock, ParsedRelocationDirectory, ParsedRelocationEntry,
@@ -179,7 +179,7 @@ pub struct ParsedExportDirectory {
     pub names: Vec<ExportNameAssociation>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PeError {
     Truncated(&'static str),
     Invalid(&'static str),
