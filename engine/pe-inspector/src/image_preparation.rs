@@ -1,8 +1,9 @@
 use crate::{
     allocate_image_buffer, apply_base_relocations, inspect, plan_base_relocations,
     plan_image_layout, populate_image_buffer, resolve_imports, validate_iat_patch_plan,
-    ExportCatalogue, IatPatchPlan, IatPatchPlanLimits, ImageAllocationError, ImageAllocator,
-    ImageBuffer, ImageLayoutError, ImageLayoutLimits, ImportResolutionLimits, RelocationApplyError,
+    ExportCatalogue, IatPatchPlan, IatPatchPlanError, IatPatchPlanLimits, ImageAllocationError,
+    ImageAllocator, ImageBuffer, ImageLayoutError, ImageLayoutLimits, ImportResolutionError,
+    ImportResolutionLimits, PeError, RelocationApplyError, RelocationPlanError,
     RelocationPlanLimits,
 };
 use std::fmt;
@@ -20,11 +21,54 @@ pub enum ImagePreparationStage {
     ApplyRelocations,
 }
 
+/// Original typed error returned by the stage that rejected preparation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImagePreparationCause {
+    Pe(PeError),
+    Layout(ImageLayoutError),
+    ImportResolution(ImportResolutionError),
+    IatValidation(IatPatchPlanError),
+    Allocation(ImageAllocationError),
+    RelocationPlanning(RelocationPlanError),
+    RelocationApplication(RelocationApplyError),
+}
+
+impl fmt::Display for ImagePreparationCause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Pe(error) => error.fmt(f),
+            Self::Layout(error) => error.fmt(f),
+            Self::ImportResolution(error) => error.fmt(f),
+            Self::IatValidation(error) => error.fmt(f),
+            Self::Allocation(error) => error.fmt(f),
+            Self::RelocationPlanning(error) => error.fmt(f),
+            Self::RelocationApplication(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for ImagePreparationCause {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Pe(error) => Some(error),
+            Self::Layout(error) => Some(error),
+            Self::ImportResolution(error) => Some(error),
+            Self::IatValidation(error) => Some(error),
+            Self::Allocation(error) => Some(error),
+            Self::RelocationPlanning(error) => Some(error),
+            Self::RelocationApplication(error) => Some(error),
+        }
+    }
+}
+
 /// Failure from one bounded image-preparation stage.
+///
+/// Both the orchestration stage and the original subsystem error are retained,
+/// so callers can branch on structured failure categories without parsing text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImagePreparationError {
     pub stage: ImagePreparationStage,
-    pub detail: String,
+    pub cause: ImagePreparationCause,
 }
 
 impl fmt::Display for ImagePreparationError {
@@ -32,18 +76,19 @@ impl fmt::Display for ImagePreparationError {
         write!(
             f,
             "image preparation failed during {:?}: {}",
-            self.stage, self.detail
+            self.stage, self.cause
         )
     }
 }
 
-impl std::error::Error for ImagePreparationError {}
-
-fn stage_error(stage: ImagePreparationStage, error: impl fmt::Display) -> ImagePreparationError {
-    ImagePreparationError {
-        stage,
-        detail: error.to_string(),
+impl std::error::Error for ImagePreparationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.cause)
     }
+}
+
+fn stage_error(stage: ImagePreparationStage, cause: ImagePreparationCause) -> ImagePreparationError {
+    ImagePreparationError { stage, cause }
 }
 
 /// Explicit inputs and resource budgets for preparing one PE32+ AMD64 image.
@@ -115,14 +160,14 @@ pub fn prepare_image(
     allocator: &mut impl ImageAllocator,
 ) -> Result<PreparedImage, ImagePreparationError> {
     let report = inspect(request.input)
-        .map_err(|error| stage_error(ImagePreparationStage::Inspect, error))?;
+        .map_err(|error| stage_error(ImagePreparationStage::Inspect, ImagePreparationCause::Pe(error)))?;
 
     let layout = plan_image_layout(
         &report,
         u64::try_from(request.input.len()).unwrap_or(u64::MAX),
         request.layout_limits,
     )
-    .map_err(|error: ImageLayoutError| stage_error(ImagePreparationStage::Layout, error))?;
+    .map_err(|error: ImageLayoutError| stage_error(ImagePreparationStage::Layout, ImagePreparationCause::Layout(error)))?;
 
     // Resolve and validate imports before allocating the image. These stages
     // depend only on parsed metadata, the caller-owned catalogue, and the
@@ -132,18 +177,18 @@ pub fn prepare_image(
         request.export_catalogue,
         request.import_limits,
     )
-    .map_err(|error| stage_error(ImagePreparationStage::ResolveImports, error))?;
+    .map_err(|error| stage_error(ImagePreparationStage::ResolveImports, ImagePreparationCause::ImportResolution(error)))?;
 
     let iat_patch_plan =
         validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
-            .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, error))?;
+            .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, ImagePreparationCause::IatValidation(error)))?;
 
     let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, error),
+        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, ImagePreparationCause::Allocation(error)),
     )?;
 
     let mut image = populate_image_buffer(&layout, request.input, image).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, error),
+        |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, ImagePreparationCause::Allocation(error)),
     )?;
 
     let relocation_plan = plan_base_relocations(
@@ -156,10 +201,10 @@ pub fn prepare_image(
         image.as_slice(),
         request.relocation_limits,
     )
-    .map_err(|error| stage_error(ImagePreparationStage::PlanRelocations, error))?;
+    .map_err(|error| stage_error(ImagePreparationStage::PlanRelocations, ImagePreparationCause::RelocationPlanning(error)))?;
 
     apply_base_relocations(&mut image, &relocation_plan).map_err(
-        |error: RelocationApplyError| stage_error(ImagePreparationStage::ApplyRelocations, error),
+        |error: RelocationApplyError| stage_error(ImagePreparationStage::ApplyRelocations, ImagePreparationCause::RelocationApplication(error)),
     )?;
 
     Ok(PreparedImage {
@@ -353,7 +398,7 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::Allocate);
-        assert!(error.detail.contains("allocation failed"));
+        assert!(matches!(error.cause, ImagePreparationCause::Allocation(ImageAllocationError::AllocationFailed)));
         assert_eq!(allocator.calls, 1);
     }
 
@@ -369,6 +414,7 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::Inspect);
+        assert!(matches!(error.cause, ImagePreparationCause::Pe(PeError::Invalid(_))));
         assert_eq!(allocator.calls, 0);
     }
 
@@ -481,7 +527,7 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::PlanRelocations);
-        assert!(error.detail.contains("UnsupportedRelocationType"));
+        assert!(matches!(error.cause, ImagePreparationCause::RelocationPlanning(_)));
         assert_eq!(allocator.calls, 1);
     }
 
