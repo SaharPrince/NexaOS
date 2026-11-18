@@ -231,8 +231,24 @@ pub fn populate_image_buffer(
         return Err(ImageAllocationError::InvalidPlan);
     }
 
+    // Each section contributes at most one copy and one zero-fill range;
+    // headers contribute one additional range. Reserve before validation so
+    // every subsequent push is allocation-free and allocation failure is
+    // reported through the stage's typed error.
+    let max_ranges = plan
+        .sections
+        .len()
+        .checked_mul(2)
+        .and_then(|count| count.checked_add(1))
+        .ok_or(ImageAllocationError::InvalidPlan)?;
     let mut destinations: Vec<(usize, usize)> = Vec::new();
+    destinations
+        .try_reserve_exact(max_ranges)
+        .map_err(|_| ImageAllocationError::AllocationFailed)?;
     let mut sources: Vec<(u64, u64)> = Vec::new();
+    sources
+        .try_reserve_exact(max_ranges)
+        .map_err(|_| ImageAllocationError::AllocationFailed)?;
     let mut copy_total = 0u64;
     let mut zero_total = 0u64;
 
