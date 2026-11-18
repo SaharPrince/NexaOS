@@ -426,7 +426,9 @@ fn inspects_llvm_coff_source_derived_layout_fixtures_when_configured() {
             report.sections.len()
         );
     } else {
-        eprintln!("skipping LLVM section-layout fixture: NEXA_LLVM_SECTION_LAYOUT_FIXTURE is not set");
+        eprintln!(
+            "skipping LLVM section-layout fixture: NEXA_LLVM_SECTION_LAYOUT_FIXTURE is not set"
+        );
     }
 
     for (variable, expected_alignment) in [
