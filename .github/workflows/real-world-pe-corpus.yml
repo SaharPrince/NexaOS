@@ -1,0 +1,69 @@
+name: Real-world PE corpus validation
+
+on:
+  push:
+    branches: [main, nce-001/pe-inspector, automation/nce-005a-real-world-pe]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "engine/pe-inspector/Cargo.toml"
+      - "engine/pe-inspector/src/**"
+      - "engine/pe-inspector/tests/real_world_pe_corpus.rs"
+      - "scripts/download-verified-pe-samples.py"
+      - ".github/workflows/real-world-pe-corpus.yml"
+  pull_request:
+    branches: [main, nce-001/pe-inspector]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "engine/pe-inspector/Cargo.toml"
+      - "engine/pe-inspector/src/**"
+      - "engine/pe-inspector/tests/real_world_pe_corpus.rs"
+      - "scripts/download-verified-pe-samples.py"
+      - ".github/workflows/real-world-pe-corpus.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-world-pe-corpus-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-world-pe:
+    name: Static PE validation (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: Swatinem/rust-cache@v2
+      - name: Download and verify pinned upstream PE files
+        run: python scripts/download-verified-pe-samples.py
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Run static layout and relocation integration test
+        env:
+          NEXA_REAL_WORLD_PE_DIR: ${{ github.workspace }}/target/real-world-pe
+        run: cargo test --locked -p nexa-inspect --test real_world_pe_corpus -- --nocapture
+      - name: Upload verification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-pe-corpus-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/real-world-pe/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
