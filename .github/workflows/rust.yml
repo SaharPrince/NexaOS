@@ -168,6 +168,12 @@ jobs:
             -o target/pe-corpus/llvm-source/filealign.test
           curl --fail --silent --show-error --location "$LLVM_RAW/default-alignment.test" \
             -o target/pe-corpus/llvm-source/default-alignment.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/reloc-x64.test" \
+            -o target/pe-corpus/llvm-source/reloc-x64.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/base.test" \
+            -o target/pe-corpus/llvm-source/base.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/bss-shared-no-merge.test" \
+            -o target/pe-corpus/llvm-source/bss-shared-no-merge.test
 
           "$YAML2OBJ" target/pe-corpus/llvm-source/filealign.test \
             -o target/pe-corpus/llvm-filealign.obj
@@ -182,13 +188,32 @@ jobs:
             /entry:__ImageBase /subsystem:console /timestamp:0 \
             target/pe-corpus/llvm-default-alignment.obj
 
+          "$YAML2OBJ" target/pe-corpus/llvm-source/reloc-x64.test \
+            -o target/pe-corpus/llvm-reloc-x64.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-reloc-x64.exe /entry:main \
+            /timestamp:0 target/pe-corpus/llvm-reloc-x64.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/base.test \
+            -o target/pe-corpus/llvm-base.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-base.exe /entry:main \
+            /base:0x280000000 /timestamp:0 target/pe-corpus/llvm-base.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/bss-shared-no-merge.test \
+            -o target/pe-corpus/llvm-bss.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-bss-shared.dll /dll \
+            /entry:DllMain /section:.data,rws /timestamp:0 \
+            target/pe-corpus/llvm-bss.obj
+
           echo "NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-default.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_FILEALIGN_4096_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-4096.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE=$PWD/target/pe-corpus/llvm-default-alignment.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_RELOC_FIXTURE=$PWD/target/pe-corpus/llvm-reloc-x64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_BASE_FIXTURE=$PWD/target/pe-corpus/llvm-base.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_BSS_FIXTURE=$PWD/target/pe-corpus/llvm-bss-shared.dll" >> "$GITHUB_ENV"
           (
             cd target/pe-corpus
-            sha256sum *.exe > SHA256SUMS
-            stat -c '%n %s bytes' *.exe > fixture-sizes.txt
+            sha256sum *.exe *.dll > SHA256SUMS
+            stat -c '%n %s bytes' *.exe *.dll > fixture-sizes.txt
           )
       - name: Upload reproducible PE corpus fixtures
         uses: actions/upload-artifact@v4
@@ -196,6 +221,7 @@ jobs:
           name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             target/pe-corpus/*.exe
+            target/pe-corpus/*.dll
             target/pe-corpus/*-version.txt
             target/pe-corpus/SHA256SUMS
             target/pe-corpus/fixture-sizes.txt
