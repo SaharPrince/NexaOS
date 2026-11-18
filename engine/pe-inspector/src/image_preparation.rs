@@ -262,8 +262,7 @@ mod tests {
     #[test]
     fn rebase_without_relocation_data_fails_without_returning_an_image() {
         let input = pe64();
-        let catalogue =
-            ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = CountingAllocator::default();
 
         let error =
