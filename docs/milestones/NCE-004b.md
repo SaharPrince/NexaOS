@@ -44,14 +44,15 @@ No implicit filesystem search, environment lookup, DLL discovery, host process i
 
 1. **Inspect:** parse the input bytes once and retain the resulting report internally for this operation.
 2. **Plan layout:** validate PE32+ AMD64 identity and derive the image layout under caller limits.
-3. **Allocate:** allocate exactly one zero-initialized, non-executable image buffer, bounded by the explicit maximum.
-4. **Populate:** copy validated headers/section data and zero-fill ranges using the same input slice. A population failure consumes and drops the intermediate buffer.
-5. **Resolve imports:** resolve all imports against the explicit export catalogue. Missing modules/symbols, malformed forwarders, cycles, and hop-limit failures abort preparation. Validate the resulting symbolic IAT destinations against the mapped image size.
+3. **Resolve imports:** resolve all imports against the explicit export catalogue before image allocation. Missing modules/symbols, malformed forwarders, cycles, and hop-limit failures abort preparation.
+4. **Validate imports:** validate symbolic IAT destinations against the planned image size before image allocation.
+5. **Allocate:** allocate exactly one zero-initialized, non-executable image buffer, bounded by the explicit maximum.
+6. **Populate:** copy validated headers/section data and zero-fill ranges using the same input slice. A population failure consumes and drops the intermediate buffer.
 6. **Plan relocation:** use the report's typed relocation metadata and populated image bytes. The requested base and preferred base must be explicit. A nonzero base delta with no usable supported relocations is an error.
 7. **Apply relocation:** apply the complete relocation plan through apply_base_relocations; do not add a second mutation path.
 8. **Return:** expose a prepared result only after every requested stage succeeds. The result owns the single mapped image buffer and the validated symbolic import plan. Any error drops all intermediate state.
 
-The order is deliberate: the IAT plan remains symbolic and is not written, so import resolution can be completed and validated before relocation without introducing address-order dependencies. Relocation is applied only to the image buffer after all non-mutating import validation succeeds.
+The order is deliberate: import resolution and IAT validation depend only on parsed metadata, the caller-owned catalogue, and the planned image size. Performing them before allocation avoids consuming image memory for an image whose imports cannot be resolved or whose IAT plan is invalid. The IAT plan remains symbolic and is not written. Relocation is applied only to the populated image buffer after all non-mutating import validation succeeds.
 
 ## Output contract
 
@@ -147,11 +148,11 @@ IAT value application, loaded-module base assignment, DLL loading, page permissi
 The first orchestration increment adds `prepare_image` and the `ImagePreparationRequest` / `PreparedImage` API in `engine/pe-inspector/src/image_preparation.rs`.
 
 - Inspects the borrowed input once and uses that same slice for image population.
-- Plans layout, allocates one bounded non-executable image buffer, and consumes it during population.
-- Resolves imports only against the caller-supplied `ExportCatalogue`, then validates symbolic IAT destinations.
+- Plans layout, resolves imports only against the caller-supplied `ExportCatalogue`, and validates symbolic IAT destinations before allocating image memory.
+- Allocates one bounded non-executable image buffer and consumes it during population.
 - Plans and applies relocation through the existing pure planner and all-or-nothing image-local API.
 - Returns the image only after every stage succeeds; the image bytes are exposed read-only and the IAT plan remains symbolic.
 - Reports structured stage identity and the underlying error text.
-- Initial tests cover the no-import/no-relocation success path, malformed input rejected before allocation, and missing relocation data on rebase.
+- Tests cover import-bearing success without IAT writes, successful DIR64 rebasing, unresolved imports rejected before allocation, image-budget rejection before allocation, malformed input rejected before allocation, and missing relocation data on rebase.
 
-This is an initial implementation increment, not milestone completion. Import-bearing success, actual relocation success, additional injected failure paths, allocator/budget coverage, and full CI validation remain outstanding. No IAT writes, DLL loading, executable memory, or image execution are introduced.
+This is an initial implementation increment, not milestone completion. Additional injected allocator/population failures, invalid IAT-plan limits, relocation failure paths, and final full CI validation remain outstanding. No IAT writes, DLL loading, executable memory, or image execution are introduced.
