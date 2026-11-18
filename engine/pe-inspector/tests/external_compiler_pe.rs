@@ -379,7 +379,6 @@ fn plans_windows_system_pe_when_configured() {
     );
 }
 
-
 #[test]
 fn inspects_llvm_coff_source_derived_layout_fixtures_when_configured() {
     let limits = ImageLayoutLimits {
@@ -393,6 +392,7 @@ fn inspects_llvm_coff_source_derived_layout_fixtures_when_configured() {
         assert_eq!(report.format, "PE32+");
         assert_eq!(report.machine, "AMD64");
         assert_eq!(report.execution, "NOT_ATTEMPTED");
+        assert_section_order_and_adjacency(&report);
 
         let section_names: Vec<&str> = report
             .sections
