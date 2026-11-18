@@ -2,7 +2,7 @@
 
 ## Status
 
-**Initial source audit complete; three individually published upstream Windows binaries have now been inspected and passed the bounded image-layout/relocation integration path.** The binaries remain in local quarantine outside Git; none is committed or approved for redistribution. This small sample set is evidence of limited real-world PE coverage, not broad Windows compatibility.
+**Initial source audit complete; four individually published upstream Windows PE binaries (three applications and one DLL) have now been inspected and passed the bounded image-layout/relocation integration path.** The binaries remain in local quarantine outside Git; none is committed or approved for redistribution. This small sample set is evidence of limited real-world PE coverage, not broad Windows compatibility.
 
 NexaOS branch: `nce-001/pe-inspector`  
 NexaOS baseline: `242ebb967ba232ad53071dec10f42da9dbb7ada1`
@@ -173,7 +173,7 @@ For any additional candidate considered for the corpus:
 
 ## Real-world upstream sample validation — 2026-11-18
 
-Three individually published upstream Windows AMD64 binaries were downloaded to user-local quarantine directories outside the repository and inspected as data only. Each temporary integration test exercised parsing, image-layout planning, non-executable buffer allocation/population, DIR64 relocation planning, and relocation application. Each temporary test file was removed after its run. No sample was launched.
+Four individually published upstream Windows AMD64 PE binaries (three applications and one DLL) were downloaded to user-local quarantine directories outside the repository and inspected as data only. Each temporary integration test exercised parsing, image-layout planning, non-executable buffer allocation/population, DIR64 relocation planning, and relocation application. Each temporary test file was removed after its run. No sample was launched.
 
 These results are local validation evidence, not a redistributable corpus. The exact binaries remain outside Git. The hashes below were verified locally before and after their respective tests.
 
@@ -182,6 +182,7 @@ These results are local validation evidence, not a redistributable corpus. The e
 | ripgrep 15.2.0 | `ripgrep-15.2.0-x86_64-pc-windows-msvc.zip`; extracted `rg.exe` | Archive: `71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5`; executable: `14231169855EC5205CF5A1B6F1DB358FF4AED4247C86B69CE8AAE647C77F6680` | Archive: 1,789,611 bytes; planned image: 4,239,360 bytes | PE32+ AMD64; 7 sections; 6 import descriptors / 127 imported symbols; 118 relocation blocks; 12,852 entries (53 ABSOLUTE, 12,799 DIR64); no unsupported types reported. | **PASS** — 12,799 DIR64 patches planned and applied; original patch values and unchanged input verified. |
 | bat 0.26.1 | `bat-v0.26.1-x86_64-pc-windows-msvc.zip`; extracted `bat.exe` | Archive: `0f729b4b6f5f28d395c641eacc2e9ff68d0096b85aa0eec344aa62425144b69b`; executable: `9EA9F7AB1C27AA5C9390E91543F9F47C6BD17BC53F3E30AC9DB762F28F55C4FD` | Archive: 3,613,318 bytes; executable: 7,342,592 bytes; planned image: 7,376,896 bytes | PE32+ AMD64; 5 sections; 4 import descriptors; 124 relocation blocks; 11,374 entries (52 ABSOLUTE, 11,322 DIR64); no unsupported types reported. | **PASS** — 11,322 DIR64 patches planned and applied; original patch values and unchanged input verified. |
 | jq 1.8.2 | `jq-windows-amd64.exe` | Executable: `A6FC67FEDAF9128A3309A1E2EBB8B986AECCF70122EE46D2CB4849E423F0C627` | Executable: 1,035,264 bytes; planned image: 1,060,864 bytes | PE32+ AMD64; 10 sections including `.bss` and `.tls`; 14 import descriptors; 16 relocation blocks; 1,358 entries (4 ABSOLUTE, 1,354 DIR64); no unsupported types reported. Planner recorded 4,064 zero-fill bytes. | **PASS** — 1,354 DIR64 patches planned and applied; original patch values and unchanged input verified. |
+| SQLite 3.54.1 | `sqlite-dll-win-x64-3540100.zip`; extracted `sqlite3.dll` | Executable: `4B59D3CDED9DC1608544160F3B4B10AC974C6AC0D6FFC23064E5F4C8DBD05AEA` | Archive: 1,450,919 bytes; DLL: 3,519,488 bytes; planned image: 3,555,328 bytes | PE32+ AMD64 DLL; 9 sections; 1 import descriptor / 127 imported symbols; 379 named exports; 30 relocation blocks; 2,910 entries (16 ABSOLUTE, 2,894 DIR64); no unsupported types reported. | **PASS** — 2,894 DIR64 patches planned and applied; original patch values and unchanged input verified. |
 
 ### Aggregate evidence
 
