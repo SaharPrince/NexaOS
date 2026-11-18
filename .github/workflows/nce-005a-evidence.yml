@@ -1,0 +1,29 @@
+name: NCE-005a evidence consistency
+
+on:
+  push:
+    branches: [main, nce-001/pe-inspector]
+    paths:
+      - "docs/milestones/NCE-005a.md"
+      - "scripts/check-nce-005a-evidence.py"
+      - ".github/workflows/nce-005a-evidence.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/milestones/NCE-005a.md"
+      - "scripts/check-nce-005a-evidence.py"
+      - ".github/workflows/nce-005a-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    name: Validate sample table and aggregate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check NCE-005a sample and aggregate consistency
+        run: python3 scripts/check-nce-005a-evidence.py
