@@ -106,14 +106,9 @@ pub fn prepare_image(
     )
     .map_err(|error: ImageLayoutError| stage_error(ImagePreparationStage::Layout, error))?;
 
-    let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, error),
-    )?;
-
-    let mut image = populate_image_buffer(&layout, request.input, image).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, error),
-    )?;
-
+    // Resolve and validate imports before allocating the image. These stages
+    // depend only on parsed metadata, the caller-owned catalogue, and the
+    // planned image size, so invalid imports must not consume image memory.
     let imports = resolve_imports(
         &report.import_metadata,
         request.export_catalogue,
@@ -124,6 +119,14 @@ pub fn prepare_image(
     let iat_patch_plan =
         validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
             .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, error))?;
+
+    let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
+        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, error),
+    )?;
+
+    let mut image = populate_image_buffer(&layout, request.input, image).map_err(
+        |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, error),
+    )?;
 
     let relocation_plan = plan_base_relocations(
         &report.format,
@@ -357,6 +360,19 @@ mod tests {
             &prepared.image_bytes()[0x1050..0x1058],
             &input[0x250..0x258]
         );
+    }
+
+    #[test]
+    fn unresolved_import_is_rejected_before_image_allocation() {
+        let input = pe64_with_one_import();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = CountingAllocator::default();
+
+        let error =
+            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::ResolveImports);
+        assert_eq!(allocator.calls, 0);
     }
 
     #[test]
