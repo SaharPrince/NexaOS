@@ -118,7 +118,7 @@ jobs:
       - name: Install MinGW-w64 cross compilers
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 clang lld
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 clang lld llvm
       - name: Build independent PE32+ and PE32 fixtures
         shell: bash
         run: |
@@ -149,10 +149,56 @@ jobs:
           echo "NEXA_LLVM_PE_FIXTURE=$PWD/target/pe-corpus/llvm-lld-x86_64.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_COMPILER_VERSION=$(cat target/pe-corpus/clang-version.txt)" >> "$GITHUB_ENV"
           echo "NEXA_LLD_LINKER_VERSION=$(cat target/pe-corpus/lld-version.txt)" >> "$GITHUB_ENV"
+
+          # Reproduce three small AMD64 COFF linker cases from the pinned
+          # LLVM source revision. These outputs are inspected, never executed.
+          LLVM_REV=9a18a94ec1ffb4d050d5d17d245c44b1f2d073e8
+          LLVM_RAW="https://raw.githubusercontent.com/llvm/llvm-project/$LLVM_REV/lld/test/COFF"
+          mkdir -p target/pe-corpus/llvm-source
+          YAML2OBJ="$(command -v yaml2obj || find /usr/bin -maxdepth 1 -name 'yaml2obj-*' -print -quit)"
+          LLD_LINK="$(command -v lld-link || find /usr/bin -maxdepth 1 -name 'lld-link-*' -print -quit)"
+          if [[ -z "$YAML2OBJ" || -z "$LLD_LINK" ]]; then
+            echo "Could not locate yaml2obj and lld-link after installing LLVM tools" >&2
+            exit 1
+          fi
+          "$YAML2OBJ" --version | head -n 1 | tee target/pe-corpus/yaml2obj-version.txt
+          "$LLD_LINK" --version | head -n 1 | tee target/pe-corpus/lld-link-version.txt
+          printf '%s\\n' "$LLVM_REV" > target/pe-corpus/llvm-source-revision.txt
+          curl --fail --silent --show-error --location "$LLVM_RAW/Inputs/sectionlayout.yaml" \\
+            -o target/pe-corpus/llvm-source/sectionlayout.yaml
+          curl --fail --silent --show-error --location "$LLVM_RAW/filealign.test" \\
+            -o target/pe-corpus/llvm-source/filealign.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/default-alignment.test" \\
+            -o target/pe-corpus/llvm-source/default-alignment.test
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/sectionlayout.yaml \\
+            -o target/pe-corpus/llvm-section-layout.obj
+          printf '.text1\\n.text3\\n.text2\\n' > target/pe-corpus/llvm-section-layout.txt
+          "$LLD_LINK" /out:target/pe-corpus/llvm-section-layout.exe /entry:main \\
+            /timestamp:0 /sectionlayout:target/pe-corpus/llvm-section-layout.txt \\
+            target/pe-corpus/llvm-section-layout.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/filealign.test \\
+            -o target/pe-corpus/llvm-filealign.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-filealign-default.exe /entry:main \\
+            /timestamp:0 target/pe-corpus/llvm-filealign.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-filealign-4096.exe /entry:main \\
+            /timestamp:0 /filealign:4096 target/pe-corpus/llvm-filealign.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/default-alignment.test \\
+            -o target/pe-corpus/llvm-default-alignment.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-default-alignment.exe \\
+            /entry:__ImageBase /subsystem:console /timestamp:0 \\
+            target/pe-corpus/llvm-default-alignment.obj
+
+          echo "NEXA_LLVM_SECTION_LAYOUT_FIXTURE=$PWD/target/pe-corpus/llvm-section-layout.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-default.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_FILEALIGN_4096_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-4096.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE=$PWD/target/pe-corpus/llvm-default-alignment.exe" >> "$GITHUB_ENV"
           (
             cd target/pe-corpus
-            sha256sum mingw-x86_64.exe mingw-i686.exe llvm-lld-x86_64.exe > SHA256SUMS
-            stat -c '%n %s bytes' mingw-x86_64.exe mingw-i686.exe llvm-lld-x86_64.exe > fixture-sizes.txt
+            sha256sum *.exe > SHA256SUMS
+            stat -c '%n %s bytes' *.exe > fixture-sizes.txt
           )
       - name: Upload reproducible PE corpus fixtures
         uses: actions/upload-artifact@v4
