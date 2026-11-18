@@ -156,7 +156,7 @@ The first orchestration increment adds `prepare_image` and the `ImagePreparation
 - Tests cover import-bearing success without IAT writes, successful DIR64 rebasing, unresolved imports rejected before allocation, invalid IAT plans rejected before allocation, image-budget rejection before allocator invocation, malformed input rejected before allocation, allocator failure, and missing relocation data on rebase.
 - The focused preparation tests also exercise layout-limit rejection before allocation and unsupported relocation rejection after allocation, without returning a prepared image.
 
-This is an initial implementation increment, not milestone completion. The population-failure path and broader final contract review remain outstanding; additional tests should be added only where a failure can be induced meaningfully through the public API. No IAT writes, DLL loading, executable memory, or image execution are introduced.
+This is an initial implementation increment, not milestone completion. Primitive-level population failures are covered by image-buffer tests; a malformed population plan is not directly injectable through the public preparation API because the pipeline creates and validates its own layout. The broader final contract review remains outstanding; do not add a public test hook solely to manufacture that unreachable failure. No IAT writes, DLL loading, executable memory, or image execution are introduced.
 
 
 ## Implementation progress — NCE-004b.2
