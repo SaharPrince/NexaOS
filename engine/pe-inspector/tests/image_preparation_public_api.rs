@@ -76,9 +76,7 @@ fn prepared_image_is_observable_through_read_only_public_accessors() {
     assert!(prepared.iat_patch_plan().patches.is_empty());
 }
 
-// Keep the allocator trait in scope as a compile-time check that consumers
-// can also provide their own allocator implementation.
-#[allow(dead_code)]
+// A downstream allocator implementation exercises the public allocator contract.
 struct ExternalAllocator {
     calls: usize,
 }
