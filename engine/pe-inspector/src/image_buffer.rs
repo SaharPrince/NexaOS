@@ -1,4 +1,4 @@
-use crate::ImageLayoutPlan;
+use crate::{ImageLayoutPlan, RelocationPlan};
 use std::fmt;
 
 /// Errors returned while creating a bounded, non-executable image buffer.
@@ -71,6 +71,101 @@ impl ImageBuffer {
     pub fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
+}
+
+/// Failures while applying an image-relative base-relocation plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RelocationApplyError {
+    ImageSizeMismatch,
+    TooManyPatches,
+    EmptyPlanForRebase,
+    TargetOutOfBounds { patch_index: usize },
+    StalePlan { patch_index: usize },
+    InvalidRelocatedValue { patch_index: usize },
+    OverlappingTargets { patch_index: usize },
+    AllocationFailed,
+}
+
+impl fmt::Display for RelocationApplyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ImageSizeMismatch => write!(f, "relocation plan image size does not match buffer"),
+            Self::TooManyPatches => write!(f, "relocation patch count exceeds application limit"),
+            Self::EmptyPlanForRebase => write!(f, "rebasing plan contains no relocation patches"),
+            Self::TargetOutOfBounds { patch_index } => write!(f, "relocation patch {patch_index} is outside the image"),
+            Self::StalePlan { patch_index } => write!(f, "relocation patch {patch_index} no longer matches original image bytes"),
+            Self::InvalidRelocatedValue { patch_index } => write!(f, "relocation patch {patch_index} has an invalid relocated value"),
+            Self::OverlappingTargets { patch_index } => write!(f, "relocation patch {patch_index} overlaps another target"),
+            Self::AllocationFailed => write!(f, "relocation validation allocation failed"),
+        }
+    }
+}
+
+impl std::error::Error for RelocationApplyError {}
+
+/// Apply a pure relocation plan to an image buffer as one transaction.
+/// All fallible validation and allocation completes before the first write.
+pub fn apply_base_relocations(
+    image: &mut ImageBuffer,
+    plan: &RelocationPlan,
+) -> Result<(), RelocationApplyError> {
+    const MAX_PATCHES: usize = 65_536;
+
+    if u64::try_from(image.len()).ok() != Some(plan.image_size) {
+        return Err(RelocationApplyError::ImageSizeMismatch);
+    }
+    if plan.patches.len() > MAX_PATCHES {
+        return Err(RelocationApplyError::TooManyPatches);
+    }
+    if plan.preferred_image_base != plan.requested_image_base && plan.patches.is_empty() {
+        return Err(RelocationApplyError::EmptyPlanForRebase);
+    }
+
+    let delta = plan.requested_image_base.abs_diff(plan.preferred_image_base);
+    let add_delta = plan.requested_image_base > plan.preferred_image_base;
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    ranges.try_reserve_exact(plan.patches.len())
+        .map_err(|_| RelocationApplyError::AllocationFailed)?;
+
+    for (patch_index, patch) in plan.patches.iter().enumerate() {
+        let start = usize::try_from(patch.target_rva)
+            .map_err(|_| RelocationApplyError::TargetOutOfBounds { patch_index })?;
+        let end = start.checked_add(8)
+            .ok_or(RelocationApplyError::TargetOutOfBounds { patch_index })?;
+        let current = image.bytes.get(start..end)
+            .ok_or(RelocationApplyError::TargetOutOfBounds { patch_index })?;
+        let current_value = u64::from_le_bytes(current.try_into().unwrap());
+        if current_value != patch.original_value {
+            return Err(RelocationApplyError::StalePlan { patch_index });
+        }
+
+        let expected_value = if add_delta {
+            patch.original_value.checked_add(delta)
+        } else {
+            patch.original_value.checked_sub(delta)
+        }.ok_or(RelocationApplyError::InvalidRelocatedValue { patch_index })?;
+        if expected_value != patch.relocated_value {
+            return Err(RelocationApplyError::InvalidRelocatedValue { patch_index });
+        }
+        ranges.push((start, patch_index));
+    }
+
+    ranges.sort_unstable_by_key(|range| range.0);
+    for pair in ranges.windows(2) {
+        if pair[1].0 < pair[0].0 + 8 {
+            return Err(RelocationApplyError::OverlappingTargets {
+                patch_index: pair[1].1,
+            });
+        }
+    }
+
+    // Bounds, original bytes, arithmetic, and overlap are fully validated.
+    // This loop performs no allocation or fallible operation.
+    for patch in &plan.patches {
+        let start = patch.target_rva as usize;
+        image.bytes[start..start + 8].copy_from_slice(&patch.relocated_value.to_le_bytes());
+    }
+    Ok(())
 }
 
 /// Allocate exactly the image size described by a previously validated plan.
@@ -557,6 +652,80 @@ mod tests {
         plan.sections[0].image_rva = u64::MAX - 4;
         plan.sections[0].copy.as_mut().unwrap().image_rva = u64::MAX - 4;
         assert_invalid_population_plan(&plan);
+    }
+
+    fn relocation_test_buffer() -> ImageBuffer {
+        let mut bytes = vec![0u8; 0x2000];
+        bytes[0x1100..0x1108].copy_from_slice(&0x1400_1100u64.to_le_bytes());
+        bytes[0x1200..0x1208].copy_from_slice(&0x1400_1200u64.to_le_bytes());
+        ImageBuffer { bytes }
+    }
+
+    fn relocation_test_plan() -> RelocationPlan {
+        RelocationPlan {
+            preferred_image_base: 0x1400_0000,
+            requested_image_base: 0x1500_0000,
+            image_size: 0x2000,
+            patches: vec![
+                crate::RelocationPatch { target_rva: 0x1100, original_value: 0x1400_1100, relocated_value: 0x1500_1100 },
+                crate::RelocationPatch { target_rva: 0x1200, original_value: 0x1400_1200, relocated_value: 0x1500_1200 },
+            ],
+        }
+    }
+
+    #[test]
+    fn applies_valid_multi_patch_relocation_plan() {
+        let mut image = relocation_test_buffer();
+        apply_base_relocations(&mut image, &relocation_test_plan()).unwrap();
+        assert_eq!(u64::from_le_bytes(image.as_slice()[0x1100..0x1108].try_into().unwrap()), 0x1500_1100);
+        assert_eq!(u64::from_le_bytes(image.as_slice()[0x1200..0x1208].try_into().unwrap()), 0x1500_1200);
+    }
+
+    #[test]
+    fn stale_relocation_plan_leaves_image_unchanged() {
+        let mut image = relocation_test_buffer();
+        image.bytes[0x1200] ^= 1;
+        let before = image.as_slice().to_vec();
+        assert_eq!(apply_base_relocations(&mut image, &relocation_test_plan()), Err(RelocationApplyError::StalePlan { patch_index: 1 }));
+        assert_eq!(image.as_slice(), before);
+    }
+
+    #[test]
+    fn forged_out_of_bounds_relocation_leaves_image_unchanged() {
+        let mut image = relocation_test_buffer();
+        let mut plan = relocation_test_plan();
+        plan.patches[1].target_rva = 0x1ffc;
+        let before = image.as_slice().to_vec();
+        assert_eq!(apply_base_relocations(&mut image, &plan), Err(RelocationApplyError::TargetOutOfBounds { patch_index: 1 }));
+        assert_eq!(image.as_slice(), before);
+    }
+
+    #[test]
+    fn forged_duplicate_and_overlapping_relocations_leave_image_unchanged() {
+        for second_target in [0x1100u32, 0x1104u32] {
+            let mut image = relocation_test_buffer();
+            let mut plan = relocation_test_plan();
+            let start = second_target as usize;
+            let original = u64::from_le_bytes(image.as_slice()[start..start + 8].try_into().unwrap());
+            plan.patches[1] = crate::RelocationPatch {
+                target_rva: second_target,
+                original_value: original,
+                relocated_value: original + 0x0100_0000,
+            };
+            let before = image.as_slice().to_vec();
+            assert_eq!(apply_base_relocations(&mut image, &plan), Err(RelocationApplyError::OverlappingTargets { patch_index: 1 }));
+            assert_eq!(image.as_slice(), before);
+        }
+    }
+
+    #[test]
+    fn forged_relocated_value_leaves_image_unchanged() {
+        let mut image = relocation_test_buffer();
+        let mut plan = relocation_test_plan();
+        plan.patches[0].relocated_value ^= 1;
+        let before = image.as_slice().to_vec();
+        assert_eq!(apply_base_relocations(&mut image, &plan), Err(RelocationApplyError::InvalidRelocatedValue { patch_index: 0 }));
+        assert_eq!(image.as_slice(), before);
     }
 
     #[test]
