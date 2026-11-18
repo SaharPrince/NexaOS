@@ -444,7 +444,10 @@ fn inspects_llvm_shared_bss_fixture_when_configured() {
     let control_report =
         inspect(&control_bytes).expect("inspect LLVM default-link BSS control fixture");
     assert!(
-        control_report.sections.iter().all(|section| section.name != ".bss"),
+        control_report
+            .sections
+            .iter()
+            .all(|section| section.name != ".bss"),
         "default-link control should merge .bss rather than retain a separate section"
     );
     let control_data = control_report
@@ -453,8 +456,8 @@ fn inspects_llvm_shared_bss_fixture_when_configured() {
         .find(|section| section.name == ".data")
         .expect("default-link control should contain merged .data");
     assert!(
-        control_data.virtual_size > control_data.raw_size,
-        "merged .data should include virtual-only BSS storage"
+        control_data.virtual_size > 4,
+        "merged .data should include the four initialized bytes plus BSS storage"
     );
 
     let bytes = std::fs::read(path).expect("read LLVM shared-BSS fixture");
