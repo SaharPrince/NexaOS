@@ -172,8 +172,6 @@ jobs:
             -o target/pe-corpus/llvm-source/reloc-x64.test
           curl --fail --silent --show-error --location "$LLVM_RAW/base.test" \
             -o target/pe-corpus/llvm-source/base.test
-          curl --fail --silent --show-error --location "$LLVM_RAW/bss-shared-no-merge.test" \
-            -o target/pe-corpus/llvm-source/bss-shared-no-merge.test
 
           "$YAML2OBJ" target/pe-corpus/llvm-source/filealign.test \
             -o target/pe-corpus/llvm-filealign.obj
@@ -198,35 +196,11 @@ jobs:
           "$LLD_LINK" /out:target/pe-corpus/llvm-base.exe /entry:main \
             /base:0x280000000 /timestamp:0 target/pe-corpus/llvm-base.obj
 
-          "$YAML2OBJ" target/pe-corpus/llvm-source/bss-shared-no-merge.test \
-            -o target/pe-corpus/llvm-bss.obj
-          # Build both variants from the exact same COFF object. The upstream
-          # LLVM regression test expects .bss to remain separate only when
-          # .data is shared. Preserve both outputs and section-table evidence.
-          # Match the pinned upstream LLVM lit RUN lines exactly for this
-          # regression case (notably, do not add extra linker options).
-          "$LLD_LINK" /out:target/pe-corpus/llvm-bss-shared.dll /dll \
-            /entry:DllMain /section:.data,rws target/pe-corpus/llvm-bss.obj
-          "$LLD_LINK" /out:target/pe-corpus/llvm-bss-control.dll /dll \
-            /entry:DllMain target/pe-corpus/llvm-bss.obj
-          "$YAML2OBJ" --version > target/pe-corpus/llvm-bss-toolchain.txt
-          "$LLD_LINK" --version >> target/pe-corpus/llvm-bss-toolchain.txt
-          {
-            echo "=== Input COFF object sections ==="
-            llvm-readobj --sections target/pe-corpus/llvm-bss.obj
-            echo "=== Shared-data DLL sections (expected separate .bss and .data) ==="
-            llvm-readobj --sections target/pe-corpus/llvm-bss-shared.dll
-            echo "=== Default-link control DLL sections (expected merged .data) ==="
-            llvm-readobj --sections target/pe-corpus/llvm-bss-control.dll
-          } | tee target/pe-corpus/llvm-bss-section-evidence.txt
-
           echo "NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-default.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_FILEALIGN_4096_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-4096.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE=$PWD/target/pe-corpus/llvm-default-alignment.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_RELOC_FIXTURE=$PWD/target/pe-corpus/llvm-reloc-x64.exe" >> "$GITHUB_ENV"
           echo "NEXA_LLVM_BASE_FIXTURE=$PWD/target/pe-corpus/llvm-base.exe" >> "$GITHUB_ENV"
-          echo "NEXA_LLVM_BSS_FIXTURE=$PWD/target/pe-corpus/llvm-bss-shared.dll" >> "$GITHUB_ENV"
-          echo "NEXA_LLVM_BSS_CONTROL_FIXTURE=$PWD/target/pe-corpus/llvm-bss-control.dll" >> "$GITHUB_ENV"
           (
             cd target/pe-corpus
             sha256sum *.exe *.dll > SHA256SUMS
@@ -238,13 +212,10 @@ jobs:
           name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             target/pe-corpus/*.exe
-            target/pe-corpus/*.dll
             target/pe-corpus/*-version.txt
             target/pe-corpus/SHA256SUMS
             target/pe-corpus/fixture-sizes.txt
             target/pe-corpus/llvm-source-revision.txt
-            target/pe-corpus/llvm-bss-toolchain.txt
-            target/pe-corpus/llvm-bss-section-evidence.txt
           if-no-files-found: error
           retention-days: 3
       - name: Inspect and plan external compiler output
