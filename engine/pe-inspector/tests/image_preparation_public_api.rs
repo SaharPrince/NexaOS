@@ -2,8 +2,8 @@
 //! external consumer would. The fixture is inspected and copied only; it is
 //! never executed.
 use nexa_inspect::{
-    prepare_image, ExportCatalogue, ImageAllocator, ImageAllocationError, ImageLayoutLimits,
-    ImagePreparationRequest, ImportResolutionLimits, IatPatchPlanLimits, RelocationPlanLimits,
+    prepare_image, ExportCatalogue, IatPatchPlanLimits, ImageAllocationError, ImageAllocator,
+    ImageLayoutLimits, ImagePreparationRequest, ImportResolutionLimits, RelocationPlanLimits,
 };
 
 fn minimal_pe64() -> Vec<u8> {
