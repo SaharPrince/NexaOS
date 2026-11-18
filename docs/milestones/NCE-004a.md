@@ -2,7 +2,7 @@
 
 ## Status
 
-**NCE-004a.1 and NCE-004a.2 implemented and validated. NCE-004a.3 image-local all-or-nothing application remains unimplemented.** The parser now retains bounded typed relocation metadata. Pure patch planning and all-or-nothing application remain unimplemented. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
+**NCE-004a.1 and NCE-004a.2 implemented and validated. NCE-004a.3 image-local all-or-nothing application remains unimplemented.** The parser retains bounded typed relocation metadata, and the pure planner produces validated image-relative patches. Application remains a separate, not-yet-implemented stage. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
 
 The parser now validates relocation-directory block framing and retains bounded typed relocation entries. The existing counters remain for compatibility; relocation planning consumes the typed metadata and independently validates its inputs.
 
@@ -150,4 +150,13 @@ Focused tests cover lossless DIR64/unknown-type decoding, missing metadata, inco
 
 A pure `plan_base_relocations` API now accepts the image format and machine, preferred and requested bases, mapped image size and bytes, parsed relocation metadata, and caller-supplied limits. It supports only ABSOLUTE (0) and DIR64 (10), applies checked positive or negative base deltas to planned values, validates complete eight-byte targets, checks metadata consistency and configured ceilings, and rejects unsupported types, missing or unusable metadata for rebasing (including ABSOLUTE-only directories), arithmetic failures, out-of-image directory ranges, and overlapping targets. It returns image-relative patches in metadata order and does not mutate the image.
 
-Focused planner tests cover equal bases without relocation metadata, positive and negative DIR64 deltas, ABSOLUTE no-ops, unsupported HIGHLOW/unknown types, missing metadata, out-of-bounds targets, overlapping targets, arithmetic overflow/underflow, forged metadata, resource limits, directory bounds, and unsupported format/machine. Local Windows validation is pending. GitHub Actions on exact commit `d7f79b7600e9f7e96cdd08a384675f3f906dfc60` passed Rust formatting, Clippy, Ubuntu and Windows workspace tests, external compiler PE layout fixtures, bounded PE parser fuzz smoke, and dependency security audit. ImageBuffer mutation remains unimplemented.
+Focused planner tests cover equal bases without relocation metadata, positive and negative DIR64 deltas, ABSOLUTE no-ops, unsupported HIGHLOW/unknown types, missing metadata, out-of-bounds targets, overlapping targets, arithmetic overflow/underflow, forged metadata, resource limits, directory bounds, and unsupported format/machine. Local Windows validation passed on commit `9019bbffd7e8b3deb70055c524fc9cb40d18fab9`: `cargo fmt --all -- --check`, workspace Clippy with warnings denied, and all 157 workspace tests passed. GitHub Actions on the same commit passed Rust checks, PE parser fuzz smoke, and dependency security audit. ImageBuffer mutation remains unimplemented.
+
+
+## NCE-004a.2 validation closeout — 2026-11-18
+
+The NCE-004a.2 planner and its documentation are validated. On exact commit `9019bbffd7e8b3deb70055c524fc9cb40d18fab9`, local Windows validation passed formatting, workspace Clippy with warnings denied, and all 157 workspace tests. GitHub Actions on that exact commit passed all three workflows: Rust checks, PE parser fuzz smoke, and dependency security audit. The working tree was clean after the local run.
+
+## NCE-004a.3 image-local all-or-nothing application
+
+Implementation is the next stage. It will apply only planner-produced image-relative patches through a narrowly scoped mutable `ImageBuffer` API. The implementation must validate all patch bounds, widths, uniqueness/non-overlap, and original-byte preconditions before the first write; all fallible work must finish before mutation begins. The write phase must be infallible, and every rejected plan must leave the image byte-for-byte unchanged. No raw pointers, arbitrary address writes, process-memory API, executable memory, or code execution will be introduced.
