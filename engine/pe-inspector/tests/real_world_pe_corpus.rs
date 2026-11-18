@@ -167,7 +167,9 @@ fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() 
         for patch in &plan.patches {
             let start = patch.target_rva as usize;
             let relocated = u64::from_le_bytes(
-                image.as_slice()[start..start + 8].try_into().expect("validated patch range"),
+                image.as_slice()[start..start + 8]
+                    .try_into()
+                    .expect("validated patch range"),
             );
             assert_eq!(
                 relocated, patch.relocated_value,
