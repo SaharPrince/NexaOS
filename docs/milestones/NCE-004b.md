@@ -168,3 +168,13 @@ The preparation error contract now retains the original typed subsystem error in
 - PE inspection errors now implement `Clone`, `PartialEq`, and `Eq` so the complete preparation error remains inspectable and comparable.
 - Focused tests assert concrete cause variants for inspection, import resolution, IAT validation, allocation, and relocation planning, and verify the standard error source chain.
 - This closes the typed-diagnostics gap; it does not change image preparation, memory allocation, import resolution, relocation, or execution behavior.
+
+## Implementation progress — NCE-004b.3
+
+The image-population validator now reserves its bounded temporary range-tracking storage fallibly before validation begins.
+
+- The maximum number of tracked ranges is derived with checked arithmetic from the section count: one header range plus at most two ranges per section.
+- Both destination and source range vectors use `try_reserve_exact`; allocation failure is returned as `ImageAllocationError::AllocationFailed` instead of relying on infallible growth during `push`.
+- Existing population tests exercise malformed source ranges, overlapping destinations, and inconsistent plan accounting; these failures occur before image bytes are copied and the consumed intermediate buffer is not returned.
+- A malformed population plan cannot be injected through `prepare_image`: that API creates its layout internally from the inspected input and checks the allocator's output length before population. The primitive-level tests therefore cover malformed-plan rejection without adding a public test hook or weakening the preparation API.
+- This is a bounded-allocation hardening change; it does not alter image contents, import resolution, relocation, or execution behavior.
