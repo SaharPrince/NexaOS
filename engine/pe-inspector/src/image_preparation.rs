@@ -372,11 +372,7 @@ mod tests {
         assert_eq!(prepared.preferred_image_base, 0x140000000);
         assert_eq!(prepared.requested_image_base, 0x150000000);
         assert_eq!(
-            u64::from_le_bytes(
-                prepared.image_bytes()[0x1080..0x1088]
-                    .try_into()
-                    .unwrap()
-            ),
+            u64::from_le_bytes(prepared.image_bytes()[0x1080..0x1088].try_into().unwrap()),
             0x1_5000_1234
         );
         // Relocation must not alter unrelated bytes in the prepared image.
