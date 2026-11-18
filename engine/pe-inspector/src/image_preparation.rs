@@ -399,6 +399,7 @@ mod tests {
 
         assert_eq!(error.stage, ImagePreparationStage::Allocate);
         assert!(matches!(error.cause, ImagePreparationCause::Allocation(ImageAllocationError::AllocationFailed)));
+        assert!(std::error::Error::source(&error).is_some());
         assert_eq!(allocator.calls, 1);
     }
 
@@ -475,6 +476,7 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::ResolveImports);
+        assert!(matches!(error.cause, ImagePreparationCause::ImportResolution(_)));
         assert_eq!(allocator.calls, 0);
     }
 
@@ -489,6 +491,7 @@ mod tests {
         let error = prepare_image(preparation, &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::ValidateImports);
+        assert!(matches!(error.cause, ImagePreparationCause::IatValidation(_)));
         assert_eq!(allocator.calls, 0);
     }
 
