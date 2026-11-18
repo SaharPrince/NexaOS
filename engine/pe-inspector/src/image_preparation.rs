@@ -70,15 +70,33 @@ pub struct ImagePreparationRequest<'a> {
 #[derive(Debug)]
 pub struct PreparedImage {
     image: ImageBuffer,
-    pub image_size: u64,
-    pub preferred_image_base: u64,
-    pub requested_image_base: u64,
-    pub iat_patch_plan: IatPatchPlan,
+    image_size: u64,
+    preferred_image_base: u64,
+    requested_image_base: u64,
+    iat_patch_plan: IatPatchPlan,
 }
 
 impl PreparedImage {
     pub fn image_bytes(&self) -> &[u8] {
         self.image.as_slice()
+    }
+
+    pub fn image_size(&self) -> u64 {
+        self.image_size
+    }
+
+    pub fn preferred_image_base(&self) -> u64 {
+        self.preferred_image_base
+    }
+
+    pub fn requested_image_base(&self) -> u64 {
+        self.requested_image_base
+    }
+
+    /// Borrow the validated symbolic IAT plan without allowing callers to
+    /// mutate it after preparation.
+    pub fn iat_patch_plan(&self) -> &IatPatchPlan {
+        &self.iat_patch_plan
     }
 
     pub fn len(&self) -> usize {
