@@ -36,13 +36,13 @@ pub enum ImagePreparationCause {
 impl fmt::Display for ImagePreparationCause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Pe(error) => error.fmt(f),
-            Self::Layout(error) => error.fmt(f),
-            Self::ImportResolution(error) => error.fmt(f),
-            Self::IatValidation(error) => error.fmt(f),
-            Self::Allocation(error) => error.fmt(f),
-            Self::RelocationPlanning(error) => error.fmt(f),
-            Self::RelocationApplication(error) => error.fmt(f),
+            Self::Pe(error) => fmt::Display::fmt(error, f),
+            Self::Layout(error) => fmt::Display::fmt(error, f),
+            Self::ImportResolution(error) => fmt::Display::fmt(error, f),
+            Self::IatValidation(error) => fmt::Display::fmt(error, f),
+            Self::Allocation(error) => fmt::Display::fmt(error, f),
+            Self::RelocationPlanning(error) => fmt::Display::fmt(error, f),
+            Self::RelocationApplication(error) => fmt::Display::fmt(error, f),
         }
     }
 }
