@@ -198,11 +198,11 @@ pub fn prepare_image(
 
     let iat_patch_plan = validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
         .map_err(|error| {
-            stage_error(
-                ImagePreparationStage::ValidateImports,
-                ImagePreparationCause::IatValidation(error),
-            )
-        })?;
+        stage_error(
+            ImagePreparationStage::ValidateImports,
+            ImagePreparationCause::IatValidation(error),
+        )
+    })?;
 
     let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
         |error: ImageAllocationError| {
