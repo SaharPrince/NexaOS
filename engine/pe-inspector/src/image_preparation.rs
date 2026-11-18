@@ -401,6 +401,20 @@ mod tests {
     }
 
     #[test]
+    fn invalid_iat_plan_is_rejected_before_image_allocation() {
+        let input = pe64_with_one_import();
+        let catalogue = catalogue_with_exit_process();
+        let mut allocator = CountingAllocator::default();
+        let mut preparation = request(&input, &catalogue, 0x140000000);
+        preparation.iat_limits.max_patches = 0;
+
+        let error = prepare_image(preparation, &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::ValidateImports);
+        assert_eq!(allocator.calls, 0);
+    }
+
+    #[test]
     fn applies_dir64_relocation_through_the_complete_preparation_pipeline() {
         let input = pe64_with_one_dir64_relocation();
         let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
