@@ -1,7 +1,8 @@
 //! Bounded, immutable export catalogue for caller-supplied PE metadata.
 //!
-//! This stage performs lookup only. It does not load modules, discover files,
-//! follow forwarders, or convert RVAs into process addresses.
+//! This stage performs bounded lookup and follows forwarders only through the
+//! caller-supplied catalogue. It does not load modules, discover files, or
+//! convert RVAs into process addresses.
 
 use crate::ParsedExportDirectory;
 use std::fmt;
