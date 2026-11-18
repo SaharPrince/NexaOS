@@ -47,7 +47,9 @@ const SAMPLES: [Expected; 4] = [
 #[test]
 fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() {
     let Some(directory) = std::env::var_os("NEXA_REAL_WORLD_PE_DIR") else {
-        eprintln!("SKIP: real-world PE corpus was NOT validated; NEXA_REAL_WORLD_PE_DIR is not set");
+        eprintln!(
+            "SKIP: real-world PE corpus was NOT validated; NEXA_REAL_WORLD_PE_DIR is not set"
+        );
         return;
     };
     let directory = PathBuf::from(directory);
