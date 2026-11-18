@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, nce-001/pe-inspector, automation/nce-005a-real-world-pe]
     paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "engine/pe-inspector/Cargo.toml"
       - "engine/pe-inspector/src/**"
       - "engine/pe-inspector/tests/real_world_pe_corpus.rs"
       - "scripts/download-verified-pe-samples.py"
@@ -11,6 +17,12 @@ on:
   pull_request:
     branches: [main, nce-001/pe-inspector]
     paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain"
+      - "rust-toolchain.toml"
+      - ".cargo/config.toml"
+      - "engine/pe-inspector/Cargo.toml"
       - "engine/pe-inspector/src/**"
       - "engine/pe-inspector/tests/real_world_pe_corpus.rs"
       - "scripts/download-verified-pe-samples.py"
