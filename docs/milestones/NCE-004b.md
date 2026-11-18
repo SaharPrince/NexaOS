@@ -2,7 +2,7 @@
 
 ## Status
 
-**Design specification — implementation not started.** This milestone composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline.
+**Implementation in progress.** The first orchestration API is now present on the feature branch; validation and remaining success/failure-path coverage are still pending. This milestone composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline.
 
 NCE-004b does not enable application loading or execution. Its output is a prepared, non-executable image plus validated symbolic import information. It is not an executable process image and must not be described as launch-ready.
 
@@ -140,3 +140,18 @@ The image remains ordinary non-executable process-heap data. A successful result
 ## Deferred work
 
 IAT value application, loaded-module base assignment, DLL loading, page permissions, TLS handling, entry-point execution, process creation, and application startup each require separate design and security review. NCE-002's broader third-party PE corpus and representative low-end hardware measurements remain mandatory release gates before real application loading is considered.
+
+
+## Implementation progress — NCE-004b.1
+
+The first orchestration increment adds `prepare_image` and the `ImagePreparationRequest` / `PreparedImage` API in `engine/pe-inspector/src/image_preparation.rs`.
+
+- Inspects the borrowed input once and uses that same slice for image population.
+- Plans layout, allocates one bounded non-executable image buffer, and consumes it during population.
+- Resolves imports only against the caller-supplied `ExportCatalogue`, then validates symbolic IAT destinations.
+- Plans and applies relocation through the existing pure planner and all-or-nothing image-local API.
+- Returns the image only after every stage succeeds; the image bytes are exposed read-only and the IAT plan remains symbolic.
+- Reports structured stage identity and the underlying error text.
+- Initial tests cover the no-import/no-relocation success path, malformed input rejected before allocation, and missing relocation data on rebase.
+
+This is an initial implementation increment, not milestone completion. Import-bearing success, actual relocation success, additional injected failure paths, allocator/budget coverage, and full CI validation remain outstanding. No IAT writes, DLL loading, executable memory, or image execution are introduced.
