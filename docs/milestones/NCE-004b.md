@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress.** The first orchestration API is now present on the feature branch; validation and remaining success/failure-path coverage are still pending. This milestone composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline.
+**Implementation in progress.** The first orchestration API and focused success/failure-path coverage are present on the feature branch. The milestone still requires final validation and review of remaining contracts. It composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline.
 
 NCE-004b does not enable application loading or execution. Its output is a prepared, non-executable image plus validated symbolic import information. It is not an executable process image and must not be described as launch-ready.
 
@@ -48,9 +48,9 @@ No implicit filesystem search, environment lookup, DLL discovery, host process i
 4. **Validate imports:** validate symbolic IAT destinations against the planned image size before image allocation.
 5. **Allocate:** allocate exactly one zero-initialized, non-executable image buffer, bounded by the explicit maximum.
 6. **Populate:** copy validated headers/section data and zero-fill ranges using the same input slice. A population failure consumes and drops the intermediate buffer.
-6. **Plan relocation:** use the report's typed relocation metadata and populated image bytes. The requested base and preferred base must be explicit. A nonzero base delta with no usable supported relocations is an error.
-7. **Apply relocation:** apply the complete relocation plan through apply_base_relocations; do not add a second mutation path.
-8. **Return:** expose a prepared result only after every requested stage succeeds. The result owns the single mapped image buffer and the validated symbolic import plan. Any error drops all intermediate state.
+7. **Plan relocation:** use the report's typed relocation metadata and populated image bytes. The requested base and preferred base must be explicit. A nonzero base delta with no usable supported relocations is an error.
+8. **Apply relocation:** apply the complete relocation plan through apply_base_relocations; do not add a second mutation path.
+9. **Return:** expose a prepared result only after every requested stage succeeds. The result owns the single mapped image buffer and the validated symbolic import plan. Any error drops all intermediate state.
 
 The order is deliberate: import resolution and IAT validation depend only on parsed metadata, the caller-owned catalogue, and the planned image size. Performing them before allocation avoids consuming image memory for an image whose imports cannot be resolved or whose IAT plan is invalid. The IAT plan remains symbolic and is not written. Relocation is applied only to the populated image buffer after all non-mutating import validation succeeds.
 
@@ -153,6 +153,7 @@ The first orchestration increment adds `prepare_image` and the `ImagePreparation
 - Plans and applies relocation through the existing pure planner and all-or-nothing image-local API.
 - Returns the image only after every stage succeeds; the image bytes are exposed read-only and the IAT plan remains symbolic.
 - Reports structured stage identity and the underlying error text.
-- Tests cover import-bearing success without IAT writes, successful DIR64 rebasing, unresolved imports rejected before allocation, image-budget rejection before allocation, malformed input rejected before allocation, and missing relocation data on rebase.
+- Tests cover import-bearing success without IAT writes, successful DIR64 rebasing, unresolved imports rejected before allocation, invalid IAT plans rejected before allocation, image-budget rejection before allocator invocation, malformed input rejected before allocation, allocator failure, and missing relocation data on rebase.
+- The focused preparation tests also exercise layout-limit rejection before allocation and unsupported relocation rejection after allocation, without returning a prepared image.
 
-This is an initial implementation increment, not milestone completion. Additional injected allocator/population failures, invalid IAT-plan limits, relocation failure paths, and final full CI validation remain outstanding. No IAT writes, DLL loading, executable memory, or image execution are introduced.
+This is an initial implementation increment, not milestone completion. The population-failure path and broader final contract review remain outstanding; additional tests should be added only where a failure can be induced meaningfully through the public API. No IAT writes, DLL loading, executable memory, or image execution are introduced.
