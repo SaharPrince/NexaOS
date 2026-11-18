@@ -153,7 +153,10 @@ pub fn prepare_image(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ExportCatalogueLimits, SystemImageAllocator};
+    use crate::{
+        ExportCatalogueLimits, ExportFunctionSlot, ExportModule, ExportNameAssociation,
+        ParsedExportDirectory, SystemImageAllocator,
+    };
 
     fn pe64() -> Vec<u8> {
         let mut bytes = vec![0u8; 0x400];
@@ -182,6 +185,70 @@ mod tests {
         bytes[section + 20..section + 24].copy_from_slice(&0x200u32.to_le_bytes());
         bytes[0x300..0x400].fill(0xA5);
         bytes
+    }
+
+    fn pe64_with_one_import() -> Vec<u8> {
+        let mut bytes = pe64();
+        // The import metadata occupies the second half of the mapped section.
+        bytes[0x190..0x194].copy_from_slice(&0x200u32.to_le_bytes());
+        let import_dir = 0x98 + 112 + 8;
+        bytes[import_dir..import_dir + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        bytes[import_dir + 4..import_dir + 8].copy_from_slice(&40u32.to_le_bytes());
+
+        // IMAGE_IMPORT_DESCRIPTOR followed by its all-zero terminator.
+        bytes[0x200..0x204].copy_from_slice(&0x1040u32.to_le_bytes());
+        bytes[0x20c..0x210].copy_from_slice(&0x1030u32.to_le_bytes());
+        bytes[0x210..0x214].copy_from_slice(&0x1050u32.to_le_bytes());
+        bytes[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\\0");
+        // IMAGE_THUNK_DATA64 and its null terminator.
+        bytes[0x240..0x248].copy_from_slice(&0x1060u64.to_le_bytes());
+        bytes[0x248..0x250].copy_from_slice(&0u64.to_le_bytes());
+        // IMAGE_IMPORT_BY_NAME: hint followed by ExitProcess.
+        bytes[0x260..0x26d].copy_from_slice(&[
+            0, 0, b'E', b'x', b'i', b't', b'P', b'r', b'o', b'c', b'e', b's', b's',
+        ]);
+        bytes[0x26d] = 0;
+        bytes
+    }
+
+    fn pe64_with_one_dir64_relocation() -> Vec<u8> {
+        let mut bytes = pe64();
+        bytes[0x190..0x194].copy_from_slice(&0x200u32.to_le_bytes());
+        let relocation_dir = 0x98 + 112 + 5 * 8;
+        bytes[relocation_dir..relocation_dir + 4].copy_from_slice(&0x1100u32.to_le_bytes());
+        bytes[relocation_dir + 4..relocation_dir + 8].copy_from_slice(&10u32.to_le_bytes());
+
+        // The target pointer is stored at RVA 0x1080 (file offset 0x280).
+        bytes[0x280..0x288].copy_from_slice(&0x1400_0123_4u64.to_le_bytes());
+        // One IMAGE_BASE_RELOCATION block with one DIR64 entry at offset 0x80.
+        bytes[0x300..0x304].copy_from_slice(&0x1000u32.to_le_bytes());
+        bytes[0x304..0x308].copy_from_slice(&10u32.to_le_bytes());
+        bytes[0x308..0x30a].copy_from_slice(&0xa080u16.to_le_bytes());
+        bytes
+    }
+
+    fn catalogue_with_exit_process() -> ExportCatalogue {
+        ExportCatalogue::new(
+            vec![ExportModule {
+                name: "KERNEL32.dll".into(),
+                directory: ParsedExportDirectory {
+                    module_name: Some("KERNEL32.dll".into()),
+                    ordinal_base: 1,
+                    functions: vec![ExportFunctionSlot {
+                        ordinal: 1,
+                        function_rva: Some(0x1234),
+                        forwarder: None,
+                    }],
+                    names: vec![ExportNameAssociation {
+                        name: "ExitProcess".into(),
+                        function_index: 0,
+                        ordinal: 1,
+                    }],
+                },
+            }],
+            ExportCatalogueLimits::default(),
+        )
+        .unwrap()
     }
 
     fn request<'a>(
@@ -256,6 +323,80 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::Inspect);
+        assert_eq!(allocator.calls, 0);
+    }
+
+    #[test]
+    fn resolves_imports_from_the_supplied_catalogue_without_writing_the_iat() {
+        let input = pe64_with_one_import();
+        let catalogue = catalogue_with_exit_process();
+        let mut allocator = CountingAllocator::default();
+
+        let prepared =
+            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap();
+
+        assert_eq!(allocator.calls, 1);
+        assert_eq!(prepared.iat_patch_plan.patches.len(), 1);
+        let patch = &prepared.iat_patch_plan.patches[0];
+        assert_eq!(patch.import_library, "KERNEL32.dll");
+        assert_eq!(
+            patch.import_symbol,
+            crate::ParsedImportSymbol::Name {
+                name: "ExitProcess".into(),
+                hint: 0,
+            }
+        );
+        assert_eq!(patch.iat_rva, 0x1050);
+        assert_eq!(patch.target_module, "KERNEL32.dll");
+        assert_eq!(patch.export_ordinal, 1);
+        assert_eq!(patch.function_rva, 0x1234);
+        assert_eq!(patch.forwarder_hops, 0);
+
+        // The IAT remains byte-for-byte as populated from the input file.
+        assert_eq!(
+            &prepared.image_bytes()[0x1050..0x1058],
+            &input[0x250..0x258]
+        );
+    }
+
+    #[test]
+    fn applies_dir64_relocation_through_the_complete_preparation_pipeline() {
+        let input = pe64_with_one_dir64_relocation();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = CountingAllocator::default();
+
+        let prepared =
+            prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap();
+
+        assert_eq!(allocator.calls, 1);
+        assert_eq!(prepared.preferred_image_base, 0x140000000);
+        assert_eq!(prepared.requested_image_base, 0x150000000);
+        assert_eq!(
+            u64::from_le_bytes(
+                prepared.image_bytes()[0x1080..0x1088]
+                    .try_into()
+                    .unwrap()
+            ),
+            0x1500_0123_4
+        );
+        // Relocation must not alter unrelated bytes in the prepared image.
+        assert_eq!(
+            &prepared.image_bytes()[0x1090..0x10a0],
+            &input[0x290..0x2a0]
+        );
+    }
+
+    #[test]
+    fn image_budget_is_rejected_before_calling_the_allocator() {
+        let input = pe64();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = CountingAllocator::default();
+        let mut request = request(&input, &catalogue, 0x140000000);
+        request.max_image_size = 0x1000;
+
+        let error = prepare_image(request, &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::Allocate);
         assert_eq!(allocator.calls, 0);
     }
 
