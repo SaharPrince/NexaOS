@@ -203,11 +203,12 @@ jobs:
           # Build both variants from the exact same COFF object. The upstream
           # LLVM regression test expects .bss to remain separate only when
           # .data is shared. Preserve both outputs and section-table evidence.
+          # Match the pinned upstream LLVM lit RUN lines exactly for this
+          # regression case (notably, do not add extra linker options).
           "$LLD_LINK" /out:target/pe-corpus/llvm-bss-shared.dll /dll \
-            /entry:DllMain /section:.data,rws /timestamp:0 \
-            target/pe-corpus/llvm-bss.obj
+            /entry:DllMain /section:.data,rws target/pe-corpus/llvm-bss.obj
           "$LLD_LINK" /out:target/pe-corpus/llvm-bss-control.dll /dll \
-            /entry:DllMain /timestamp:0 target/pe-corpus/llvm-bss.obj
+            /entry:DllMain target/pe-corpus/llvm-bss.obj
           "$YAML2OBJ" --version > target/pe-corpus/llvm-bss-toolchain.txt
           "$LLD_LINK" --version >> target/pe-corpus/llvm-bss-toolchain.txt
           {
