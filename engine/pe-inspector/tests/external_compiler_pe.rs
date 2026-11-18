@@ -367,7 +367,11 @@ fn inspects_llvm_relocation_fixture_when_configured() {
         .as_ref()
         .expect("LLVM relocation fixture should contain a base-relocation directory");
     assert!(!metadata.blocks.is_empty(), "expected relocation blocks");
-    let encoded_entries: usize = metadata.blocks.iter().map(|block| block.entries.len()).sum();
+    let encoded_entries: usize = metadata
+        .blocks
+        .iter()
+        .map(|block| block.entries.len())
+        .sum();
     assert!(encoded_entries > 0, "expected encoded relocation entries");
     assert_eq!(report.relocation_blocks, metadata.blocks.len());
     assert_eq!(report.relocation_entries, encoded_entries);
@@ -446,7 +450,10 @@ fn inspects_llvm_shared_bss_fixture_when_configured() {
         .iter()
         .find(|section| section.name == ".bss")
         .expect("shared-data fixture should retain a separate .bss section");
-    assert_eq!(bss.raw_size, 0, "BSS section should have no file-backed data");
+    assert_eq!(
+        bss.raw_size, 0,
+        "BSS section should have no file-backed data"
+    );
     assert!(
         bss.virtual_size > 0,
         "BSS section should retain virtual-only storage"
