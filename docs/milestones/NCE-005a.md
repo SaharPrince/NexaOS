@@ -185,16 +185,16 @@ These results are local validation evidence, not a redistributable corpus. The e
 
 ### Aggregate evidence
 
-- Three independently published upstream application binaries passed the same bounded image-layout and relocation integration path.
-- Across the three samples: **25,584 relocation entries**, comprising **109 ABSOLUTE** entries and **25,475 DIR64** entries; **25,475 DIR64 patches** were planned and applied successfully.
-- Each test checked every patch's original value before application and relocated value afterward. Each test confirmed the source input bytes remained unchanged.
-- All samples were PE32+ AMD64 and all observed relocation entries were supported ABSOLUTE or DIR64 types.
-- Execution was **not attempted**. No test resolved imports or exercised the full `prepare_image()` path; no fabricated export catalogue was used.
-- These three command-line tools do not establish broad Windows application compatibility, compatibility with every compiler/linker, or Windows loader acceptance.
+- Four independently published upstream PE binaries (three applications and one DLL) passed the bounded image-layout and relocation integration path.
+- Across the four samples: **28,494 relocation entries**, comprising **125 ABSOLUTE** entries and **28,369 DIR64** entries; all **28,369 DIR64 patches** were planned and applied successfully.
+- Each test checked original patch values before application and relocated values afterward. Each test confirmed that the source input bytes remained unchanged.
+- All four samples were PE32+ AMD64, and all observed relocation entries were supported ABSOLUTE or DIR64 types.
+- Execution was **not attempted**. No test resolved imports or exercised the full `prepare_image()` path with authentic dependency export catalogues.
+- These samples do not establish broad Windows application compatibility, compatibility with every compiler/linker, or Windows loader acceptance.
 
 ### Scope and remaining work
 
-This evidence expands NCE-005a beyond source-generated fixtures to three real-world applications. It does not close the compatibility milestone. Remaining work includes:
+This evidence expands NCE-005a beyond source-generated fixtures to four real-world PE samples: three applications and one DLL. It does not close the compatibility milestone. Remaining work includes:
 
 1. **Completed 2026-11-18 on documentation commit `2618cbeae464486e0a175c8fdfe4caad5f33eca8`:** local Windows formatting, Clippy with warnings denied, all 177 workspace tests, and `git diff --check` passed; the working tree was clean. GitHub Actions on the same commit passed Rust checks (run `44335373829`), dependency security audit (run `44335373718`), and PE parser fuzz smoke test (run `44335373670`).
 2. Continue compatibility testing with structurally distinct, individually licensed samples (including DLLs and additional toolchains where appropriate).
@@ -203,7 +203,8 @@ This evidence expands NCE-005a beyond source-generated fixtures to three real-wo
 5. Keep all binaries in local quarantine. Do not commit binaries or imply redistribution approval from source-level license identification alone.
 
 
-This shortlist provides a practical starting set, not a representative universal corpus. Three command-line tools cannot establish broad Windows application compatibility. Expand only after these samples are fully verified and their structural observations show what additional categories are still missing.
+This four-sample shortlist provides a practical starting set, not a representative universal corpus. Three command-line applications and one DLL cannot establish broad Windows application compatibility. Expand only after these samples are fully verified and their structural observations show what additional categories are still missing.
+
 ### SQLite 3.54.1 — Windows x64 DLL
 
 **Source and provenance**
