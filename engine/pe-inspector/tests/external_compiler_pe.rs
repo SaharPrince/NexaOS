@@ -437,6 +437,26 @@ fn inspects_llvm_shared_bss_fixture_when_configured() {
         return;
     };
 
+    let control_path = std::env::var_os("NEXA_LLVM_BSS_CONTROL_FIXTURE")
+        .expect("CI must provide the default-link BSS control fixture");
+    let control_bytes =
+        std::fs::read(control_path).expect("read LLVM default-link BSS control fixture");
+    let control_report =
+        inspect(&control_bytes).expect("inspect LLVM default-link BSS control fixture");
+    assert!(
+        control_report.sections.iter().all(|section| section.name != ".bss"),
+        "default-link control should merge .bss rather than retain a separate section"
+    );
+    let control_data = control_report
+        .sections
+        .iter()
+        .find(|section| section.name == ".data")
+        .expect("default-link control should contain merged .data");
+    assert!(
+        control_data.virtual_size > control_data.raw_size,
+        "merged .data should include virtual-only BSS storage"
+    );
+
     let bytes = std::fs::read(path).expect("read LLVM shared-BSS fixture");
     let report = inspect(&bytes).expect("inspect LLVM shared-BSS fixture");
     print_section_transition_diagnostics(&report);
