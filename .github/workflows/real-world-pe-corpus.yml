@@ -9,7 +9,7 @@ on:
       - "scripts/download-verified-pe-samples.py"
       - ".github/workflows/real-world-pe-corpus.yml"
   pull_request:
-    branches: [main]
+    branches: [main, nce-001/pe-inspector]
     paths:
       - "engine/pe-inspector/src/**"
       - "engine/pe-inspector/tests/real_world_pe_corpus.rs"
