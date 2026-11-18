@@ -246,8 +246,7 @@ mod tests {
 
     #[test]
     fn malformed_input_is_rejected_before_image_allocation() {
-        let catalogue =
-            ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = CountingAllocator::default();
 
         let error = prepare_image(
