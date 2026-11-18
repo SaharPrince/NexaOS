@@ -204,3 +204,73 @@ This evidence expands NCE-005a beyond source-generated fixtures to three real-wo
 
 
 This shortlist provides a practical starting set, not a representative universal corpus. Three command-line tools cannot establish broad Windows application compatibility. Expand only after these samples are fully verified and their structural observations show what additional categories are still missing.
+### SQLite 3.54.1 — Windows x64 DLL
+
+**Source and provenance**
+
+- Source: Official SQLite precompiled Windows x64 DLL archive.
+- Version: SQLite 3.54.1.
+- Official archive: `sqlite-dll-win-x64-3540100.zip`.
+- Archive SHA3-256:
+  `c2d09c8babb9399277055c057c97a53f1ffd7c5f11d0c1f2118ffdfa39f2daa4`
+- DLL: `sqlite3.dll`.
+- DLL SHA-256:
+  `4B59D3CDED9DC1608544160F3B4B10AC974C6AC0D6FFC23064E5F4C8DBD05AEA`
+- SQLite is public domain, according to its official copyright information.
+- The archive and extracted DLL were kept outside the repository in the local quarantine directory.
+- The DLL was inspected statically and was never executed.
+
+**Inspected image**
+
+- Format: PE32+ AMD64.
+- Sections: 9.
+- Preferred image base: `0x180000000`.
+- Image size: 3,555,328 bytes.
+- Header size: 1,024 bytes.
+- Section alignment: 4,096 bytes.
+- File alignment: 512 bytes.
+- Entry-point RVA: 14,201.
+- Imports: 1 descriptor (`KERNEL32.dll`), 127 symbols.
+- Exports: 379 named exports.
+- Relocation blocks: 30.
+- Encoded relocation entries: 2,910.
+- Writable-and-executable sections: 0.
+- Execution status: `NOT_ATTEMPTED`.
+
+**Static image and relocation integration test**
+
+A temporary external integration test exercised the public `nexa_inspect` API against the quarantined DLL:
+
+1. Parsed the original DLL with `inspect`.
+2. Planned its image layout with `plan_image_layout`.
+3. Allocated a non-executable image buffer.
+4. Populated the image buffer from the input file.
+5. Planned base relocations using the parsed relocation metadata.
+6. Applied the resulting relocation plan to the image buffer.
+7. Verified every original and relocated value.
+8. Verified that the mapped image contained exactly the planned changes.
+9. Verified that the original input bytes remained unchanged.
+
+Test configuration and results:
+
+- Preferred image base: `0x180000000`.
+- Requested image base: `0x180100000`.
+- Relocation delta: `0x100000`.
+- ABSOLUTE entries: 16.
+- DIR64 entries: 2,894.
+- Unsupported relocation entries: 0.
+- DIR64 patches planned and applied: 2,894.
+- Image size: 3,555,328 bytes.
+- Test result: **PASS** — 1 test passed, 0 failed.
+- Temporary test source was removed after the run.
+- Git working tree was clean after cleanup.
+
+The test used static parsing, copying, planning, and byte-buffer modification only. It did not load or execute the DLL.
+
+**Limitations**
+
+- This test validates image layout and relocation planning/application for this DLL; it does not establish Windows loader compatibility.
+- The DLL imports `KERNEL32.dll`. An authentic, trusted dependency export catalogue was not available for full import resolution.
+- Full `prepare_image` with authentic dependency export data was not tested.
+- This sample does not establish broad Windows DLL compatibility.
+- Low-end hardware performance and memory measurements remain outstanding.
