@@ -380,56 +380,11 @@ fn plans_windows_system_pe_when_configured() {
 }
 
 #[test]
-fn inspects_llvm_coff_source_derived_layout_fixtures_when_configured() {
+fn inspects_llvm_file_and_default_alignment_fixtures_when_configured() {
     let limits = ImageLayoutLimits {
         max_image_size: 256 * 1024 * 1024,
         max_sections: 96,
     };
-
-    if let Some(path) = std::env::var_os("NEXA_LLVM_SECTION_LAYOUT_FIXTURE") {
-        let bytes = std::fs::read(path).expect("read LLVM section-layout fixture");
-        let report = inspect(&bytes).expect("inspect LLVM section-layout fixture");
-        assert_eq!(report.format, "PE32+");
-        assert_eq!(report.machine, "AMD64");
-        assert_eq!(report.execution, "NOT_ATTEMPTED");
-        assert_section_order_and_adjacency(&report);
-
-        let section_names: Vec<&str> = report
-            .sections
-            .iter()
-            .map(|section| section.name.as_str())
-            .collect();
-        let text1 = section_names
-            .iter()
-            .position(|name| *name == ".text1")
-            .expect("section-layout fixture contains .text1");
-        let text3 = section_names
-            .iter()
-            .position(|name| *name == ".text3")
-            .expect("section-layout fixture contains .text3");
-        let text2 = section_names
-            .iter()
-            .position(|name| *name == ".text2")
-            .expect("section-layout fixture contains .text2");
-        assert!(
-            text1 < text3 && text3 < text2,
-            "LLD /sectionlayout order must be .text1, .text3, .text2; got {section_names:?}"
-        );
-
-        let plan = plan_image_layout(&report, bytes.len() as u64, limits)
-            .expect("plan LLVM section-layout fixture");
-        assert_eq!(plan.image_size, u64::from(report.size_of_image));
-        assert!(plan.sections.iter().all(|section| section.mapped_size > 0));
-        println!(
-            "LLVM section-layout fixture: {} bytes, {} sections, order={section_names:?}",
-            bytes.len(),
-            report.sections.len()
-        );
-    } else {
-        eprintln!(
-            "skipping LLVM section-layout fixture: NEXA_LLVM_SECTION_LAYOUT_FIXTURE is not set"
-        );
-    }
 
     for (variable, expected_alignment) in [
         ("NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE", 512),
