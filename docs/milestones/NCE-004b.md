@@ -157,3 +157,14 @@ The first orchestration increment adds `prepare_image` and the `ImagePreparation
 - The focused preparation tests also exercise layout-limit rejection before allocation and unsupported relocation rejection after allocation, without returning a prepared image.
 
 This is an initial implementation increment, not milestone completion. The population-failure path and broader final contract review remain outstanding; additional tests should be added only where a failure can be induced meaningfully through the public API. No IAT writes, DLL loading, executable memory, or image execution are introduced.
+
+
+## Implementation progress — NCE-004b.2
+
+The preparation error contract now retains the original typed subsystem error instead of flattening it into a formatted string.
+
+- Added public `ImagePreparationCause` variants for PE inspection, layout, import resolution, IAT validation, allocation/population, relocation planning, and relocation application failures.
+- `ImagePreparationError` retains both the orchestration stage and typed cause; its standard error source chain exposes the cause and underlying subsystem error.
+- PE inspection errors now implement `Clone`, `PartialEq`, and `Eq` so the complete preparation error remains inspectable and comparable.
+- Focused tests assert concrete cause variants for inspection, import resolution, IAT validation, allocation, and relocation planning, and verify the standard error source chain.
+- This closes the typed-diagnostics gap; it does not change image preparation, memory allocation, import resolution, relocation, or execution behavior.
