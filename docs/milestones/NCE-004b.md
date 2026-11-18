@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation in progress.** The first orchestration API and focused success/failure-path coverage are present on the feature branch. The milestone still requires final validation and review of remaining contracts. It composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline.
+**Implementation complete.** The orchestration API, typed failure reporting, bounded allocation behavior, focused and public-API tests, local workspace validation, and required CI checks are complete on the feature branch. It composes the already implemented NCE-002 image-layout, allocation, population, NCE-003 symbolic import-resolution, and NCE-004a relocation primitives into one bounded, failure-atomic preparation pipeline. This milestone produces prepared non-executable data only; it does not authorize application loading or execution.
 
 NCE-004b does not enable application loading or execution. Its output is a prepared, non-executable image plus validated symbolic import information. It is not an executable process image and must not be described as launch-ready.
 
@@ -156,7 +156,7 @@ The first orchestration increment adds `prepare_image` and the `ImagePreparation
 - Tests cover import-bearing success without IAT writes, successful DIR64 rebasing, unresolved imports rejected before allocation, invalid IAT plans rejected before allocation, image-budget rejection before allocator invocation, malformed input rejected before allocation, allocator failure, and missing relocation data on rebase.
 - The focused preparation tests also exercise layout-limit rejection before allocation and unsupported relocation rejection after allocation, without returning a prepared image.
 
-This is an initial implementation increment, not milestone completion. Primitive-level population failures are covered by image-buffer tests; a malformed population plan is not directly injectable through the public preparation API because the pipeline creates and validates its own layout. The broader final contract review remains outstanding; do not add a public test hook solely to manufacture that unreachable failure. No IAT writes, DLL loading, executable memory, or image execution are introduced.
+Primitive-level population failures are covered by image-buffer tests; a malformed population plan is not directly injectable through the public preparation API because the pipeline creates and validates its own layout. Do not add a public test hook solely to manufacture that unreachable failure. No IAT writes, DLL loading, executable memory, or image execution are introduced.
 
 
 ## Implementation progress — NCE-004b.2
@@ -178,3 +178,16 @@ The image-population validator now reserves its bounded temporary range-tracking
 - Existing population tests exercise malformed source ranges, overlapping destinations, and inconsistent plan accounting; these failures occur before image bytes are copied and the consumed intermediate buffer is not returned.
 - A malformed population plan cannot be injected through `prepare_image`: that API creates its layout internally from the inspected input and checks the allocator's output length before population. The primitive-level tests therefore cover malformed-plan rejection without adding a public test hook or weakening the preparation API.
 - This is a bounded-allocation hardening change; it does not alter image contents, import resolution, relocation, or execution behavior.
+
+
+## Final validation and contract review — 2026-11-18
+
+NCE-004b exit criteria are satisfied on feature-branch commit `2948bfec1178c421e5221a70f8957f18b287a97d`.
+
+- Local Windows validation passed: `cargo test --workspace --locked` (174 tests), `cargo fmt --all -- --check`, and `cargo clippy --workspace --all-targets --locked -- -D warnings`. The working tree was clean.
+- GitHub Actions passed on the exact commit: Rust checks (including Ubuntu and Windows workspace-test jobs, formatting, Clippy, and external compiler PE fixtures), PE parser fuzz smoke test, and dependency security audit (workspace and fuzz dependencies).
+- The public API integration test confirms downstream use through the exported API and a caller-provided allocator. The pipeline's allocator spy confirms one image-buffer allocation.
+- The API keeps the image buffer private, exposes image bytes and the symbolic IAT plan through shared/read-only references, and returns only after all preparation stages succeed. The same borrowed input slice is inspected and used for population; imports are resolved only against the explicit catalogue; relocations use the existing all-or-nothing image-local application API.
+- Malformed population-plan cases remain covered at the primitive layer. They cannot be injected through the public preparation API, which constructs and validates its own layout; no public test hook was added for an unreachable state.
+
+NCE-004b completion does not waive the deferred release gates above. The broader NCE-002 third-party PE corpus and representative low-end hardware measurements remain required before real application loading is considered. IAT writes, DLL loading, executable page permissions, TLS, entry-point execution, process creation, and application startup remain outside this milestone.
