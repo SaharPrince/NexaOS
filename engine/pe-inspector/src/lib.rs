@@ -17,13 +17,13 @@ pub use image_buffer::{
     allocate_image_buffer, apply_base_relocations, populate_image_buffer, ImageAllocationError,
     ImageAllocator, ImageBuffer, RelocationApplyError, SystemImageAllocator,
 };
-pub use image_preparation::{
-    prepare_image, ImagePreparationError, ImagePreparationRequest, ImagePreparationStage,
-    PreparedImage,
-};
 pub use image_layout::{
     plan_image_layout, ImageCopyRange, ImageLayoutError, ImageLayoutLimits, ImageLayoutPlan,
     ImageZeroFillRange, SectionImageLayout,
+};
+pub use image_preparation::{
+    prepare_image, ImagePreparationError, ImagePreparationRequest, ImagePreparationStage,
+    PreparedImage,
 };
 pub use relocation_metadata::{
     ParsedRelocationBlock, ParsedRelocationDirectory, ParsedRelocationEntry,
