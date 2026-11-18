@@ -2,8 +2,8 @@ use crate::{
     allocate_image_buffer, apply_base_relocations, inspect, plan_base_relocations,
     plan_image_layout, populate_image_buffer, resolve_imports, validate_iat_patch_plan,
     ExportCatalogue, IatPatchPlan, IatPatchPlanLimits, ImageAllocationError, ImageAllocator,
-    ImageBuffer, ImageLayoutError, ImageLayoutLimits, ImportResolutionLimits,
-    RelocationApplyError, RelocationPlanLimits,
+    ImageBuffer, ImageLayoutError, ImageLayoutLimits, ImportResolutionLimits, RelocationApplyError,
+    RelocationPlanLimits,
 };
 use std::fmt;
 
@@ -29,7 +29,7 @@ pub struct ImagePreparationError {
 
 impl fmt::Display for ImagePreparationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "image preparation failed during {:?}: {}", self.stage, self.detail)
+        write!(\n            f,\n            "image preparation failed during {:?}: {}",\n            self.stage, self.detail\n        )
     }
 }
 
@@ -102,10 +102,9 @@ pub fn prepare_image(
     )
     .map_err(|error: ImageLayoutError| stage_error(ImagePreparationStage::Layout, error))?;
 
-    let image = allocate_image_buffer(&layout, request.max_image_size, allocator)
-        .map_err(|error: ImageAllocationError| {
-            stage_error(ImagePreparationStage::Allocate, error)
-        })?;
+    let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
+        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, error),
+    )?;
 
     let mut image = populate_image_buffer(&layout, request.input, image).map_err(
         |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, error),
@@ -118,12 +117,9 @@ pub fn prepare_image(
     )
     .map_err(|error| stage_error(ImagePreparationStage::ResolveImports, error))?;
 
-    let iat_patch_plan = validate_iat_patch_plan(
-        &imports,
-        layout.image_size,
-        request.iat_limits,
-    )
-    .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, error))?;
+    let iat_patch_plan =
+        validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
+            .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, error))?;
 
     let relocation_plan = plan_base_relocations(
         &report.format,
@@ -138,9 +134,7 @@ pub fn prepare_image(
     .map_err(|error| stage_error(ImagePreparationStage::PlanRelocations, error))?;
 
     apply_base_relocations(&mut image, &relocation_plan).map_err(
-        |error: RelocationApplyError| {
-            stage_error(ImagePreparationStage::ApplyRelocations, error)
-        },
+        |error: RelocationApplyError| stage_error(ImagePreparationStage::ApplyRelocations, error),
     )?;
 
     Ok(PreparedImage {
@@ -158,7 +152,7 @@ mod tests {
     use crate::{ExportCatalogueLimits, SystemImageAllocator};
 
     fn pe64() -> Vec<u8> {
-        let mut bytes = vec![0u8; 0x300];
+        let mut bytes = vec![0u8; 0x400];
         bytes[0..2].copy_from_slice(b"MZ");
         bytes[0x3c..0x40].copy_from_slice(&0x80u32.to_le_bytes());
         bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
@@ -180,12 +174,9 @@ mod tests {
         bytes[section..section + 5].copy_from_slice(b".text");
         bytes[section + 8..section + 12].copy_from_slice(&0x100u32.to_le_bytes());
         bytes[section + 12..section + 16].copy_from_slice(&0x1000u32.to_le_bytes());
-        bytes[section + 16..section + 20].copy_from_slice(&0x100u32.to_le_bytes());
+        bytes[section + 16..section + 20].copy_from_slice(&0x200u32.to_le_bytes());
         bytes[section + 20..section + 24].copy_from_slice(&0x200u32.to_le_bytes());
-        bytes
-    }
-
-    fn request<'a>(
+        bytes[0x300..0x400].fill(0xA5);\n        bytes\n    }\n\n    fn request<'a>(
         input: &'a [u8],
         catalogue: &'a ExportCatalogue,
         requested_image_base: u64,
@@ -208,23 +199,17 @@ mod tests {
     #[test]
     fn prepares_non_executable_image_without_imports_or_relocations() {
         let input = pe64();
-        let catalogue =
-            ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = SystemImageAllocator;
 
-        let prepared = prepare_image(
-            request(&input, &catalogue, 0x140000000),
-            &mut allocator,
-        )
-        .unwrap();
+        let prepared =\n            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap();
 
         assert_eq!(prepared.image_size, 0x2000);
         assert_eq!(prepared.preferred_image_base, 0x140000000);
         assert_eq!(prepared.requested_image_base, 0x140000000);
         assert!(prepared.iat_patch_plan.patches.is_empty());
         assert_eq!(&prepared.image_bytes()[..0x200], &input[..0x200]);
-        assert_eq!(&prepared.image_bytes()[0x1000..0x1100], &input[0x200..0x300]);
-        assert!(prepared.image_bytes()[0x1100..0x2000].iter().all(|byte| *byte == 0));
+        assert_eq!(\n            &prepared.image_bytes()[0x1000..0x1100],\n            &input[0x200..0x300]\n        );\n        assert!(prepared.image_bytes()[0x1100..0x2000]\n            .iter()\n            .all(|byte| *byte == 0));
     }
 
     #[derive(Default)]
@@ -267,11 +252,7 @@ mod tests {
             ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = CountingAllocator::default();
 
-        let error = prepare_image(
-            request(&input, &catalogue, 0x150000000),
-            &mut allocator,
-        )
-        .unwrap_err();
+        let error =\n            prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::PlanRelocations);
         assert_eq!(allocator.calls, 1);
