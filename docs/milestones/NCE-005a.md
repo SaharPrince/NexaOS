@@ -196,7 +196,7 @@ These results are local validation evidence, not a redistributable corpus. The e
 
 This evidence expands NCE-005a beyond source-generated fixtures to three real-world applications. It does not close the compatibility milestone. Remaining work includes:
 
-1. Run the full repository Rust validation gates on the documentation-update commit.
+1. **Completed 2026-11-18 on documentation commit `2618cbeae464486e0a175c8fdfe4caad5f33eca8`:** local Windows formatting, Clippy with warnings denied, all 177 workspace tests, and `git diff --check` passed; the working tree was clean. GitHub Actions on the same commit passed Rust checks (run `44335373829`), dependency security audit (run `44335373718`), and PE parser fuzz smoke test (run `44335373670`).
 2. Continue compatibility testing with structurally distinct, individually licensed samples (including DLLs and additional toolchains where appropriate).
 3. Exercise import resolution and the full preparation path only when genuine, complete export catalogues are available.
 4. Measure time and peak memory on the project's defined low-end hardware before setting product resource defaults.
