@@ -2,9 +2,10 @@ name: Rust checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, automation/nce-005a-real-world-pe, nce-005b/end-to-end-preparation-benchmark]
   pull_request:
-    branches: [main]
+    branches: [main, automation/nce-005a-real-world-pe]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,8 +46,10 @@ jobs:
       - name: Run lightweight image benchmark smoke test
         if: matrix.os == 'ubuntu-latest'
         env:
-          NEXA_BENCH_PLAN_ITERS: 5
+          NEXA_BENCH_PARSE_ITERS: 5
+          NEXA_BENCH_LAYOUT_ITERS: 5
           NEXA_BENCH_BUFFER_ITERS: 2
+          NEXA_BENCH_PREPARE_ITERS: 2
         run: cargo bench --locked -p nexa-inspect --bench nexa_image
       - name: Inspect a compiler-produced PE32+ executable
         if: matrix.os == 'windows-latest'

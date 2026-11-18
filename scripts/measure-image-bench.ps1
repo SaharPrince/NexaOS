@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 
-$previousPlanIterations = $env:NEXA_BENCH_PLAN_ITERS
+$previousLayoutIterations = $env:NEXA_BENCH_LAYOUT_ITERS
 $previousBufferIterations = $env:NEXA_BENCH_BUFFER_ITERS
 $previousHoldMilliseconds = $env:NEXA_BENCH_HOLD_MS
 
@@ -34,7 +34,7 @@ try {
         throw "Could not find the compiled nexa_image benchmark anywhere under $benchDirectory."
     }
 
-    $env:NEXA_BENCH_PLAN_ITERS = "$PlanIterations"
+    $env:NEXA_BENCH_LAYOUT_ITERS = "$PlanIterations"
     $env:NEXA_BENCH_BUFFER_ITERS = "$BufferIterations"
     $env:NEXA_BENCH_HOLD_MS = "$HoldMilliseconds"
 
@@ -92,7 +92,7 @@ try {
     Write-Host "note=This is a synthetic microbenchmark, not a full application cold-load or system-wide memory measurement."
 }
 finally {
-    $env:NEXA_BENCH_PLAN_ITERS = $previousPlanIterations
+    $env:NEXA_BENCH_LAYOUT_ITERS = $previousLayoutIterations
     $env:NEXA_BENCH_BUFFER_ITERS = $previousBufferIterations
     if ($null -ne $process) {
         $process.Dispose()
