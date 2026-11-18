@@ -30,7 +30,7 @@ def main() -> None:
     text = DOC.read_text(encoding="utf-8")
     lines = text.splitlines()
 
-    if "four individually published upstream Windows PE binaries" not in text.lower():
+    if "four individually published upstream windows pe binaries" not in text.lower():
         fail("status text does not describe the four-sample corpus")
     if "Four individually published upstream Windows AMD64 PE binaries" not in text:
         fail("real-world sample introduction does not describe all four samples")
@@ -52,7 +52,7 @@ def main() -> None:
 
     totals = {"entries": 0, "absolute": 0, "dir64": 0, "patches": 0}
     entry_pattern = re.compile(
-        rf"({NUMBER}) entries (({NUMBER}) ABSOLUTE, ({NUMBER}) DIR64)"
+        rf"({NUMBER}) entries \(({NUMBER}) ABSOLUTE, ({NUMBER}) DIR64\)"
     )
     patch_pattern = re.compile(rf"({NUMBER}) DIR64 patches planned and applied")
 
@@ -75,10 +75,10 @@ def main() -> None:
         totals["patches"] += patches
 
     aggregate = re.search(
-        rf"Across the four samples: \\*\\*({NUMBER}) relocation entries\\*\\*, "
-        rf"comprising \\*\\*({NUMBER}) ABSOLUTE\\*\\* entries and "
-        rf"\\*\\*({NUMBER}) DIR64\\*\\* entries; all "
-        rf"\\*\\*({NUMBER}) DIR64 patches\\*\\* were planned and applied successfully\\.",
+        rf"Across the four samples: \*\*({NUMBER}) relocation entries\*\*, "
+        rf"comprising \*\*({NUMBER}) ABSOLUTE\*\* entries and "
+        rf"\*\*({NUMBER}) DIR64\*\* entries; all "
+        rf"\*\*({NUMBER}) DIR64 patches\*\* were planned and applied successfully\.",
         text,
     )
     if not aggregate:
