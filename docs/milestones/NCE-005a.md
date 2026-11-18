@@ -140,3 +140,34 @@ A hash is recorded only after the exact output bytes exist. Never invent a hash 
 8. Keep the binary local unless a separate review explicitly approves redistribution of that exact file and its notices. Commit only the metadata manifest and reproducible scripts where appropriate.
 
 The metadata-first step is intentionally separate from sample acceptance: a database row is a candidate, not evidence that NexaOS parses or plans the corresponding PE successfully.
+
+
+### 7. Individually published upstream Windows releases — practical small-sample shortlist
+
+The Assemblage Windows PE dataset is not a practical first download for this phase: its current Hugging Face file listing shows a 33.8 GB binary archive and a 9.32 GB compressed SQLite archive (43.1 GB total), with no small standalone metadata file in the repository root. The dataset remains a potentially valuable future source if a compact metadata export or query service becomes available. Do not download either large archive merely to build this initial shortlist.
+
+The following upstream release assets are more practical candidates because each is a small, versioned Windows release with an identifiable upstream project and published licensing information. These are **candidates only**; no binary has been downloaded or accepted yet.
+
+| Candidate | Upstream release asset | Architecture | Source/license review | Candidate value | Status |
+| --- | --- | --- | --- | --- | --- |
+| ripgrep 15.2.0 | `ripgrep-15.2.0-x86_64-pc-windows-msvc.zip` — https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `15.2.0`; upstream identifies the project as dual-licensed MIT/Unlicense and provides both notices in the repository. | Compact Rust/MSVC CLI executable; useful real application PE distinct from compiler-generated fixtures. | Candidate; verify archive and extracted executable hashes locally. |
+| bat 0.26.1 | `bat-v0.26.1-x86_64-pc-windows-msvc.zip` — https://github.com/sharkdp/bat/releases/download/v0.26.1/bat-v0.26.1-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `v0.26.1`; upstream identifies MIT OR Apache-2.0 licensing and provides corresponding license files. | Second independent Rust/MSVC application; useful comparison with ripgrep while not pretending to add a new compiler family. | Candidate; verify archive and extracted executable hashes locally. |
+| jq 1.8.2 | `jq-windows-amd64.exe` — https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-amd64.exe | AMD64 | Release tag `jq-1.8.2`; upstream identifies MIT licensing and notes the included decNumber component's ICU license. Preserve all applicable notices. | C application binary, adding language/toolchain diversity beyond the Rust/MSVC candidates. | Candidate; verify release asset hash and bundled third-party notices locally. |
+
+Candidate references:
+- ripgrep release and signed tag: https://github.com/BurntSushi/ripgrep/releases/tag/15.2.0
+- ripgrep license explanation: https://github.com/BurntSushi/ripgrep/blob/master/FAQ.md#how-is-ripgrep-licensed
+- bat release: https://github.com/sharkdp/bat/releases/tag/v0.26.1
+- bat license statement: https://github.com/sharkdp/bat
+- jq release: https://github.com/jqlang/jq/releases/tag/jq-1.8.2
+- jq license and decNumber notice: https://github.com/jqlang/jq
+
+Before any candidate is admitted to the corpus:
+1. Download only the named release archive or executable from the upstream release URL into a local quarantine directory outside the repository.
+2. Verify the exact release tag and asset name against the upstream release page; compute and record SHA-256 and byte length locally. Do not treat a third-party package-manager manifest hash as the final verified hash.
+3. Extract only the intended executable from an archive without launching it. Record archive hash and executable hash separately.
+4. Preserve the exact license and third-party notice files that accompany the release. Review the license terms for the binary and included dependencies; do not assume a source repository's top-level license automatically covers every bundled component.
+5. Inspect PE headers and run the NexaOS inspector/planner only. Record architecture, section table, directories, overlay, planner outcome, and NexaOS commit.
+6. Keep all binaries outside Git. Commit only metadata and license/provenance notes unless redistribution of the exact binary is separately approved.
+
+This shortlist provides a practical starting set, not a representative universal corpus. Three command-line tools cannot establish broad Windows application compatibility. Expand only after these samples are fully verified and their structural observations show what additional categories are still missing.
