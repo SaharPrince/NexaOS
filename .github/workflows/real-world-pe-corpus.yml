@@ -42,6 +42,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Download and verify pinned upstream PE files
         run: python scripts/download-verified-pe-samples.py
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
       - name: Run static layout and relocation integration test
         env:
           NEXA_REAL_WORLD_PE_DIR: target/real-world-pe
