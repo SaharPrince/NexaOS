@@ -36,8 +36,14 @@ def main() -> None:
         fail("real-world sample introduction does not describe all four samples")
 
     rows: dict[str, str] = {}
+    in_sample_table = False
     for line in lines:
-        if not line.startswith("|"):
+        if line.startswith("| Sample | Release asset / local binary |"):
+            in_sample_table = True
+            continue
+        if line.startswith("### Aggregate evidence"):
+            in_sample_table = False
+        if not in_sample_table or not line.startswith("|"):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if cells and cells[0] in EXPECTED:
