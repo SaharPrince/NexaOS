@@ -129,6 +129,14 @@ fn plans_independently_compiled_mingw_pe32_plus_when_configured() {
     assert_eq!(report.machine, "AMD64");
     assert_eq!(report.execution, "NOT_ATTEMPTED");
     assert!(!report.sections.is_empty());
+    assert!(
+        !report.imports.is_empty(),
+        "MinGW fixture should expose at least one parsed import library"
+    );
+    assert!(
+        !report.import_metadata.is_empty(),
+        "MinGW fixture should preserve typed import metadata"
+    );
     for section in &report.sections {
         println!(
             "PE32+ section {}: RVA={:#x}, VirtualSize={:#x}, SizeOfRawData={:#x}",
@@ -334,6 +342,143 @@ fn plans_independently_compiled_llvm_lld_pe32_plus_when_configured() {
         bytes.len(),
         report.sections.len(),
         plan.total_copy_bytes,
+        plan.total_zero_fill_bytes
+    );
+}
+
+#[test]
+fn inspects_llvm_relocation_fixture_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_LLVM_RELOC_FIXTURE") else {
+        eprintln!("skipping LLVM relocation fixture: NEXA_LLVM_RELOC_FIXTURE is not set");
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read LLVM relocation fixture");
+    let report = inspect(&bytes).expect("inspect LLVM relocation fixture");
+    print_section_transition_diagnostics(&report);
+
+    assert_eq!(report.format, "PE32+");
+    assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+    let metadata = report
+        .relocation_metadata
+        .as_ref()
+        .expect("LLVM relocation fixture should contain a base-relocation directory");
+    assert!(!metadata.blocks.is_empty(), "expected relocation blocks");
+    let encoded_entries: usize = metadata.blocks.iter().map(|block| block.entries.len()).sum();
+    assert!(encoded_entries > 0, "expected encoded relocation entries");
+    assert_eq!(report.relocation_blocks, metadata.blocks.len());
+    assert_eq!(report.relocation_entries, encoded_entries);
+
+    let plan = plan_image_layout(
+        &report,
+        bytes.len() as u64,
+        ImageLayoutLimits {
+            max_image_size: 256 * 1024 * 1024,
+            max_sections: 96,
+        },
+    )
+    .expect("plan LLVM relocation fixture");
+    assert_eq!(plan.image_size, u64::from(report.size_of_image));
+
+    println!(
+        "LLVM relocation fixture: {} bytes, {} sections, {} relocation blocks, {} encoded entries",
+        bytes.len(),
+        report.sections.len(),
+        report.relocation_blocks,
+        report.relocation_entries
+    );
+}
+
+#[test]
+fn inspects_llvm_custom_image_base_fixture_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_LLVM_BASE_FIXTURE") else {
+        eprintln!("skipping LLVM custom image-base fixture: NEXA_LLVM_BASE_FIXTURE is not set");
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read LLVM custom image-base fixture");
+    let report = inspect(&bytes).expect("inspect LLVM custom image-base fixture");
+    assert_eq!(report.format, "PE32+");
+    assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+    assert_eq!(report.image_base, 0x280000000);
+
+    let plan = plan_image_layout(
+        &report,
+        bytes.len() as u64,
+        ImageLayoutLimits {
+            max_image_size: 256 * 1024 * 1024,
+            max_sections: 96,
+        },
+    )
+    .expect("plan LLVM custom image-base fixture");
+    assert_eq!(plan.image_size, u64::from(report.size_of_image));
+
+    println!(
+        "LLVM custom image-base fixture: {} bytes, image base={:#x}, {} sections",
+        bytes.len(),
+        report.image_base,
+        report.sections.len()
+    );
+}
+
+#[test]
+fn inspects_llvm_shared_bss_fixture_when_configured() {
+    let Some(path) = std::env::var_os("NEXA_LLVM_BSS_FIXTURE") else {
+        eprintln!("skipping LLVM shared-BSS fixture: NEXA_LLVM_BSS_FIXTURE is not set");
+        return;
+    };
+
+    let bytes = std::fs::read(path).expect("read LLVM shared-BSS fixture");
+    let report = inspect(&bytes).expect("inspect LLVM shared-BSS fixture");
+    print_section_transition_diagnostics(&report);
+    assert_eq!(report.format, "PE32+");
+    assert_eq!(report.machine_raw, 0x8664);
+    assert_eq!(report.machine, "AMD64");
+    assert_eq!(report.execution, "NOT_ATTEMPTED");
+
+    let bss = report
+        .sections
+        .iter()
+        .find(|section| section.name == ".bss")
+        .expect("shared-data fixture should retain a separate .bss section");
+    assert_eq!(bss.raw_size, 0, "BSS section should have no file-backed data");
+    assert!(
+        bss.virtual_size > 0,
+        "BSS section should retain virtual-only storage"
+    );
+
+    let plan = plan_image_layout(
+        &report,
+        bytes.len() as u64,
+        ImageLayoutLimits {
+            max_image_size: 256 * 1024 * 1024,
+            max_sections: 96,
+        },
+    )
+    .expect("plan LLVM shared-BSS fixture");
+    let bss_layout = plan
+        .sections
+        .iter()
+        .find(|section| {
+            section.name == bss.name && section.image_rva == u64::from(bss.virtual_address)
+        })
+        .expect("BSS section should have an image layout");
+    assert_eq!(bss_layout.mapped_size, u64::from(bss.virtual_size));
+    assert!(bss_layout.copy.is_none());
+    assert!(
+        plan.total_zero_fill_bytes >= u64::from(bss.virtual_size),
+        "BSS storage should contribute to zero-fill accounting"
+    );
+
+    println!(
+        "LLVM shared-BSS fixture: {} bytes, .bss VirtualSize={:#x}, raw size=0, zero-fill bytes={}",
+        bytes.len(),
+        bss.virtual_size,
         plan.total_zero_fill_bytes
     );
 }
