@@ -314,6 +314,31 @@ mod tests {
         }
     }
 
+    struct FailingAllocator {
+        calls: usize,
+    }
+
+    impl ImageAllocator for FailingAllocator {
+        fn allocate(&mut self, _size: usize) -> Result<Vec<u8>, ImageAllocationError> {
+            self.calls += 1;
+            Err(ImageAllocationError::AllocationFailed)
+        }
+    }
+
+    #[test]
+    fn allocator_failure_is_reported_without_returning_an_image() {
+        let input = pe64();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = FailingAllocator { calls: 0 };
+
+        let error =
+            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::Allocate);
+        assert!(error.detail.contains("allocation failed"));
+        assert_eq!(allocator.calls, 1);
+    }
+
     #[test]
     fn malformed_input_is_rejected_before_image_allocation() {
         let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
