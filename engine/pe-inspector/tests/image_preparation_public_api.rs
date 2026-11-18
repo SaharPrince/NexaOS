@@ -4,7 +4,6 @@
 use nexa_inspect::{
     prepare_image, ExportCatalogue, ImageAllocator, ImageAllocationError, ImageLayoutLimits,
     ImagePreparationRequest, ImportResolutionLimits, IatPatchPlanLimits, RelocationPlanLimits,
-    SystemImageAllocator,
 };
 
 fn minimal_pe64() -> Vec<u8> {
@@ -57,9 +56,10 @@ fn prepared_image_is_observable_through_read_only_public_accessors() {
         iat_limits: IatPatchPlanLimits::default(),
         relocation_limits: RelocationPlanLimits::default(),
     };
-    let mut allocator = SystemImageAllocator;
+    let mut allocator = ExternalAllocator { calls: 0 };
 
     let prepared = prepare_image(request, &mut allocator).unwrap();
+    assert_eq!(allocator.calls, 1);
 
     assert_eq!(prepared.image_size(), 0x2000);
     assert_eq!(prepared.preferred_image_base(), 0x140000000);
@@ -79,10 +79,13 @@ fn prepared_image_is_observable_through_read_only_public_accessors() {
 // Keep the allocator trait in scope as a compile-time check that consumers
 // can also provide their own allocator implementation.
 #[allow(dead_code)]
-struct ExternalAllocator;
+struct ExternalAllocator {
+    calls: usize,
+}
 
 impl ImageAllocator for ExternalAllocator {
     fn allocate(&mut self, size: usize) -> Result<Vec<u8>, ImageAllocationError> {
+        self.calls += 1;
         let mut bytes = Vec::new();
         bytes
             .try_reserve_exact(size)
