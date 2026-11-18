@@ -87,7 +87,10 @@ impl std::error::Error for ImagePreparationError {
     }
 }
 
-fn stage_error(stage: ImagePreparationStage, cause: ImagePreparationCause) -> ImagePreparationError {
+fn stage_error(
+    stage: ImagePreparationStage,
+    cause: ImagePreparationCause,
+) -> ImagePreparationError {
     ImagePreparationError { stage, cause }
 }
 
@@ -159,15 +162,24 @@ pub fn prepare_image(
     request: ImagePreparationRequest<'_>,
     allocator: &mut impl ImageAllocator,
 ) -> Result<PreparedImage, ImagePreparationError> {
-    let report = inspect(request.input)
-        .map_err(|error| stage_error(ImagePreparationStage::Inspect, ImagePreparationCause::Pe(error)))?;
+    let report = inspect(request.input).map_err(|error| {
+        stage_error(
+            ImagePreparationStage::Inspect,
+            ImagePreparationCause::Pe(error),
+        )
+    })?;
 
     let layout = plan_image_layout(
         &report,
         u64::try_from(request.input.len()).unwrap_or(u64::MAX),
         request.layout_limits,
     )
-    .map_err(|error: ImageLayoutError| stage_error(ImagePreparationStage::Layout, ImagePreparationCause::Layout(error)))?;
+    .map_err(|error: ImageLayoutError| {
+        stage_error(
+            ImagePreparationStage::Layout,
+            ImagePreparationCause::Layout(error),
+        )
+    })?;
 
     // Resolve and validate imports before allocating the image. These stages
     // depend only on parsed metadata, the caller-owned catalogue, and the
@@ -177,18 +189,37 @@ pub fn prepare_image(
         request.export_catalogue,
         request.import_limits,
     )
-    .map_err(|error| stage_error(ImagePreparationStage::ResolveImports, ImagePreparationCause::ImportResolution(error)))?;
+    .map_err(|error| {
+        stage_error(
+            ImagePreparationStage::ResolveImports,
+            ImagePreparationCause::ImportResolution(error),
+        )
+    })?;
 
-    let iat_patch_plan =
-        validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
-            .map_err(|error| stage_error(ImagePreparationStage::ValidateImports, ImagePreparationCause::IatValidation(error)))?;
+    let iat_patch_plan = validate_iat_patch_plan(&imports, layout.image_size, request.iat_limits)
+        .map_err(|error| {
+            stage_error(
+                ImagePreparationStage::ValidateImports,
+                ImagePreparationCause::IatValidation(error),
+            )
+        })?;
 
     let image = allocate_image_buffer(&layout, request.max_image_size, allocator).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Allocate, ImagePreparationCause::Allocation(error)),
+        |error: ImageAllocationError| {
+            stage_error(
+                ImagePreparationStage::Allocate,
+                ImagePreparationCause::Allocation(error),
+            )
+        },
     )?;
 
     let mut image = populate_image_buffer(&layout, request.input, image).map_err(
-        |error: ImageAllocationError| stage_error(ImagePreparationStage::Populate, ImagePreparationCause::Allocation(error)),
+        |error: ImageAllocationError| {
+            stage_error(
+                ImagePreparationStage::Populate,
+                ImagePreparationCause::Allocation(error),
+            )
+        },
     )?;
 
     let relocation_plan = plan_base_relocations(
@@ -201,10 +232,20 @@ pub fn prepare_image(
         image.as_slice(),
         request.relocation_limits,
     )
-    .map_err(|error| stage_error(ImagePreparationStage::PlanRelocations, ImagePreparationCause::RelocationPlanning(error)))?;
+    .map_err(|error| {
+        stage_error(
+            ImagePreparationStage::PlanRelocations,
+            ImagePreparationCause::RelocationPlanning(error),
+        )
+    })?;
 
     apply_base_relocations(&mut image, &relocation_plan).map_err(
-        |error: RelocationApplyError| stage_error(ImagePreparationStage::ApplyRelocations, ImagePreparationCause::RelocationApplication(error)),
+        |error: RelocationApplyError| {
+            stage_error(
+                ImagePreparationStage::ApplyRelocations,
+                ImagePreparationCause::RelocationApplication(error),
+            )
+        },
     )?;
 
     Ok(PreparedImage {
@@ -398,7 +439,10 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::Allocate);
-        assert!(matches!(error.cause, ImagePreparationCause::Allocation(ImageAllocationError::AllocationFailed)));
+        assert!(matches!(
+            error.cause,
+            ImagePreparationCause::Allocation(ImageAllocationError::AllocationFailed)
+        ));
         assert!(std::error::Error::source(&error).is_some());
         assert_eq!(allocator.calls, 1);
     }
@@ -415,7 +459,10 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::Inspect);
-        assert!(matches!(error.cause, ImagePreparationCause::Pe(PeError::Invalid(_))));
+        assert!(matches!(
+            error.cause,
+            ImagePreparationCause::Pe(PeError::Invalid(_))
+        ));
         assert_eq!(allocator.calls, 0);
     }
 
@@ -476,7 +523,10 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::ResolveImports);
-        assert!(matches!(error.cause, ImagePreparationCause::ImportResolution(_)));
+        assert!(matches!(
+            error.cause,
+            ImagePreparationCause::ImportResolution(_)
+        ));
         assert_eq!(allocator.calls, 0);
     }
 
@@ -491,7 +541,10 @@ mod tests {
         let error = prepare_image(preparation, &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::ValidateImports);
-        assert!(matches!(error.cause, ImagePreparationCause::IatValidation(_)));
+        assert!(matches!(
+            error.cause,
+            ImagePreparationCause::IatValidation(_)
+        ));
         assert_eq!(allocator.calls, 0);
     }
 
@@ -530,7 +583,10 @@ mod tests {
             prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::PlanRelocations);
-        assert!(matches!(error.cause, ImagePreparationCause::RelocationPlanning(_)));
+        assert!(matches!(
+            error.cause,
+            ImagePreparationCause::RelocationPlanning(_)
+        ));
         assert_eq!(allocator.calls, 1);
     }
 
