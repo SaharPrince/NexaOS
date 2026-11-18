@@ -203,8 +203,8 @@ jobs:
           echo "NEXA_LLVM_BASE_FIXTURE=$PWD/target/pe-corpus/llvm-base.exe" >> "$GITHUB_ENV"
           (
             cd target/pe-corpus
-            sha256sum *.exe *.dll > SHA256SUMS
-            stat -c '%n %s bytes' *.exe *.dll > fixture-sizes.txt
+            sha256sum *.exe > SHA256SUMS
+            stat -c '%n %s bytes' *.exe > fixture-sizes.txt
           )
       - name: Upload reproducible PE corpus fixtures
         uses: actions/upload-artifact@v4
