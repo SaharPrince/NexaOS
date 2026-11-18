@@ -2,7 +2,7 @@
 
 ## Status
 
-**NCE-004a.1 and NCE-004a.2 implemented and validated. NCE-004a.3 image-local all-or-nothing application remains unimplemented.** The parser retains bounded typed relocation metadata, and the pure planner produces validated image-relative patches. Application remains a separate, not-yet-implemented stage. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
+**NCE-004a.1, NCE-004a.2, and NCE-004a.3 are implemented and validated.** Typed metadata, pure DIR64 relocation planning, and image-local all-or-nothing patch application are complete. This is a bounded data-transformation prerequisite only; it does not enable application loading or execution. This is a loader prerequisite between the accepted NCE-002 image foundation and any future application-startup/runtime work. The existing high-level NCE-004 Windows x64 ABI/runtime work area is not renumbered by this document.
 
 The parser now validates relocation-directory block framing and retains bounded typed relocation entries. The existing counters remain for compatibility; relocation planning consumes the typed metadata and independently validates its inputs.
 
@@ -160,3 +160,16 @@ The NCE-004a.2 planner and its documentation are validated. On exact commit `901
 ## NCE-004a.3 image-local all-or-nothing application
 
 Implementation is the next stage. It will apply only planner-produced image-relative patches through a narrowly scoped mutable `ImageBuffer` API. The implementation must validate all patch bounds, widths, uniqueness/non-overlap, and original-byte preconditions before the first write; all fallible work must finish before mutation begins. The write phase must be infallible, and every rejected plan must leave the image byte-for-byte unchanged. No raw pointers, arbitrary address writes, process-memory API, executable memory, or code execution will be introduced.
+
+
+## NCE-004a.3 validation closeout — 2026-11-18
+
+The image-local all-or-nothing application stage is implemented and validated on exact commit `ff3eb45376e2ea7819b979c484f629ef61037321`.
+
+- Local Windows validation passed `cargo fmt --all -- --check`, workspace Clippy with warnings denied, and `cargo test --workspace --locked`: 162 tests passed, zero failed (135 library, 6 CLI, 1 compiler layout, 4 external compiler, and 16 image-layout compatibility tests). The working tree was clean after validation.
+- The user also verified valid Microsoft catalog signatures for the Windows system PE corpus samples `where.exe`, `notepad.exe`, `cmd.exe`, and `powershell.exe`. These are provenance checks, not evidence of universal loader compatibility.
+- GitHub Actions on the same commit passed all three workflows: Rust checks, PE parser fuzz smoke, and dependency security audit.
+- The application validates image size, bounded patch count, target ranges, original bytes, checked relocated values, and target overlap before the first write. The write phase performs no allocation or fallible operation.
+- Regression tests verify successful multi-patch application and byte-for-byte unchanged image contents for stale, out-of-bounds, duplicate, overlapping, and forged-value rejection.
+
+NCE-004a.3 is complete for this isolated scope. No raw pointers, arbitrary process-memory writes, executable memory, DLL loading, entry-point execution, or application loading were introduced. Broader PE corpus and representative low-end hardware release gates from NCE-002 remain in force before any real application-loading work.
