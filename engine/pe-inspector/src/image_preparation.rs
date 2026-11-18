@@ -199,7 +199,7 @@ mod tests {
         bytes[0x200..0x204].copy_from_slice(&0x1040u32.to_le_bytes());
         bytes[0x20c..0x210].copy_from_slice(&0x1030u32.to_le_bytes());
         bytes[0x210..0x214].copy_from_slice(&0x1050u32.to_le_bytes());
-        bytes[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\\0");
+        bytes[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\0");
         // IMAGE_THUNK_DATA64 and its null terminator.
         bytes[0x240..0x248].copy_from_slice(&0x1060u64.to_le_bytes());
         bytes[0x248..0x250].copy_from_slice(&0u64.to_le_bytes());
@@ -219,7 +219,7 @@ mod tests {
         bytes[relocation_dir + 4..relocation_dir + 8].copy_from_slice(&10u32.to_le_bytes());
 
         // The target pointer is stored at RVA 0x1080 (file offset 0x280).
-        bytes[0x280..0x288].copy_from_slice(&0x1400_0123_4u64.to_le_bytes());
+        bytes[0x280..0x288].copy_from_slice(&0x1_4000_1234u64.to_le_bytes());
         // One IMAGE_BASE_RELOCATION block with one DIR64 entry at offset 0x80.
         bytes[0x300..0x304].copy_from_slice(&0x1000u32.to_le_bytes());
         bytes[0x304..0x308].copy_from_slice(&10u32.to_le_bytes());
@@ -377,7 +377,7 @@ mod tests {
                     .try_into()
                     .unwrap()
             ),
-            0x1500_0123_4
+            0x1_5000_1234
         );
         // Relocation must not alter unrelated bytes in the prepared image.
         assert_eq!(
