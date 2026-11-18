@@ -2,7 +2,7 @@
 
 ## Status
 
-**Initial source audit complete; no third-party binary corpus approved or downloaded.** This document records candidate sources and a reproducible source-fixture shortlist. It does not claim third-party compatibility coverage.
+**Initial source audit complete; three individually published upstream Windows binaries have now been inspected and passed the bounded image-layout/relocation integration path.** The binaries remain in local quarantine outside Git; none is committed or approved for redistribution. This small sample set is evidence of limited real-world PE coverage, not broad Windows compatibility.
 
 NexaOS branch: `nce-001/pe-inspector`  
 NexaOS baseline: `242ebb967ba232ad53071dec10f42da9dbb7ada1`
@@ -150,9 +150,9 @@ The following upstream release assets are more practical candidates because each
 
 | Candidate | Upstream release asset | Architecture | Source/license review | Candidate value | Status |
 | --- | --- | --- | --- | --- | --- |
-| ripgrep 15.2.0 | `ripgrep-15.2.0-x86_64-pc-windows-msvc.zip` — https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `15.2.0`; upstream identifies the project as dual-licensed MIT/Unlicense and provides both notices in the repository. | Compact Rust/MSVC CLI executable; useful real application PE distinct from compiler-generated fixtures. | Candidate; verify archive and extracted executable hashes locally. |
-| bat 0.26.1 | `bat-v0.26.1-x86_64-pc-windows-msvc.zip` — https://github.com/sharkdp/bat/releases/download/v0.26.1/bat-v0.26.1-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `v0.26.1`; upstream identifies MIT OR Apache-2.0 licensing and provides corresponding license files. | Second independent Rust/MSVC application; useful comparison with ripgrep while not pretending to add a new compiler family. | Candidate; verify archive and extracted executable hashes locally. |
-| jq 1.8.2 | `jq-windows-amd64.exe` — https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-amd64.exe | AMD64 | Release tag `jq-1.8.2`; upstream identifies MIT licensing and notes the included decNumber component's ICU license. Preserve all applicable notices. | C application binary, adding language/toolchain diversity beyond the Rust/MSVC candidates. | Candidate; verify release asset hash and bundled third-party notices locally. |
+| ripgrep 15.2.0 | `ripgrep-15.2.0-x86_64-pc-windows-msvc.zip` — https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `15.2.0`; upstream identifies the project as dual-licensed MIT/Unlicense and provides both notices in the repository. | Compact Rust/MSVC CLI executable; useful real application PE distinct from compiler-generated fixtures. | **Locally inspected; image layout and relocation integration test passed.** |
+| bat 0.26.1 | `bat-v0.26.1-x86_64-pc-windows-msvc.zip` — https://github.com/sharkdp/bat/releases/download/v0.26.1/bat-v0.26.1-x86_64-pc-windows-msvc.zip | AMD64 | Release tag `v0.26.1`; upstream identifies MIT OR Apache-2.0 licensing and provides corresponding license files. | Second independent Rust/MSVC application; useful comparison with ripgrep while not pretending to add a new compiler family. | **Locally inspected; image layout and relocation integration test passed.** |
+| jq 1.8.2 | `jq-windows-amd64.exe` — https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-amd64.exe | AMD64 | Release tag `jq-1.8.2`; upstream identifies MIT licensing and notes the included decNumber component's ICU license. Preserve all applicable notices. | C application binary, adding language/toolchain diversity beyond the Rust/MSVC candidates. | **Locally inspected; image layout and relocation integration test passed.** |
 
 Candidate references:
 - ripgrep release and signed tag: https://github.com/BurntSushi/ripgrep/releases/tag/15.2.0
@@ -162,12 +162,45 @@ Candidate references:
 - jq release: https://github.com/jqlang/jq/releases/tag/jq-1.8.2
 - jq license and decNumber notice: https://github.com/jqlang/jq
 
-Before any candidate is admitted to the corpus:
+For any additional candidate considered for the corpus:
 1. Download only the named release archive or executable from the upstream release URL into a local quarantine directory outside the repository.
 2. Verify the exact release tag and asset name against the upstream release page; compute and record SHA-256 and byte length locally. Do not treat a third-party package-manager manifest hash as the final verified hash.
 3. Extract only the intended executable from an archive without launching it. Record archive hash and executable hash separately.
 4. Preserve the exact license and third-party notice files that accompany the release. Review the license terms for the binary and included dependencies; do not assume a source repository's top-level license automatically covers every bundled component.
 5. Inspect PE headers and run the NexaOS inspector/planner only. Record architecture, section table, directories, overlay, planner outcome, and NexaOS commit.
 6. Keep all binaries outside Git. Commit only metadata and license/provenance notes unless redistribution of the exact binary is separately approved.
+
+
+## Real-world upstream sample validation — 2026-11-18
+
+Three individually published upstream Windows AMD64 binaries were downloaded to user-local quarantine directories outside the repository and inspected as data only. Each temporary integration test exercised parsing, image-layout planning, non-executable buffer allocation/population, DIR64 relocation planning, and relocation application. Each temporary test file was removed after its run. No sample was launched.
+
+These results are local validation evidence, not a redistributable corpus. The exact binaries remain outside Git. The hashes below were verified locally before and after their respective tests.
+
+| Sample | Release asset / local binary | Verified SHA-256 | Size evidence | PE and relocation observations | Result |
+| --- | --- | --- | --- | --- | --- |
+| ripgrep 15.2.0 | `ripgrep-15.2.0-x86_64-pc-windows-msvc.zip`; extracted `rg.exe` | Archive: `71b2fef860abe467217a538ff31de02f5258807c0129f771846f87bd029aafc5`; executable: `14231169855EC5205CF5A1B6F1DB358FF4AED4247C86B69CE8AAE647C77F6680` | Archive: 1,789,611 bytes; planned image: 4,239,360 bytes | PE32+ AMD64; 7 sections; 6 import descriptors / 127 imported symbols; 118 relocation blocks; 12,852 entries (53 ABSOLUTE, 12,799 DIR64); no unsupported types reported. | **PASS** — 12,799 DIR64 patches planned and applied; original patch values and unchanged input verified. |
+| bat 0.26.1 | `bat-v0.26.1-x86_64-pc-windows-msvc.zip`; extracted `bat.exe` | Archive: `0f729b4b6f5f28d395c641eacc2e9ff68d0096b85aa0eec344aa62425144b69b`; executable: `9EA9F7AB1C27AA5C9390E91543F9F47C6BD17BC53F3E30AC9DB762F28F55C4FD` | Archive: 3,613,318 bytes; executable: 7,342,592 bytes; planned image: 7,376,896 bytes | PE32+ AMD64; 5 sections; 4 import descriptors; 124 relocation blocks; 11,374 entries (52 ABSOLUTE, 11,322 DIR64); no unsupported types reported. | **PASS** — 11,322 DIR64 patches planned and applied; original patch values and unchanged input verified. |
+| jq 1.8.2 | `jq-windows-amd64.exe` | Executable: `A6FC67FEDAF9128A3309A1E2B B8B986AECCF70122EE46D2CB4849E423F0C627` | Executable: 1,035,264 bytes; planned image: 1,060,864 bytes | PE32+ AMD64; 10 sections including `.bss` and `.tls`; 14 import descriptors; 16 relocation blocks; 1,358 entries (4 ABSOLUTE, 1,354 DIR64); no unsupported types reported. Planner recorded 4,064 zero-fill bytes. | **PASS** — 1,354 DIR64 patches planned and applied; original patch values and unchanged input verified. |
+
+### Aggregate evidence
+
+- Three independently published upstream application binaries passed the same bounded image-layout and relocation integration path.
+- Across the three samples: **25,584 relocation entries**, comprising **109 ABSOLUTE** entries and **25,475 DIR64** entries; **25,475 DIR64 patches** were planned and applied successfully.
+- Each test checked every patch's original value before application and relocated value afterward. Each test confirmed the source input bytes remained unchanged.
+- All samples were PE32+ AMD64 and all observed relocation entries were supported ABSOLUTE or DIR64 types.
+- Execution was **not attempted**. No test resolved imports or exercised the full `prepare_image()` path; no fabricated export catalogue was used.
+- These three command-line tools do not establish broad Windows application compatibility, compatibility with every compiler/linker, or Windows loader acceptance.
+
+### Scope and remaining work
+
+This evidence expands NCE-005a beyond source-generated fixtures to three real-world applications. It does not close the compatibility milestone. Remaining work includes:
+
+1. Run the full repository Rust validation gates on the documentation-update commit.
+2. Continue compatibility testing with structurally distinct, individually licensed samples (including DLLs and additional toolchains where appropriate).
+3. Exercise import resolution and the full preparation path only when genuine, complete export catalogues are available.
+4. Measure time and peak memory on the project's defined low-end hardware before setting product resource defaults.
+5. Keep all binaries in local quarantine. Do not commit binaries or imply redistribution approval from source-level license identification alone.
+
 
 This shortlist provides a practical starting set, not a representative universal corpus. Three command-line tools cannot establish broad Windows application compatibility. Expand only after these samples are fully verified and their structural observations show what additional categories are still missing.
