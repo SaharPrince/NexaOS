@@ -36,9 +36,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
       - uses: Swatinem/rust-cache@v2
       - name: Download and verify pinned upstream PE files
-        run: python3 scripts/download-verified-pe-samples.py
+        run: python scripts/download-verified-pe-samples.py
       - name: Run static layout and relocation integration test
         env:
           NEXA_REAL_WORLD_PE_DIR: target/real-world-pe
