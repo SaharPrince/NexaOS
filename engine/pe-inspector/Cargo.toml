@@ -18,3 +18,7 @@ serde_json.workspace = true
 [[bench]]
 name = "nexa_image"
 harness = false
+
+[[bench]]
+name = "nexa_image_layout"
+harness = false
