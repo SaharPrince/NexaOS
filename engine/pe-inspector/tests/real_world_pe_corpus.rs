@@ -1,7 +1,7 @@
 use nexa_inspect::{
     allocate_image_buffer, apply_base_relocations, inspect, plan_base_relocations,
-    plan_image_layout, populate_image_buffer, RelocationPlanLimits, SystemImageAllocator,
-    ImageLayoutLimits,
+    plan_image_layout, populate_image_buffer, ImageLayoutLimits, RelocationPlanLimits,
+    SystemImageAllocator,
 };
 use std::{fs, path::PathBuf};
 
@@ -57,18 +57,25 @@ fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() 
 
     for expected in SAMPLES {
         let path = directory.join(expected.file);
-        let input = fs::read(&path).unwrap_or_else(|error| {
-            panic!("read verified sample {}: {error}", path.display())
-        });
+        let input = fs::read(&path)
+            .unwrap_or_else(|error| panic!("read verified sample {}: {error}", path.display()));
         let original_input = input.clone();
-        let report = inspect(&input)
-            .unwrap_or_else(|error| panic!("inspect {}: {error}", expected.file));
+        let report =
+            inspect(&input).unwrap_or_else(|error| panic!("inspect {}: {error}", expected.file));
 
         assert_eq!(report.format, "PE32+", "{} format", expected.file);
         assert_eq!(report.machine_raw, 0x8664, "{} machine", expected.file);
         assert_eq!(report.execution, "NOT_ATTEMPTED");
-        assert_eq!(report.relocation_blocks, expected.blocks, "{} blocks", expected.file);
-        assert_eq!(report.relocation_entries, expected.entries, "{} entries", expected.file);
+        assert_eq!(
+            report.relocation_blocks, expected.blocks,
+            "{} blocks",
+            expected.file
+        );
+        assert_eq!(
+            report.relocation_entries, expected.entries,
+            "{} entries",
+            expected.file
+        );
 
         let metadata = report
             .relocation_metadata
@@ -87,10 +94,20 @@ fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() 
             .iter()
             .filter(|entry| entry.relocation_type == 10)
             .count();
-        assert_eq!(encoded_entries.len(), expected.entries, "{} encoded entries", expected.file);
+        assert_eq!(
+            encoded_entries.len(),
+            expected.entries,
+            "{} encoded entries",
+            expected.file
+        );
         assert_eq!(absolute, expected.absolute, "{} ABSOLUTE", expected.file);
         assert_eq!(dir64, expected.dir64, "{} DIR64", expected.file);
-        assert_eq!(absolute + dir64, encoded_entries.len(), "{} unsupported relocations", expected.file);
+        assert_eq!(
+            absolute + dir64,
+            encoded_entries.len(),
+            "{} unsupported relocations",
+            expected.file
+        );
 
         let layout = plan_image_layout(
             &report,
@@ -123,14 +140,25 @@ fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() 
             RelocationPlanLimits::default(),
         )
         .unwrap_or_else(|error| panic!("plan relocations for {}: {error}", expected.file));
-        assert_eq!(plan.patches.len(), expected.dir64, "{} planned patches", expected.file);
+        assert_eq!(
+            plan.patches.len(),
+            expected.dir64,
+            "{} planned patches",
+            expected.file
+        );
 
         for patch in &plan.patches {
             let start = patch.target_rva as usize;
             let current = u64::from_le_bytes(
-                image.as_slice()[start..start + 8].try_into().expect("validated patch range"),
+                image.as_slice()[start..start + 8]
+                    .try_into()
+                    .expect("validated patch range"),
             );
-            assert_eq!(current, patch.original_value, "{} original patch value", expected.file);
+            assert_eq!(
+                current, patch.original_value,
+                "{} original patch value",
+                expected.file
+            );
         }
 
         apply_base_relocations(&mut image, &plan)
@@ -141,10 +169,18 @@ fn independently_published_pe_samples_pass_bounded_layout_and_relocation_path() 
             let relocated = u64::from_le_bytes(
                 image.as_slice()[start..start + 8].try_into().expect("validated patch range"),
             );
-            assert_eq!(relocated, patch.relocated_value, "{} relocated patch value", expected.file);
+            assert_eq!(
+                relocated, patch.relocated_value,
+                "{} relocated patch value",
+                expected.file
+            );
         }
 
-        assert_eq!(input, original_input, "{} input bytes changed", expected.file);
+        assert_eq!(
+            input, original_input,
+            "{} input bytes changed",
+            expected.file
+        );
         println!(
             "PASS {}: {} blocks, {} entries ({} ABSOLUTE, {} DIR64); {} patches applied; execution NOT_ATTEMPTED",
             expected.file, expected.blocks, expected.entries, absolute, dir64, plan.patches.len()
