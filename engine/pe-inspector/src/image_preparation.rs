@@ -29,7 +29,11 @@ pub struct ImagePreparationError {
 
 impl fmt::Display for ImagePreparationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(\n            f,\n            "image preparation failed during {:?}: {}",\n            self.stage, self.detail\n        )
+        write!(
+            f,
+            "image preparation failed during {:?}: {}",
+            self.stage, self.detail
+        )
     }
 }
 
@@ -176,7 +180,11 @@ mod tests {
         bytes[section + 12..section + 16].copy_from_slice(&0x1000u32.to_le_bytes());
         bytes[section + 16..section + 20].copy_from_slice(&0x200u32.to_le_bytes());
         bytes[section + 20..section + 24].copy_from_slice(&0x200u32.to_le_bytes());
-        bytes[0x300..0x400].fill(0xA5);\n        bytes\n    }\n\n    fn request<'a>(
+        bytes[0x300..0x400].fill(0xA5);
+        bytes
+    }
+
+    fn request<'a>(
         input: &'a [u8],
         catalogue: &'a ExportCatalogue,
         requested_image_base: u64,
@@ -202,14 +210,21 @@ mod tests {
         let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = SystemImageAllocator;
 
-        let prepared =\n            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap();
+        let prepared =
+            prepare_image(request(&input, &catalogue, 0x140000000), &mut allocator).unwrap();
 
         assert_eq!(prepared.image_size, 0x2000);
         assert_eq!(prepared.preferred_image_base, 0x140000000);
         assert_eq!(prepared.requested_image_base, 0x140000000);
         assert!(prepared.iat_patch_plan.patches.is_empty());
         assert_eq!(&prepared.image_bytes()[..0x200], &input[..0x200]);
-        assert_eq!(\n            &prepared.image_bytes()[0x1000..0x1100],\n            &input[0x200..0x300]\n        );\n        assert!(prepared.image_bytes()[0x1100..0x2000]\n            .iter()\n            .all(|byte| *byte == 0));
+        assert_eq!(
+            &prepared.image_bytes()[0x1000..0x1100],
+            &input[0x200..0x300]
+        );
+        assert!(prepared.image_bytes()[0x1100..0x2000]
+            .iter()
+            .all(|byte| *byte == 0));
     }
 
     #[derive(Default)]
@@ -252,7 +267,8 @@ mod tests {
             ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
         let mut allocator = CountingAllocator::default();
 
-        let error =\n            prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
+        let error =
+            prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
 
         assert_eq!(error.stage, ImagePreparationStage::PlanRelocations);
         assert_eq!(allocator.calls, 1);
