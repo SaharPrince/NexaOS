@@ -63,6 +63,7 @@ pub struct ImagePreparationRequest<'a> {
 /// The image buffer is private and can only be observed through a read-only
 /// slice. Import targets remain symbolic module/RVA pairs; no IAT values or
 /// process addresses are written or exposed.
+#[derive(Debug)]
 pub struct PreparedImage {
     image: ImageBuffer,
     pub image_size: u64,
