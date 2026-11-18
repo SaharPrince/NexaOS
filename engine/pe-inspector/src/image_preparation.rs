@@ -355,6 +355,20 @@ mod tests {
     }
 
     #[test]
+    fn invalid_layout_is_rejected_before_image_allocation() {
+        let input = pe64();
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = CountingAllocator::default();
+        let mut preparation = request(&input, &catalogue, 0x140000000);
+        preparation.layout_limits.max_sections = 0;
+
+        let error = prepare_image(preparation, &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::Layout);
+        assert_eq!(allocator.calls, 0);
+    }
+
+    #[test]
     fn resolves_imports_from_the_supplied_catalogue_without_writing_the_iat() {
         let input = pe64_with_one_import();
         let catalogue = catalogue_with_exit_process();
@@ -435,6 +449,22 @@ mod tests {
             &prepared.image_bytes()[0x1090..0x10a0],
             &input[0x290..0x2a0]
         );
+    }
+
+    #[test]
+    fn unsupported_relocation_is_rejected_without_returning_an_image() {
+        let mut input = pe64_with_one_dir64_relocation();
+        // Change the relocation type from DIR64 (10) to unsupported HIGHLOW (3).
+        input[0x308..0x30a].copy_from_slice(&0x3080u16.to_le_bytes());
+        let catalogue = ExportCatalogue::new(Vec::new(), ExportCatalogueLimits::default()).unwrap();
+        let mut allocator = CountingAllocator::default();
+
+        let error =
+            prepare_image(request(&input, &catalogue, 0x150000000), &mut allocator).unwrap_err();
+
+        assert_eq!(error.stage, ImagePreparationStage::PlanRelocations);
+        assert!(error.detail.contains("UnsupportedRelocationType"));
+        assert_eq!(allocator.calls, 1);
     }
 
     #[test]
