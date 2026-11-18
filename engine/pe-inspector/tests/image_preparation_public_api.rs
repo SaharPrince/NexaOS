@@ -10,7 +10,7 @@ fn minimal_pe64() -> Vec<u8> {
     let mut bytes = vec![0u8; 0x400];
     bytes[0..2].copy_from_slice(b"MZ");
     bytes[0x3c..0x40].copy_from_slice(&0x80u32.to_le_bytes());
-    bytes[0x80..0x84].copy_from_slice(b"PE\\0\\0");
+    bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
 
     let coff = 0x84;
     bytes[coff..coff + 2].copy_from_slice(&0x8664u16.to_le_bytes());
