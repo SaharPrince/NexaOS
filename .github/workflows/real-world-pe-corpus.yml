@@ -46,7 +46,7 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run static layout and relocation integration test
         env:
-          NEXA_REAL_WORLD_PE_DIR: target/real-world-pe
+          NEXA_REAL_WORLD_PE_DIR: ${{ github.workspace }}/target/real-world-pe
         run: cargo test --locked -p nexa-inspect --test real_world_pe_corpus -- --nocapture
       - name: Upload verification manifest
         uses: actions/upload-artifact@v4
