@@ -100,3 +100,43 @@ A hash is recorded only after the exact output bytes exist. Never invent a hash 
 - Keep generated PE files outside the repository unless a later explicit redistribution review approves the exact files and notices.
 - Do not retrieve large archives merely to inspect a handful of cases.
 - Do not use samples with unclear provenance or licensing as evidence in the approved corpus.
+
+
+### 4. Assemblage Windows GitHub dataset — primary third-party candidate source; metadata-first only
+
+- Dataset documentation: https://assemblagedocs.readthedocs.io/en/latest/dataset.html
+- Dataset card: https://huggingface.co/datasets/changliu8541/Assemblage_PE
+- The current Assemblage dataset documentation lists approximately 91,000 Windows PE binaries built with MSVC, with a Windows GitHub dataset update dated 2025-05.
+- The documented database schema exposes per-binary platform, build mode, toolset version, optimization, repository URL, source commit, license, file size, and hash. A separate archive stores the binaries.
+- The dataset documentation explicitly says each binary retains the license of its originating repository; the Assemblage project's MIT license does not relicense the binaries.
+- Decision: **approved for metadata-only candidate discovery, not blanket binary approval**. Query the metadata database first, then inspect the originating repository at the recorded commit and verify the exact license/notice before considering an individual binary. Do not fetch the multi-file binary archive or PDB archive as a first step.
+- Selection preference: small PE32+ AMD64 executables from unrelated repositories, distinct MSVC toolset generations where metadata permits, and samples likely to add section/layout/directory diversity beyond the existing compiler fixtures. Avoid selecting many builds of the same project as if they were independent applications.
+- Current status: no individual Assemblage binary has been selected, downloaded, hashed, or accepted by NexaOS.
+
+### 5. Assemblage Windows vcpkg dataset — secondary candidate source; DLL-focused
+
+- Dataset documentation: https://assemblagedocs.readthedocs.io/en/latest/dataset.html
+- The documentation lists a Windows vcpkg dataset of DLLs built from vcpkg ports, with SQLite metadata and a separate binary archive.
+- Decision: retain as a **secondary metadata-only source** if the Windows GitHub dataset does not provide enough independent DLL samples or useful section/directory diversity. Check the originating port and upstream project license for every candidate; a package-manager entry is not itself a redistribution grant for the compiled binary.
+- Do not download the full archive. Select at most a few small AMD64 DLL candidates after inspecting metadata and rights.
+
+### 6. Winbindex / Microsoft public symbol server — host-baseline reference only; not a redistributable corpus
+
+- Index: https://winbindex.m417z.com/
+- Index implementation and provenance notes: https://github.com/m417z/winbindex
+- Winbindex indexes Windows binaries hosted on Microsoft's public symbol server and exposes SHA-256, PE timestamp, image size, version, architecture, Windows release/update association, and signing metadata.
+- This provides strong version/hash provenance for Windows system binaries, but does not establish a general redistribution license for those Microsoft binaries.
+- Decision: use only as a **reference for identifying/versioning Windows system files already present on a test host**, or for metadata comparison. Do not add symbol-server binaries to the repository or treat them as third-party application coverage. Any local inspection remains read-only and must record the host OS build and exact file hash.
+
+### Metadata-first selection procedure
+
+1. Obtain only the Assemblage Windows GitHub metadata database or a documented metadata export; do not download `binaries.tar.xz`, PDB archives, or the vcpkg binary archive at this stage.
+2. Inspect the database schema and record the exact dataset snapshot, source URL, retrieval date, and metadata-file hash.
+3. Filter metadata to small PE32+ AMD64 executable candidates, then deduplicate by source repository/project and binary hash. Prefer unrelated projects and distinct toolset generations.
+4. For each proposed row, record its binary hash, byte size, repository URL, source commit, toolset, build configuration, and declared license from the dataset metadata.
+5. Independently inspect the exact source repository revision and its license/notice. Exclude missing, ambiguous, incompatible, or untraceable rights; do not infer a binary's license from the dataset host or Assemblage generator.
+6. Only after approval, retrieve one individually selected binary to a local quarantine directory outside the repository. Verify its SHA-256 and byte length against metadata before parsing it.
+7. Run only NexaOS's bounded, non-executing inspection and planning paths. Record both accepted and rejected results. Do not load, launch, map as executable, or otherwise execute the sample.
+8. Keep the binary local unless a separate review explicitly approves redistribution of that exact file and its notices. Commit only the metadata manifest and reproducible scripts where appropriate.
+
+The metadata-first step is intentionally separate from sample acceptance: a database row is a candidate, not evidence that NexaOS parses or plans the corresponding PE successfully.
