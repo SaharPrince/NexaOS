@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +34,14 @@ def safe_display_name(value: str) -> str:
 
 
 class NexaWelcome(QMainWindow):
+    PROGRAMS = {
+        "pcmanfm-qt": "/usr/bin/pcmanfm-qt",
+        "lxqt-config-appearance": "/usr/bin/lxqt-config-appearance",
+        "lxqt-config-monitor": "/usr/bin/lxqt-config-monitor",
+        "lxqt-config-input": "/usr/bin/lxqt-config-input",
+        "lxqt-config": "/usr/bin/lxqt-config",
+    }
+
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("NexaOS Welcome")
@@ -147,8 +154,8 @@ class NexaWelcome(QMainWindow):
         return tile
 
     def _open_program(self, program: str) -> None:
-        executable = shutil.which(program)
-        if executable is None:
+        executable = self.PROGRAMS.get(program)
+        if executable is None or not os.path.isfile(executable) or not os.access(executable, os.X_OK):
             QMessageBox.warning(
                 self, "Not available",
                 f"{program} is not installed in this desktop image.",
@@ -161,7 +168,6 @@ class NexaWelcome(QMainWindow):
                 self, "Could not open application",
                 f"The desktop application could not be started: {error}",
             )
-
     def _choose_executable(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Choose a Windows application", str(Path.home()),
