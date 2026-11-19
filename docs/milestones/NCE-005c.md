@@ -137,12 +137,12 @@ The external hold interval is a sampling aid and is excluded from the benchmark 
 
 ## Physical low-end device evidence
 
-**One physical low-memory Windows laptop baseline has been collected.** Hosted CI cannot substitute for physical-device evidence. The recorded laptop is a useful legacy low-memory test candidate, but one device is not a representative sample of all low-end hardware. Before making any low-end readiness or resource-budget decision, retain the following limitations and gather additional evidence where needed:
+**One physical low-memory Windows laptop baseline has been collected and reviewed.** Hosted CI cannot substitute for physical-device evidence. The recorded laptop is a useful legacy low-memory test candidate and supports a device-specific diagnostic baseline; one device is not a representative sample of all low-end hardware. No universal low-end readiness or resource-budget decision is supported. Retain the following evidence requirements and gather additional devices/workloads before making broader claims:
 
 - exact CPU model and architecture;
 - installed RAM and OS version/build;
 - Rust/Cargo versions and target architecture;
-- power mode and whether the device was idle or under other load;
+- power mode and whether the device was idle or under other load (unknown for this collection; explicitly recorded as a limitation);
 - exact repository commit and benchmark settings;
 - raw transcript for each repeated run;
 - min, median, nearest-rank p90, and max for every phase and process memory metric.
@@ -155,7 +155,7 @@ On the Windows lab PC, use the existing helper:
 
 Also record CPU model and installed RAM independently if the helper's CIM inventory reports them as unavailable. Do not infer missing hardware details.
 
-A physical device with a clearly documented low-memory configuration is required before calling the results a low-end baseline. Do not invent a RAM floor, latency budget, or universal performance threshold from hosted-runner observations.
+The collected device has a clearly documented low-memory configuration and is recorded as a physical low-memory laptop baseline, not as a universal low-end baseline. Do not invent a RAM floor, latency budget, or universal performance threshold from one device or hosted-runner observations.
 
 ## Exit criteria
 
@@ -163,6 +163,6 @@ A physical device with a clearly documented low-memory configuration is required
 - [x] Hosted Linux workflow run succeeds and its raw transcript artifact is retained.
 - [x] A physical low-memory laptop candidate is identified and its hardware/software inventory is recorded.
 - [x] Five repeated physical-device measurements and their phase/working-set summaries are recorded; the original transcript remains in the user's local temporary directory and has not been committed.
-- [ ] Device workload/idle state and additional evidence limitations are reviewed before any resource budget, compatibility decision, or readiness claim is proposed.
+- [x] Device workload/idle state is explicitly recorded as unknown, and additional evidence limitations are documented; no resource budget, compatibility decision, or general readiness claim is made from this single-device sample.
 
-NCE-005c remains open until the physical-device evidence and review are complete.
+NCE-005c physical-device collection and evidence review are recorded as complete for this single-device diagnostic baseline. The milestone remains open pending any remaining project-level review; no general low-end readiness, resource-budget, or compatibility conclusion is authorized by these measurements.
