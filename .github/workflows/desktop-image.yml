@@ -3,7 +3,7 @@ name: NexaOS desktop preview
 on:
   push:
     paths:
-      - "desktop/live-build/**"
+      - "desktop/live-build/config/package-lists/**"
       - "scripts/build-live-image.sh"
       - ".github/workflows/desktop-image.yml"
   pull_request:
@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: nexaos-desktop-preview-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-live-image:
@@ -28,6 +28,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Validate build script and package list
+        run: |
+          bash -n scripts/build-live-image.sh
+          test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          ! grep -Eq '^[[:space:]]*($|#)' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot || true
 
       - name: Install live-build host tools
         run: |
