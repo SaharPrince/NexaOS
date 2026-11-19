@@ -316,3 +316,35 @@ fn accepts_section_alignment_just_below_page_size() {
     assert_eq!(plan.sections[0].copy.as_ref().unwrap().file_offset, 0x800);
     assert_eq!(plan.sections[0].copy.as_ref().unwrap().length, 0x800);
 }
+
+#[test]
+fn planner_preserves_non_overlapping_section_gaps_without_requiring_adjacency() {
+    let input = report(vec![
+        section(".text", 0x1000, 0x1000, 0x1000, 0x200),
+        section(".data", 0x1000, 0x3000, 0x1000, 0x1200),
+    ]);
+
+    let plan = plan_image_layout(&input, 0x2200, limits()).unwrap();
+
+    assert_eq!(plan.sections.len(), 2);
+    assert_eq!(plan.sections[0].image_rva, 0x1000);
+    assert_eq!(plan.sections[1].image_rva, 0x3000);
+    assert_eq!(plan.sections[0].mapped_size, 0x1000);
+    assert_eq!(plan.sections[1].mapped_size, 0x1000);
+}
+
+#[test]
+fn planner_preserves_non_overlapping_sections_in_original_table_order() {
+    let input = report(vec![
+        section(".data", 0x1000, 0x2000, 0x1000, 0x400),
+        section(".text", 0x1000, 0x1000, 0x1000, 0x200),
+    ]);
+
+    let plan = plan_image_layout(&input, 0x1400, limits()).unwrap();
+
+    assert_eq!(plan.sections.len(), 2);
+    assert_eq!(plan.sections[0].name, ".data");
+    assert_eq!(plan.sections[0].image_rva, 0x2000);
+    assert_eq!(plan.sections[1].name, ".text");
+    assert_eq!(plan.sections[1].image_rva, 0x1000);
+}
