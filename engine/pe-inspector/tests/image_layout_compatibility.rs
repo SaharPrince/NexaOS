@@ -318,7 +318,7 @@ fn accepts_section_alignment_just_below_page_size() {
 }
 
 #[test]
-fn planner_preserves_non_overlapping_section_gaps_without_requiring_adjacency() {
+fn planner_currently_allows_non_overlapping_section_gaps() {
     let mut input = report(vec![
         section(".text", 0x1000, 0x1000, 0x1000, 0x200),
         section(".data", 0x1000, 0x3000, 0x1000, 0x1200),
@@ -335,7 +335,7 @@ fn planner_preserves_non_overlapping_section_gaps_without_requiring_adjacency() 
 }
 
 #[test]
-fn planner_preserves_non_overlapping_sections_in_original_table_order() {
+fn planner_currently_allows_non_overlapping_out_of_order_table_entries() {
     let input = report(vec![
         section(".data", 0x1000, 0x2000, 0x1000, 0x1200),
         section(".text", 0x1000, 0x1000, 0x1000, 0x200),
