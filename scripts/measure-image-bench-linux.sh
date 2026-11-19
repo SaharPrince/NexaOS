@@ -101,13 +101,28 @@ for ((run=1; run<=RUNS; run++)); do
   fi
   RSS_VALUES+=("$rss")
   echo "run_${run}_max_rss_kib=$rss"
+  declare -A RUN_PHASES=()
   while IFS= read -r line; do
     if [[ "$line" =~ ^([A-Za-z0-9_]+):[[:space:]]iterations=[0-9]+,[[:space:]]total_ms=[0-9.]+,[[:space:]]ns_per_iteration=([0-9]+) ]]; then
       phase="${BASH_REMATCH[1]}"
       value="${BASH_REMATCH[2]}"
-      PHASE_VALUES["$phase"]="${PHASE_VALUES[$phase]:-} $value"
+      if [[ " ${EXPECTED_PHASES[*]} " == *" $phase "* ]]; then
+        if [[ -n "${RUN_PHASES[$phase]:-}" ]]; then
+          echo "benchmark run $run emitted duplicate phase '$phase'" >&2
+          exit 1
+        fi
+        RUN_PHASES["$phase"]=1
+        PHASE_VALUES["$phase"]="${PHASE_VALUES[$phase]:-} $value"
+      fi
     fi
   done < "$TMP/stdout"
+  for phase in "${EXPECTED_PHASES[@]}"; do
+    if [[ -z "${RUN_PHASES[$phase]:-}" ]]; then
+      echo "benchmark run $run is missing required phase '$phase'" >&2
+      exit 1
+    fi
+  done
+  unset RUN_PHASES
 done
 
 summarize() {
