@@ -109,6 +109,29 @@ jobs:
         shell: pwsh
         run: ./scripts/measure-image-bench.ps1 -PlanIterations 5 -BufferIterations 2 -PreparationIterations 2 -HoldMilliseconds 500
 
+      - name: Collect repeated NCE-005b benchmark sample on hosted Windows
+        if: matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target | Out-Null
+          $transcript = Join-Path $PWD "target/nce-005b-hosted-windows-benchmark.txt"
+          Start-Transcript -Path $transcript -Force
+          try {
+            ./scripts/measure-image-bench.ps1 -PlanIterations 1000 -BufferIterations 200 -PreparationIterations 200 -Runs 5 -HoldMilliseconds 1000
+          }
+          finally {
+            Stop-Transcript
+          }
+
+      - name: Upload hosted Windows benchmark observations
+        if: always() && matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nce-005b-hosted-windows-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/nce-005b-hosted-windows-benchmark.txt
+          if-no-files-found: warn
+          retention-days: 7
+
   external-pe-corpus:
     name: External compiler PE layout (MinGW + LLVM/LLD)
     runs-on: ubuntu-latest
