@@ -249,7 +249,6 @@ impl MockLauncher {
     }
 }
 
-
 /// UI-facing controller that connects a directory selection to the mock launcher.
 ///
 /// A graphical frontend can use this narrow API without building shell command
