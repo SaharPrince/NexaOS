@@ -334,7 +334,6 @@ fn main() {
         },
     );
 
-
     // Exercise import resolution and relocation planning/application with
     // separate deterministic fixtures. Prepared images remain data only.
     let import_input = import_fixture();
