@@ -207,9 +207,9 @@ def main() -> int:
         assert window.windowTitle() == "NexaOS Welcome"
         assert window.file_button is not None
         assert window.preview_button is not None
-        preview = window.executable_preview_text("/tmp/example\\n.exe")
+        preview = window.executable_preview_text("/tmp/example\n.exe")
         assert "example" in preview
-        assert "\\uFFFD.exe" in preview
+        assert "\uFFFD.exe" in preview
         assert "execution is not available yet" in preview
         assert "No process was started" in preview
         assert "not executed" in preview
