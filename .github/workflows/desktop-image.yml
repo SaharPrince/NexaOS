@@ -23,7 +23,7 @@ concurrency:
 jobs:
   build-live-image:
     name: Build Debian 13 LXQt live preview
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - name: Check out source
@@ -41,6 +41,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             live-build \
             debootstrap \
+            debian-archive-keyring \
             xorriso \
             squashfs-tools
 
