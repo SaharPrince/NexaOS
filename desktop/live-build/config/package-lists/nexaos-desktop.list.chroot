@@ -1,0 +1,15 @@
+# Debian's maintained LXQt desktop task provides the X11 session, display
+# manager, panel, file manager, settings tools, and hardware input/video stack.
+# APT recommendations are disabled by the build config to avoid pulling in
+# optional office suites and other nonessential recommended applications.
+task-lxqt-desktop
+
+# Network management UI for the live desktop.
+network-manager
+network-manager-gnome
+
+# Common firmware packages; hardware coverage still requires device testing.
+firmware-linux-free
+firmware-misc-nonfree
+firmware-iwlwifi
+firmware-realtek
