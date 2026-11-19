@@ -6,11 +6,11 @@
 
 The benchmark implementation was committed on the local branch in commit:
 
-`78c201f9bf3e8a7d7f070d52b36991f37ff6a4ff`
+`013542ec19916ab09d2d509ed85131f673a7ba01`
 
 This report records the current synthetic-fixture benchmark, repeated diagnostic timing observations, Windows process working-set samples, and validation results. It does not claim statistical performance significance, real-world corpus coverage, loader compatibility, or completion of the broader NCE-005 resource-readiness milestone.
 
-No commit or push of this report is implied by its creation.
+This report was committed and published on the NCE-005b branch in commit `09c19b078a89513aab2f33e277fa4f6458569a2f`.
 
 ## Goal
 
