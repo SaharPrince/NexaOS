@@ -2,7 +2,21 @@
 
 This crate is the first UI-independent desktop/file-manager integration slice.
 It provides an in-memory directory view model, safe display text handling,
-structured .exe launch requests, and a deterministic mock launcher.
+structured .exe launch requests, a UI-facing controller, and a deterministic
+mock launcher.
+
+## UI integration boundary
+
+A graphical frontend can use `DesktopController` to:
+- read the current directory model and selected entry;
+- select or clear an entry without accessing the filesystem itself;
+- activate a selected `.exe` candidate through one structured method;
+- receive a `LaunchRecord` with a request ID and explicit preview-only status;
+- cancel a preview and read the resulting request records.
+
+The controller is an adapter boundary, not a graphical frontend or a real
+file-manager backend. Directory contents are still supplied by a caller.
+Activation creates only a mock preview record.
 
 ## Safety boundary
 
@@ -16,7 +30,9 @@ structured .exe launch requests, and a deterministic mock launcher.
 - File names are untrusted display text; control characters are replaced.
 - Directory contents are supplied by a caller; this crate does not traverse the
   filesystem or grant access to files.
+- No default .exe file association or automatic execution is introduced.
 
-This is a model layer, not yet a graphical shell, file manager, compatibility
-runtime, or executable launcher. A future GUI should bind to these models and
-keep the same privilege and execution boundary.
+This is a model/controller layer, not yet a graphical shell, filesystem-backed
+file manager, compatibility runtime, or executable launcher. A future GUI
+should bind to this controller and keep the same privilege and execution
+boundary.
