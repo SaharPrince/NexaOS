@@ -209,6 +209,36 @@ fn main() {
         combined_allocator.requested_bytes
     );
 
+    // Allocate each destination before starting its timer. This isolates the
+    // population operation for the same fixture used by the end-to-end phases.
+    // A fresh zeroed buffer is prepared between samples, outside the timed span.
+    let mut population_only_elapsed = Duration::ZERO;
+    let mut population_allocator = CountingAllocator::default();
+    for _ in 0..buffer_count {
+        let image = allocate_image_buffer(&layout, IMAGE_SIZE, &mut population_allocator)
+            .expect("bounded image allocation must succeed");
+        let started = Instant::now();
+        black_box(
+            populate_image_buffer(black_box(&layout), black_box(&input), image)
+                .expect("fixture population must succeed"),
+        );
+        population_only_elapsed += started.elapsed();
+    }
+    let population_average_ns =
+        population_only_elapsed.as_nanos() / u128::from(buffer_count);
+    println!(
+        "population_only: iterations={buffer_count}, total_ms={:.3}, ns_per_iteration={population_average_ns}",
+        population_only_elapsed.as_secs_f64() * 1000.0
+    );
+    println!(
+        "population_only_setup_allocator_calls: {}",
+        population_allocator.calls
+    );
+    println!(
+        "population_only_setup_allocator_requested_bytes: {}",
+        population_allocator.requested_bytes
+    );
+
     let mut preparation_allocator = CountingAllocator::default();
     measure(
         "prepare_image_end_to_end_counting_allocator",
