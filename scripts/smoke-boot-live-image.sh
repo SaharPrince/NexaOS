@@ -68,7 +68,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 ' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
-color_count="$(identify -quiet -resize 25% -format '%k' "$SCREENSHOT")"
+color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
 
 if [[ "$dimensions" != "1280x800" ]]; then
     printf 'Unexpected VM screenshot dimensions: %s\n' "$dimensions" >&2
