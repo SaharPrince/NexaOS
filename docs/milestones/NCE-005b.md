@@ -74,7 +74,7 @@ The full preparation measurements use the same fixture and pipeline, with two al
 - Counting image allocator.
 - System image allocator.
 
-The phase named `image_allocation_and_population` intentionally includes allocation in its timed interval. It is not an isolated population-only measurement.
+The phase named `image_allocation_and_population` intentionally includes allocation in its timed interval. A separate `population_only` phase now allocates a fresh destination buffer before each timed sample, then times only `populate_image_buffer`. The allocation setup is reported separately as `population_only_setup_allocator_*`; setup time is excluded from the population timing.
 
 The optional `NEXA_BENCH_HOLD_MS` delay allows the external PowerShell helper to sample the benchmark process working set. The hold occurs after benchmark phase measurements and is excluded from the reported phase timings.
 
@@ -86,7 +86,7 @@ The new benchmark uses these environment variables:
 |---|---:|
 | `NEXA_BENCH_PARSE_ITERS` | 1,000 |
 | `NEXA_BENCH_LAYOUT_ITERS` | 1,000 |
-| `NEXA_BENCH_BUFFER_ITERS` | 200 |
+| `NEXA_BENCH_BUFFER_ITERS` | 200 (also controls population-only samples) |
 | `NEXA_BENCH_PREPARE_ITERS` | 200 |
 
 Iteration values are clamped to the range 1 through 1,000,000.
@@ -175,7 +175,7 @@ The output confirmed:
 | Full preparation, counting allocator | 200 | 3.547 ms | 17,736 ns |
 | Full preparation, system allocator | 200 | 2.798 ms | 13,988 ns |
 
-The helper reported a process working-set high-water mark of 3,170,304 bytes (3.02 MiB). The external measurement hold was zero milliseconds.
+The helper reported a process working-set high-water mark of 3,170,304 bytes (3.02 MiB). The external measurement hold was zero milliseconds. These historical measurements predate the isolated population-only phase.
 
 This verifies the layout and buffer iteration mappings. The preparation iteration count was previously fixed at the benchmark default of 200. The helper now exposes `-PreparationIterations` (default 200), allowing the complete preparation phases to be configured independently.
 
@@ -283,7 +283,7 @@ The external compiler integration tests reported success in the captured run. Th
 
 The current evidence is an initial baseline, not completion of all NCE-005b requirements.
 
-1. **Population-only measurement:** the new benchmark does not isolate population-only time for its own fixture. Its combined allocation-and-population phase is labelled accordingly. The old benchmark has a separate population-only phase, but on a different workload.
+1. **Population-only measurement:** an isolated population-only phase is now included for the same deterministic fixture. It allocates each destination before timing and reports setup allocator calls separately. The first measurements from this new phase still need to be collected and recorded.
 2. **Imports:** the new full-preparation fixture has no imports. An import-bearing deterministic preparation case remains outstanding.
 3. **Relocations:** the new full-preparation fixture has no relocation entries. A relocation-bearing deterministic preparation case remains outstanding.
 4. **Environment completeness:** CPU identity, core counts, and installed RAM were not captured successfully.
@@ -300,7 +300,7 @@ The current evidence is an initial baseline, not completion of all NCE-005b requ
 - Capture CPU model, core and logical processor counts, and installed memory.
 - Define and run a controlled repeated benchmark procedure; report distributions rather than selecting the best run.
 - Add deterministic import-bearing and relocation-bearing preparation fixtures where feasible.
-- Consider an isolated population-only phase using the same valid PE fixture.
+- Collect and record population-only measurements from the new same-fixture phase.
 - Collect low-end Windows and Linux resource baselines under NCE-005c.
 - Update the parent NCE-005 milestone with the evidence and remaining gaps before making compatibility or cost decisions under NCE-005d.
 
@@ -335,7 +335,7 @@ For a Windows working-set observation:
     -HoldMilliseconds 1000
 ```
 
-The helper's `-PlanIterations` parameter controls layout-planning iterations, and `-BufferIterations` controls allocation-related iterations. The preparation phase retains its benchmark default of 200 iterations.
+The helper's `-PlanIterations` parameter controls layout-planning iterations, `-BufferIterations` controls allocation and population-only iterations, and `-PreparationIterations` controls both complete preparation allocator phases.
 
 ## References
 
