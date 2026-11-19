@@ -17,15 +17,20 @@ if [[ ! -f "$BUILD_DIR/config/package-lists/nexaos-desktop.list.chroot" ]]; then
     exit 1
 fi
 
-if [[ ! -s "$ROOT_DIR/desktop/nexaos-welcome/nexaos_welcome.py" ]]; then
-    printf 'NexaOS Welcome application source is missing.\n' >&2
-    exit 1
-fi
+for source in nexaos_welcome.py nexaos_file_browser.py; do
+    if [[ ! -s "$ROOT_DIR/desktop/nexaos-welcome/$source" ]]; then
+        printf 'NexaOS desktop application source is missing: %s\n' "$source" >&2
+        exit 1
+    fi
+done
 
-# Keep the reviewed source canonical; stage it into live-build's chroot overlay.
+# Keep reviewed sources canonical; stage them into live-build's chroot overlay.
 install -D -m 0644 \
     "$ROOT_DIR/desktop/nexaos-welcome/nexaos_welcome.py" \
     "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos_welcome.py"
+install -D -m 0644 \
+    "$ROOT_DIR/desktop/nexaos-welcome/nexaos_file_browser.py" \
+    "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos_file_browser.py"
 mkdir -p "$ARTIFACT_DIR"
 cd "$BUILD_DIR"
 
