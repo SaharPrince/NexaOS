@@ -35,15 +35,18 @@ jobs:
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           awk 'NF && $1 !~ /^#/ { if (NF != 1) exit 1; count++ } END { if (count == 0) exit 1 }' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
 
-      - name: Install live-build host tools
+      - name: Install Debian live-build and host tools
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            live-build \
-            debootstrap \
             debian-archive-keyring \
+            debootstrap \
             xorriso \
             squashfs-tools
+          echo "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian trixie main" | sudo tee /etc/apt/sources.list.d/debian-trixie-live-build.list
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
+          live-build --version
 
       - name: Build preview ISO
         run: bash scripts/build-live-image.sh
