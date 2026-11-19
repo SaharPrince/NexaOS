@@ -17,7 +17,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt
 from nexaos_file_browser import FileBrowserDialog, SafeDirectoryReader
 
-from PyQt6.QtWidgets(
+from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QFrame,
