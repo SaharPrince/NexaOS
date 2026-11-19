@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""NexaOS Welcome: a lightweight LXQt-facing desktop hub.
+
+This application opens installed desktop settings and the file manager using
+fixed executable names and argument arrays. It never constructs shell commands
+and never executes Windows files. The .exe chooser is preview-only.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+def safe_display_name(value: str) -> str:
+    """Remove control characters before showing untrusted filenames."""
+    return "".join(char if char.isprintable() else "\uFFFD" for char in value)[:180]
+
+
+class NexaWelcome(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("NexaOS Welcome")
+        self.setMinimumSize(760, 520)
+        self.resize(900, 620)
+
+        root = QWidget(self)
+        root.setObjectName("root")
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(32, 28, 32, 28)
+        outer.setSpacing(18)
+
+        brand = QLabel("NexaOS")
+        brand.setObjectName("brand")
+        subtitle = QLabel("A familiar desktop. Your way.")
+        subtitle.setObjectName("subtitle")
+        outer.addWidget(brand)
+        outer.addWidget(subtitle)
+
+        status = QLabel(
+            "Your desktop is ready. Personalize your workspace or open your files."
+        )
+        status.setWordWrap(True)
+        status.setObjectName("status")
+        outer.addWidget(status)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(14)
+        outer.addLayout(grid)
+
+        self.file_button = self._tile(
+            "Open Files", "Browse documents, downloads, and folders.",
+            lambda: self._open_program("pcmanfm-qt"),
+        )
+        self.appearance_button = self._tile(
+            "Appearance", "Choose themes, icons, and desktop appearance.",
+            lambda: self._open_program("lxqt-config-appearance"),
+        )
+        self.display_button = self._tile(
+            "Display", "Adjust your screen and monitor settings.",
+            lambda: self._open_program("lxqt-config-monitor"),
+        )
+        self.input_button = self._tile(
+            "Keyboard & Mouse", "Configure keyboard and pointing devices.",
+            lambda: self._open_program("lxqt-config-input"),
+        )
+        self.settings_button = self._tile(
+            "System Settings", "Open the LXQt settings center.",
+            lambda: self._open_program("lxqt-config"),
+        )
+        self.preview_button = self._tile(
+            "Windows App Preview", "Inspect a selected .exe filename without running it.",
+            self._choose_executable,
+        )
+
+        for index, tile in enumerate((
+            self.file_button, self.appearance_button, self.display_button,
+            self.input_button, self.settings_button, self.preview_button,
+        )):
+            grid.addWidget(tile, index // 2, index % 2)
+
+        footer = QLabel(
+            "NexaOS preview • Windows application execution is not enabled"
+        )
+        footer.setObjectName("footer")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addStretch(1)
+        outer.addWidget(footer)
+        self.setCentralWidget(root)
+        self.setStyleSheet("""
+            QWidget#root { background: #101722; color: #edf3fb; }
+            QLabel#brand { color: #f5f8ff; font-size: 34px; font-weight: 700; }
+            QLabel#subtitle { color: #9fb4cc; font-size: 17px; }
+            QLabel#status { color: #d4deea; font-size: 14px; padding: 10px 0; }
+            QLabel#footer { color: #8093aa; font-size: 11px; padding-top: 10px; }
+            QFrame[tile="true"] {
+                background: #1a2737; border: 1px solid #2b3b50;
+                border-radius: 12px;
+            }
+            QFrame[tile="true"]:hover {
+                background: #22354a; border: 1px solid #5c8fc4;
+            }
+            QPushButton {
+                color: #f5f8ff; background: transparent; border: 0;
+                text-align: left; font-size: 16px; font-weight: 650;
+                padding: 16px 16px 4px 16px;
+            }
+            QPushButton:focus { border: 2px solid #83b8f0; border-radius: 8px; }
+            QLabel.tile-description {
+                color: #a9b9ca; font-size: 12px; padding: 0 16px 16px 16px;
+            }
+        """)
+
+    def _tile(self, title: str, description: str, callback) -> QFrame:
+        tile = QFrame()
+        tile.setProperty("tile", True)
+        layout = QVBoxLayout(tile)
+        layout.setContentsMargins(0, 8, 0, 0)
+        button = QPushButton(title)
+        button.setMinimumHeight(48)
+        button.clicked.connect(callback)
+        detail = QLabel(description)
+        detail.setProperty("class", "tile-description")
+        detail.setWordWrap(True)
+        detail.setContentsMargins(16, 0, 16, 12)
+        layout.addWidget(button)
+        layout.addWidget(detail)
+        tile.setMinimumHeight(118)
+        return tile
+
+    def _open_program(self, program: str) -> None:
+        executable = shutil.which(program)
+        if executable is None:
+            QMessageBox.warning(
+                self, "Not available",
+                f"{program} is not installed in this desktop image.",
+            )
+            return
+        try:
+            subprocess.Popen([executable], close_fds=True)
+        except OSError as error:
+            QMessageBox.critical(
+                self, "Could not open application",
+                f"The desktop application could not be started: {error}",
+            )
+
+    def _choose_executable(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose a Windows application", str(Path.home()),
+            "Windows executable (*.exe);;All files (*)",
+        )
+        if path:
+            self.show_executable_preview(path)
+
+    def show_executable_preview(self, path: str) -> None:
+        # The path is display-only. It is never passed to a process or shell.
+        name = safe_display_name(os.path.basename(path))
+        QMessageBox.information(
+            self, "Windows application preview",
+            f"Selected: {name}\n\n"
+            "This NexaOS preview can identify the selected file only. "
+            "Windows application execution is not available yet. "
+            "No process was started and the selected file was not executed.",
+        )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="NexaOS desktop welcome hub")
+    parser.add_argument(
+        "--self-test", action="store_true",
+        help="construct the desktop UI and run non-execution smoke assertions",
+    )
+    args = parser.parse_args()
+    app = QApplication(sys.argv[:1])
+    window = NexaWelcome()
+    if args.self_test:
+        assert window.windowTitle() == "NexaOS Welcome"
+        assert window.file_button is not None
+        assert window.preview_button is not None
+        assert "not available yet" in (
+            "Windows application execution is not available yet."
+        )
+        window.show_executable_preview("/tmp/example.exe")
+        # The self-test must not display a modal dialog or execute the fixture.
+        return 0
+    window.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
