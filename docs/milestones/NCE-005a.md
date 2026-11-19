@@ -179,6 +179,12 @@ A public project document at [tanepiper/game-frame, revision `c30e3fc95c748a8ec4
 
 Next steps, only if provenance and access rights can be established: identify the original publisher/source and exact *Planet of Death* release; determine whether the binary can lawfully be inspected and retained locally; obtain it only into local quarantine; record its SHA-256 and byte length; then run NexaOS's read-only inspector and layout planner and preserve the raw section-header evidence. Until those steps pass, the zero-`VirtualSize` real-world evidence gap remains open.
 
+### Additional independent tool report — Watcom lead; not NexaOS evidence
+
+A separate [Ghidra PE-loader issue #10088](https://github.com/NationalSecurityAgency/ghidra/issues/10088), opened 2026-11-01 and closed after a Ghidra fix on 2026-11-05, reports that some linkers including Watcom WLINK write zero to section `VirtualSize`. The reporter subsequently attached a small “hello, world” executable and identified it as built with Watcom C/C++ 11.0. The issue describes Ghidra's handling of section ranges and data directories; its statement about Windows mapping `SizeOfRawData` is a report by the issue author, not an independent Windows loader experiment.
+
+**Disposition: stronger candidate lead, still not an accepted sample.** The issue page does not provide a verified SHA-256, byte length, PE section table, source project/revision, or license/redistribution terms for the attachment. NexaOS has not retrieved or inspected it. Do not use the attachment as corpus evidence unless its provenance and rights are established independently; if those gates cannot be met, retain this as secondary corroboration only. The existing synthetic zero-`VirtualSize` regression tests remain the only verified NexaOS coverage for that planner policy.
+
 ## Real-world upstream sample validation — 2026-11-18
 
 Four individually published upstream Windows AMD64 PE binaries (three applications and one DLL) were downloaded to user-local quarantine directories outside the repository and inspected as data only. Each temporary integration test exercised parsing, image-layout planning, non-executable buffer allocation/population, DIR64 relocation planning, and relocation application. Each temporary test file was removed after its run. No sample was launched.
