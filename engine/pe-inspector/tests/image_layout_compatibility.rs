@@ -349,3 +349,18 @@ fn planner_currently_allows_non_overlapping_out_of_order_table_entries() {
     assert_eq!(plan.sections[1].name, ".text");
     assert_eq!(plan.sections[1].image_rva, 0x1000);
 }
+
+#[test]
+fn planner_rejects_overlapping_section_image_ranges() {
+    let input = report(vec![
+        section(".text", 0x2000, 0x1000, 0x2000, 0x200),
+        section(".data", 0x1000, 0x2000, 0x1000, 0x2200),
+    ]);
+
+    assert!(matches!(
+        plan_image_layout(&input, 0x3200, limits()),
+        Err(nexa_inspect::ImageLayoutError::Invalid(
+            "section image ranges overlap"
+        ))
+    ));
+}
