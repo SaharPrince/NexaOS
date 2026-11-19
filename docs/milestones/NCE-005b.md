@@ -106,7 +106,7 @@ Iteration values are clamped to the range 1 through 1,000,000.
 
 `NEXA_BENCH_HOLD_MS` controls the optional external-measurement hold and is clamped to a maximum of 30,000 milliseconds.
 
-The existing PowerShell helper, `scripts/measure-image-bench.ps1`, builds and launches the benchmark and samples the process working-set high-water mark. It reports that measurement separately from benchmark phase timings.
+The PowerShell helper, `scripts/measure-image-bench.ps1`, builds the benchmark once and launches a fresh benchmark process for each repeated run. It samples each process working-set high-water mark separately from benchmark phase timings. By default it performs five runs (`-Runs`, configurable from 1 through 20) and summarizes each phase and working-set samples with minimum, median, nearest-rank p90, and maximum. It also attempts to record CPU model, logical processor count, and installed physical memory; hardware inventory is explicitly marked unavailable if the Windows CIM query cannot be completed.
 
 **Helper configuration correction:** the PowerShell helper now maps `-PlanIterations` to `NEXA_BENCH_LAYOUT_ITERS`. The corrected mapping was verified with a run using 7 layout iterations and 3 buffer iterations. The helper now also exposes `-PreparationIterations` and maps it to `NEXA_BENCH_PREPARE_ITERS`; the previous process environment value is restored when the helper exits.
 
@@ -305,12 +305,12 @@ The current evidence is an initial baseline, not completion of all NCE-005b requ
 7. **Low-end hardware:** no 4-GB-class Windows or Linux baseline is included here.
 8. **Real-world corpus:** this benchmark uses a synthetic fixture and does not replace the separately documented NCE-005a real-world sample evidence.
 9. **Compatibility:** benchmark completion does not establish Windows loader compatibility or broad PE compatibility.
-10. **Helper configuration:** layout, buffer/population, and preparation iteration controls are exposed and the preparation setting is smoke-tested in Windows CI.
+10. **Helper configuration:** layout, buffer/population, preparation iteration, and repeated-run controls are exposed. Windows CI smoke-tests the helper with its repeated-run default, but those small smoke-test samples are not performance evidence.
 
 ## Follow-up work
 
 - Capture CPU model, core and logical processor counts, and installed memory.
-- Define and run a controlled repeated benchmark procedure; report distributions rather than selecting the best run.
+- Run the helper with representative iteration counts on a characterized host; record the repeated-run distributions and hardware inventory rather than selecting the best run.
 - Collect and record population-only measurements from the new same-fixture phase, plus import-bearing and relocation-bearing phase observations from a controlled Windows run.
 - Collect low-end Windows and Linux resource baselines under NCE-005c.
 - Update the parent NCE-005 milestone with the evidence and remaining gaps before making compatibility or cost decisions under NCE-005d.
