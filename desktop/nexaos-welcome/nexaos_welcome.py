@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from nexaos_file_browser import FileBrowserDialog\n\nfrom PyQt6.QtWidgets (
+from nexaos_file_browser import FileBrowserDialog\n\nfrom PyQt6.QtWidgets(
     QApplication,
     QFileDialog,
     QFrame,
