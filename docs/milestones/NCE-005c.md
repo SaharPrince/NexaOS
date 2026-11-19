@@ -53,6 +53,39 @@ Process maximum RSS (GNU `time`, KiB): min 2,268; median 2,332; nearest-rank p90
 
 These values are a small synthetic diagnostic baseline on a shared hosted runner. They are not statistically significant performance guarantees, not representative of a physical low-end device, and not evidence that one allocator is superior. Process maximum RSS is not total heap allocation, and it must not be directly equated with the Windows working-set metric collected by the separate Windows helper. The fixture does not establish real-world PE corpus coverage or loader compatibility.
 
+## Latest hardened-helper validation
+
+The latest helper validation was collected by workflow run [#404](https://github.com/SaharPrince/NexaOS/actions/runs/44469556444), at commit `67cac7c20266a0d6e89934f49d4a72770727bbcd`. All five workflow jobs passed, including the Linux repeated-resource-baseline job, formatting, Clippy with warnings denied, Windows tests, and external compiler PE layout checks. The Linux job verified that every fresh process emitted `execution: NOT_ATTEMPTED` and that all nine expected benchmark phases had exactly five samples.
+
+Raw transcript artifact: `nce-005c-hosted-linux-benchmark-44469556444-1` (artifact ID `14503451684`; seven-day retention).
+
+Runner inventory for this run:
+- OS/kernel: Linux `7.0.0-1016-aws` (Ubuntu hosted runner);
+- architecture: `x86_64`;
+- CPU: Intel(R) Xeon(R) 6975P-C;
+- logical processors: 4;
+- installed memory: 16,077,544 KiB;
+- Rust: `rustc 1.100.0`;
+- Cargo: `cargo 1.100.0`.
+
+Five fresh processes used 1,000 parse and layout iterations, 200 buffer and preparation iterations, and a 1,000 ms external hold. Repeated phase summaries (nanoseconds per iteration; min / median / nearest-rank p90 / max):
+
+| Phase | Min | Median | p90 | Max |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 981 | 1,004 | 1,010 | 1,010 |
+| Layout planning | 46 | 47 | 48 | 48 |
+| Image-buffer allocation | 97 | 98 | 103 | 103 |
+| Allocation and population | 127 | 129 | 136 | 136 |
+| Population only | 65 | 66 | 68 | 68 |
+| Full preparation, counting allocator | 1,352 | 1,412 | 1,483 | 1,483 |
+| Full preparation, system allocator | 1,308 | 1,369 | 1,478 | 1,478 |
+| Import-bearing preparation | 1,836 | 1,863 | 1,938 | 1,938 |
+| Relocation-bearing preparation | 1,409 | 1,447 | 1,552 | 1,552 |
+
+Process maximum RSS (GNU `time`, KiB): min 2,268; median 2,332; nearest-rank p90 2,332; max 2,332.
+
+This second hosted-runner sample is a separate observation, not a direct performance comparison with the earlier run because the runner CPU and kernel differ. It remains a synthetic CI baseline, not a physical low-end-device result. No execution was attempted.
+
 ## What the measurements mean
 
 Keep these metrics separate:
