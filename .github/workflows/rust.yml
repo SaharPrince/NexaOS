@@ -49,6 +49,21 @@ jobs:
           NEXA_BENCH_BUFFER_ITERS: 2
           NEXA_BENCH_PREPARE_ITERS: 2
         run: cargo bench --locked -p nexa-inspect --bench nexa_image
+      - name: Collect repeated NCE-005c Linux resource baseline
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+        shell: bash
+        run: |
+          mkdir -p target
+          bash ./scripts/measure-image-bench-linux.sh 5 | tee target/nce-005c-hosted-linux-benchmark.txt
+
+      - name: Upload hosted Linux benchmark observations
+        if: always() && matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nce-005c-hosted-linux-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/nce-005c-hosted-linux-benchmark.txt
+          if-no-files-found: warn
+          retention-days: 7
       - name: Inspect a compiler-produced PE32+ executable
         if: matrix.os == 'windows-latest'
         shell: pwsh
