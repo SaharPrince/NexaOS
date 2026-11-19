@@ -171,6 +171,14 @@ For any additional candidate considered for the corpus:
 6. Keep all binaries outside Git. Commit only metadata and license/provenance notes unless redistribution of the exact binary is separately approved.
 
 
+### 8. Zero-`VirtualSize` sample lead — unverified; do not treat as corpus evidence
+
+A public project document at [tanepiper/game-frame, revision `c30e3fc95c748a8ec44e3989faafc4220895cbab`](https://github.com/tanepiper/game-frame/blob/c30e3fc95c748a8ec44e3989faafc4220895cbab/docs/knowhow/pe-virtualsize-zero.md) describes an observation in `WINPOD.EXE`, associated with *Planet of Death* (1997): a section reportedly has `VirtualSize = 0` and a nonzero `SizeOfRawData`. The note says the observation was made on 2026-10-23 and attributes the behavior to a Watcom-built executable.
+
+**Disposition: candidate lead only, not a verified NexaOS sample.** The referenced project document is not the binary, and the repository does not establish the original game's binary provenance, exact release/source revision, redistribution rights, SHA-256, byte length, or independently reproducible PE section metadata. The GameFrame repository's Apache-2.0 project license must not be interpreted as licensing the referenced game executable. No binary was retrieved or executed.
+
+Next steps, only if provenance and access rights can be established: identify the original publisher/source and exact *Planet of Death* release; determine whether the binary can lawfully be inspected and retained locally; obtain it only into local quarantine; record its SHA-256 and byte length; then run NexaOS's read-only inspector and layout planner and preserve the raw section-header evidence. Until those steps pass, the zero-`VirtualSize` real-world evidence gap remains open.
+
 ## Real-world upstream sample validation — 2026-11-18
 
 Four individually published upstream Windows AMD64 PE binaries (three applications and one DLL) were downloaded to user-local quarantine directories outside the repository and inspected as data only. Each temporary integration test exercised parsing, image-layout planning, non-executable buffer allocation/population, DIR64 relocation planning, and relocation application. Each temporary test file was removed after its run. No sample was launched.
