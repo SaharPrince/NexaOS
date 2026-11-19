@@ -49,6 +49,12 @@ jobs:
           NEXA_BENCH_BUFFER_ITERS: 2
           NEXA_BENCH_PREPARE_ITERS: 2
         run: cargo bench --locked -p nexa-inspect --bench nexa_image
+      - name: Run duplicate zero-initialization diagnostic smoke test
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          NEXA_ZERO_INIT_ITERS: 5
+          NEXA_ZERO_INIT_BYTES: 8192
+        run: cargo bench --locked -p nexa-inspect --bench nexa_zero_init
       - name: Collect repeated NCE-005c Linux resource baseline
         if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
         shell: bash
