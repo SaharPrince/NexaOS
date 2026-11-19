@@ -5,11 +5,13 @@ on:
     paths:
       - "desktop/live-build/config/package-lists/**"
       - "scripts/build-live-image.sh"
+      - "scripts/smoke-boot-live-image.sh"
       - ".github/workflows/desktop-image.yml"
   pull_request:
     paths:
       - "desktop/live-build/**"
       - "scripts/build-live-image.sh"
+      - "scripts/smoke-boot-live-image.sh"
       - ".github/workflows/desktop-image.yml"
   workflow_dispatch:
 
@@ -32,6 +34,7 @@ jobs:
       - name: Validate build script and package list
         run: |
           bash -n scripts/build-live-image.sh
+          bash -n scripts/smoke-boot-live-image.sh
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           awk 'NF && $1 !~ /^#/ { if (NF != 1) exit 1; count++ } END { if (count == 0) exit 1 }' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
 
@@ -42,7 +45,11 @@ jobs:
             debian-archive-keyring \
             debootstrap \
             xorriso \
-            squashfs-tools
+            squashfs-tools \
+            qemu-system-x86 \
+            xvfb \
+            x11-apps \
+            imagemagick
           echo "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian trixie main" | sudo tee /etc/apt/sources.list.d/debian-trixie-live-build.list
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
@@ -51,12 +58,17 @@ jobs:
       - name: Build preview ISO
         run: bash scripts/build-live-image.sh
 
-      - name: Upload preview ISO and checksum
+      - name: Boot preview ISO in isolated QEMU VM
+        run: bash scripts/smoke-boot-live-image.sh
+
+      - name: Upload preview ISO, checksum, and VM evidence
         uses: actions/upload-artifact@v4
         with:
           name: nexaos-desktop-preview-amd64
           path: |
             artifacts/nexaos-preview-amd64.iso
             artifacts/nexaos-preview-amd64.iso.sha256
+            artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-smoke.log
           if-no-files-found: error
           retention-days: 3
