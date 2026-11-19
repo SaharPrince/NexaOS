@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from nexaos_file_browser import FileBrowserDialog\n\nfrom PyQt6.QtWidgets (
     QApplication,
     QFileDialog,
     QFrame,
@@ -75,7 +75,7 @@ class NexaWelcome(QMainWindow):
 
         self.file_button = self._tile(
             "Open Files", "Browse documents, downloads, and folders.",
-            lambda: self._open_program("pcmanfm-qt"),
+            self._open_file_browser,
         )
         self.appearance_button = self._tile(
             "Appearance", "Choose themes, icons, and desktop appearance.",
