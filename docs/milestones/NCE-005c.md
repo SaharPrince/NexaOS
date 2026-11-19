@@ -2,7 +2,7 @@
 
 ## Status
 
-**Hosted Linux CI baseline collected; physical low-end-device evidence pending. This milestone is open.**
+**Hosted Linux CI and one physical low-memory Windows laptop baseline collected; evidence review remains open. This milestone is open.**
 
 This milestone extends the synthetic, non-executing image-preparation measurements from NCE-005b. It does not authorize PE execution, loader behavior, planner acceptance changes, or new compatibility claims.
 
@@ -86,6 +86,45 @@ Process maximum RSS (GNU `time`, KiB): min 2,268; median 2,332; nearest-rank p90
 
 This second hosted-runner sample is a separate observation, not a direct performance comparison with the earlier run because the runner CPU and kernel differ. It remains a synthetic CI baseline, not a physical low-end-device result. No execution was attempted.
 
+## Physical Windows laptop baseline
+
+A repeated physical-device collection was completed on a legacy, low-memory laptop. The device is a credible low-memory test candidate (4 GiB installed RAM and an Intel Core i5-3210M); this single machine does not represent every low-end computer. The benchmark remains synthetic and non-executing.
+
+Device and environment inventory:
+- CPU: Intel(R) Core(TM) i5-3210M CPU @ 2.50GHz;
+- logical processors: 4;
+- installed memory: 4,195,192,832 bytes (approximately 3.91 GiB);
+- OS: Microsoft Windows 10 IoT Enterprise LTSC, version 10.0.19044, build 19044, 64-bit;
+- Rust: `rustc 1.100.0 (0ef1bc386 2026-11-09)`;
+- Cargo: `cargo 1.100.0 (3acc79c0c 2026-11-05)`;
+- Rust host: `x86_64-pc-windows-msvc`;
+- active power plan: High performance;
+- repository commit measured: `daf939ab33898016489ae2633b020e62228d6bca`;
+- repetitions: five fresh benchmark processes;
+- settings: 1,000 parse and layout iterations, 200 buffer and preparation iterations, 1,000 ms external hold.
+
+Repeated phase summaries (nanoseconds per iteration; min / median / nearest-rank p90 / max):
+
+| Phase | Min | Median | p90 | Max |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 11,715 | 14,098 | 16,252 | 16,252 |
+| Layout planning | 944 | 1,312 | 1,561 | 1,561 |
+| Image-buffer allocation | 1,086 | 1,786 | 3,383 | 3,383 |
+| Allocation and population | 1,810 | 2,141 | 4,235 | 4,235 |
+| Population only | 785 | 857 | 1,473 | 1,473 |
+| Full preparation, counting allocator | 14,612 | 16,993 | 17,989 | 17,989 |
+| Full preparation, system allocator | 14,371 | 15,376 | 18,131 | 18,131 |
+| Import-bearing preparation | 19,635 | 23,148 | 25,877 | 25,877 |
+| Relocation-bearing preparation | 14,536 | 18,431 | 20,812 | 20,812 |
+
+Windows benchmark-process working-set high-water mark (bytes): min 3,174,400; median 3,244,032; nearest-rank p90 3,645,440; max 3,645,440.
+
+All five runs reported `execution: NOT_ATTEMPTED`. Each 200-iteration image-buffer preparation phase requested 1,638,400 bytes across 200 logical allocator calls. These allocator counters are not process-wide heap allocations. The working-set values describe the benchmark process only and are not total system RAM consumption.
+
+The laptop's active power plan was High performance. Whether the machine was otherwise idle or under competing workload was not recorded; this is an evidence limitation. The original PowerShell transcript was saved locally as `NexaOS-NCE-005c-Laptop-Benchmark.txt` in the user's temporary directory. The values above were transcribed from the console output supplied for this review; the local transcript has not been uploaded to the repository.
+
+These measurements are one physical-device diagnostic baseline, not a performance guarantee, universal low-end threshold, real-world PE corpus result, or evidence of loader compatibility. They must not be compared directly with Linux GNU-time RSS values: Windows working set and Linux maximum RSS are different measurement sources and environments.
+
 ## What the measurements mean
 
 Keep these metrics separate:
@@ -98,7 +137,7 @@ The external hold interval is a sampling aid and is excluded from the benchmark 
 
 ## Physical low-end device evidence
 
-**Not yet collected.** Hosted CI cannot substitute for a real low-end machine. Before making any low-end readiness or resource-budget decision, collect repeated measurements on a representative physical device and record:
+**One physical low-memory Windows laptop baseline has been collected.** Hosted CI cannot substitute for physical-device evidence. The recorded laptop is a useful legacy low-memory test candidate, but one device is not a representative sample of all low-end hardware. Before making any low-end readiness or resource-budget decision, retain the following limitations and gather additional evidence where needed:
 
 - exact CPU model and architecture;
 - installed RAM and OS version/build;
@@ -122,8 +161,8 @@ A physical device with a clearly documented low-memory configuration is required
 
 - [x] Linux helper completes repeated fresh-process measurements and reports all expected phases and RSS summaries.
 - [x] Hosted Linux workflow run succeeds and its raw transcript artifact is retained.
-- [ ] A physical low-end device is identified and its hardware/software inventory is recorded.
-- [ ] Repeated physical-device measurements and raw output are recorded.
-- [ ] Evidence is reviewed before any resource budget, compatibility decision, or readiness claim is proposed.
+- [x] A physical low-memory laptop candidate is identified and its hardware/software inventory is recorded.
+- [x] Five repeated physical-device measurements and their phase/working-set summaries are recorded; the original transcript remains in the user's local temporary directory and has not been committed.
+- [ ] Device workload/idle state and additional evidence limitations are reviewed before any resource budget, compatibility decision, or readiness claim is proposed.
 
 NCE-005c remains open until the physical-device evidence and review are complete.
