@@ -22,3 +22,7 @@ harness = false
 [[bench]]
 name = "nexa_image_layout"
 harness = false
+
+[[bench]]
+name = "nexa_zero_init"
+harness = false
