@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """NexaOS Welcome: a lightweight LXQt-facing desktop hub.
 
-This application opens installed desktop settings and the file manager using
-fixed executable names and argument arrays. It never constructs shell commands
-and never executes Windows files. The .exe chooser is preview-only.
+This application provides a read-only home-folder browser and opens installed
+desktop settings through fixed executable paths. It never constructs shell
+commands and never executes Windows files. The .exe chooser is preview-only.
 """
 from __future__ import annotations
 
@@ -170,6 +170,7 @@ class NexaWelcome(QMainWindow):
                 self, "Could not open application",
                 f"The desktop application could not be started: {error}",
             )
+
     def _open_file_browser(self) -> None:
         browser = FileBrowserDialog(self)
         browser.exec()
@@ -225,10 +226,20 @@ def main() -> int:
             (root / "Documents").mkdir()
             (root / "notes.txt").write_text("preview fixture", encoding="utf-8")
             (root / ".hidden").write_text("hidden fixture", encoding="utf-8")
+            (root / "folder-link").symlink_to(root / "Documents", target_is_directory=True)
             reader = SafeDirectoryReader(root)
             entries, truncated = reader.list_entries(root)
             assert not truncated
-            assert [entry.name for entry in entries] == ["Documents", "notes.txt"]
+            assert [entry.name for entry in entries] == ["Documents", "folder-link", "notes.txt"]
+            assert next(entry for entry in entries if entry.name == "folder-link").is_symlink
+            try:
+                reader.validate_directory(root / "folder-link")
+            except OSError:
+                pass
+            else:
+                raise AssertionError("browser followed a symbolic link")
+            limited, truncated = SafeDirectoryReader(root, limit=1).list_entries(root)
+            assert len(limited) == 1 and truncated
             visible, _ = reader.list_entries(root, show_hidden=True)
             assert ".hidden" in [entry.name for entry in visible]
             try:
@@ -238,7 +249,7 @@ def main() -> int:
             else:
                 raise AssertionError("browser allowed navigation outside its root")
             browser = FileBrowserDialog(root=root)
-            assert browser.table.rowCount() == 2
+            assert browser.table.rowCount() == 3
             assert browser.current == root.resolve()
             browser.close()
         # The self-test creates no process and displays no modal dialog.
