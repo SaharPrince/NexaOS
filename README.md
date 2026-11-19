@@ -59,9 +59,12 @@ The active development branch is
 nce-005c/low-end-resource-baseline. **NCE-005 remains open** while its
 representative-corpus and compatibility/resource evidence gates are addressed.
 See [NCE-005](docs/milestones/NCE-005.md) for exact scope, limitations, and evidence.
-The [NCE-006 desktop and application-entry design](docs/milestones/NCE-006.md)
-records the intended Windows-familiar desktop and safe double-click launch workflow;
-it is a design baseline, not an implemented launcher.
+The [NCE-006 desktop and application-entry milestone](docs/milestones/NCE-006.md)
+records the desktop design and current implementation. A UI-independent desktop
+model now provides in-memory directory navigation, safe display-text handling,
+structured .exe launch requests, and a mock launcher that never creates processes
+or executes files. A graphical Nexa shell and real application runtime are not yet
+implemented.
 
 ## Build and inspect
 
