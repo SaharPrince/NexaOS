@@ -4,6 +4,8 @@ param(
     [int]$PlanIterations = 1000,
     [ValidateRange(1, 1000000)]
     [int]$BufferIterations = 100,
+    [ValidateRange(1, 1000000)]
+    [int]$PreparationIterations = 200,
     [ValidateRange(0, 30000)]
     [int]$HoldMilliseconds = 500
 )
@@ -14,6 +16,7 @@ Push-Location $repoRoot
 
 $previousLayoutIterations = $env:NEXA_BENCH_LAYOUT_ITERS
 $previousBufferIterations = $env:NEXA_BENCH_BUFFER_ITERS
+$previousPreparationIterations = $env:NEXA_BENCH_PREPARE_ITERS
 $previousHoldMilliseconds = $env:NEXA_BENCH_HOLD_MS
 
 try {
@@ -36,6 +39,7 @@ try {
 
     $env:NEXA_BENCH_LAYOUT_ITERS = "$PlanIterations"
     $env:NEXA_BENCH_BUFFER_ITERS = "$BufferIterations"
+    $env:NEXA_BENCH_PREPARE_ITERS = "$PreparationIterations"
     $env:NEXA_BENCH_HOLD_MS = "$HoldMilliseconds"
 
     Write-Host "Benchmark executable: $($benchmark.FullName)"
@@ -94,6 +98,7 @@ try {
 finally {
     $env:NEXA_BENCH_LAYOUT_ITERS = $previousLayoutIterations
     $env:NEXA_BENCH_BUFFER_ITERS = $previousBufferIterations
+    $env:NEXA_BENCH_PREPARE_ITERS = $previousPreparationIterations
     if ($null -ne $process) {
         $process.Dispose()
     }
