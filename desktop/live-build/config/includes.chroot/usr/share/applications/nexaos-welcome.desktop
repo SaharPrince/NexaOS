@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NexaOS Welcome
+Comment=Open files and personalize your NexaOS desktop
+Exec=/usr/bin/python3 /usr/lib/nexaos/nexaos_welcome.py
+Icon=computer
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true
