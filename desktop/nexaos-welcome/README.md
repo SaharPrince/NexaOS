@@ -11,7 +11,7 @@ The first graphical NexaOS desktop application for the Debian 13 + LXQt preview.
 
 ## Security boundary
 
-- Desktop utilities are started only by fixed executable names resolved from the system PATH and passed as argument arrays to `subprocess.Popen`.
+- Desktop utilities are started only through a fixed allowlist of absolute system executable paths and passed as argument arrays to `subprocess.Popen`.
 - No shell is invoked and user-provided filenames are never used to construct a command.
 - The Windows `.exe` chooser is informational only. It does not open, inspect, load, or execute the selected file.
 - No file association is registered for `.exe` files.
