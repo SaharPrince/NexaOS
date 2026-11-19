@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["engine/pe-inspector"]
+members = ["engine/pe-inspector", "engine/desktop-shell"]
 exclude = ["fuzz"]
 
 [workspace.package]
