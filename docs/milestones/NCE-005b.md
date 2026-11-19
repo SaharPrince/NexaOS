@@ -202,7 +202,7 @@ These five observations are a small diagnostic sample from a shared hosted runne
 
 ## Corrected helper verification
 
-The corrected PowerShell helper was run with:
+The PowerShell helper's iteration controls were previously smoke-tested with:
 
 ```powershell
 .\scripts\measure-image-bench.ps1 `
@@ -357,7 +357,7 @@ The current evidence is an initial baseline, not completion of all NCE-005b requ
 
 - Capture CPU model, core and logical processor counts, and installed memory.
 - Repeat the five-run helper measurement on the lab PC and compare only after recording its CPU, processor count, RAM, OS, and power-plan details.
-- Collect and record population-only measurements from the new same-fixture phase, plus import-bearing and relocation-bearing phase observations from a controlled Windows run.
+- Repeat the five-run benchmark on the lab PC and record population-only, import-bearing, and relocation-bearing observations alongside complete hardware inventory; the hosted-runner observations are already recorded above.
 - Collect low-end Windows and Linux resource baselines under NCE-005c.
 - Update the parent NCE-005 milestone with the evidence and remaining gaps before making compatibility or cost decisions under NCE-005d.
 
