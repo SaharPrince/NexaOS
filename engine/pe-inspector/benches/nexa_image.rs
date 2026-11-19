@@ -66,6 +66,9 @@ fn fixture() -> Vec<u8> {
 
 fn import_fixture() -> Vec<u8> {
     let mut bytes = fixture();
+    // Clear the descriptor, thunk, name, and IAT region so all PE terminators
+    // are valid zero-filled records rather than baseline section pattern data.
+    bytes[0x200..0x280].fill(0);
     let import_directory = 0x98 + 112 + 8;
     put32(&mut bytes, import_directory, 0x1000);
     put32(&mut bytes, import_directory + 4, 40);
