@@ -1,0 +1,11 @@
+[package]
+name = "nexa-desktop-shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Safe desktop file and mock-launcher interaction model for NexaOS"
+
+[lib]
+path = "src/lib.rs"
