@@ -337,11 +337,11 @@ fn planner_preserves_non_overlapping_section_gaps_without_requiring_adjacency() 
 #[test]
 fn planner_preserves_non_overlapping_sections_in_original_table_order() {
     let input = report(vec![
-        section(".data", 0x1000, 0x2000, 0x1000, 0x400),
+        section(".data", 0x1000, 0x2000, 0x1000, 0x1200),
         section(".text", 0x1000, 0x1000, 0x1000, 0x200),
     ]);
 
-    let plan = plan_image_layout(&input, 0x1400, limits()).unwrap();
+    let plan = plan_image_layout(&input, 0x2200, limits()).unwrap();
 
     assert_eq!(plan.sections.len(), 2);
     assert_eq!(plan.sections[0].name, ".data");
