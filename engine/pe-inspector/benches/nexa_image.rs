@@ -1,7 +1,8 @@
 use nexa_inspect::{
     allocate_image_buffer, inspect, plan_image_layout, populate_image_buffer, prepare_image,
-    ExportCatalogue, ExportCatalogueLimits, IatPatchPlanLimits, ImageAllocationError,
-    ImageAllocator, ImageLayoutLimits, ImagePreparationRequest, ImportResolutionLimits,
+    ExportCatalogue, ExportCatalogueLimits, ExportFunctionSlot, ExportModule,
+    ExportNameAssociation, IatPatchPlanLimits, ImageAllocationError, ImageAllocator,
+    ImageLayoutLimits, ImagePreparationRequest, ImportResolutionLimits, ParsedExportDirectory,
     RelocationPlanLimits, SystemImageAllocator,
 };
 use std::{
@@ -60,6 +61,62 @@ fn fixture() -> Vec<u8> {
 
     bytes[0x200..0x400].fill(0x5a);
     bytes
+}
+
+
+fn import_fixture() -> Vec<u8> {
+    let mut bytes = fixture();
+    let import_directory = 0x98 + 112 + 8;
+    put32(&mut bytes, import_directory, 0x1000);
+    put32(&mut bytes, import_directory + 4, 40);
+
+    // One import descriptor and its null terminator.
+    put32(&mut bytes, 0x200, 0x1040);
+    put32(&mut bytes, 0x20c, 0x1030);
+    put32(&mut bytes, 0x210, 0x1050);
+    bytes[0x230..0x23d].copy_from_slice(b"KERNEL32.dll\\0");
+    put64(&mut bytes, 0x240, 0x1060);
+    put64(&mut bytes, 0x248, 0);
+    bytes[0x260..0x26d].copy_from_slice(b"\\0\\0ExitProcess");
+    bytes[0x26d] = 0;
+    bytes
+}
+
+fn relocation_fixture() -> Vec<u8> {
+    let mut bytes = fixture();
+    let relocation_directory = 0x98 + 112 + 5 * 8;
+    put32(&mut bytes, relocation_directory, 0x1100);
+    put32(&mut bytes, relocation_directory + 4, 10);
+
+    put64(&mut bytes, 0x280, 0x1_4000_1234);
+    put32(&mut bytes, 0x300, 0x1000);
+    put32(&mut bytes, 0x304, 10);
+    put16(&mut bytes, 0x308, 0xa080);
+    bytes
+}
+
+fn import_catalogue() -> ExportCatalogue {
+    ExportCatalogue::new(
+        vec![ExportModule {
+            name: "KERNEL32.dll".into(),
+            directory: ParsedExportDirectory {
+                module_name: Some("KERNEL32.dll".into()),
+                ordinal_base: 1,
+                functions: vec![ExportFunctionSlot {
+                    ordinal: 1,
+                    function_rva: Some(0x1234),
+                    forwarder: None,
+                }],
+                names: vec![ExportNameAssociation {
+                    name: "ExitProcess".into(),
+                    function_index: 0,
+                    ordinal: 1,
+                }],
+            },
+        }],
+        ExportCatalogueLimits::default(),
+    )
+    .expect("synthetic export catalogue must be valid")
 }
 
 #[derive(Default)]
@@ -275,9 +332,69 @@ fn main() {
         },
     );
 
+
+    // Exercise import resolution and relocation planning/application with
+    // separate deterministic fixtures. Prepared images remain data only.
+    let import_input = import_fixture();
+    let import_report = inspect(&import_input).expect("import fixture must parse");
+    assert_eq!(import_report.import_metadata.len(), 1);
+    assert_eq!(import_report.import_metadata[0].symbols.len(), 1);
+    let import_catalogue = import_catalogue();
+    let import_request = || ImagePreparationRequest {
+        input: &import_input,
+        requested_image_base: IMAGE_BASE,
+        layout_limits: limits,
+        max_image_size: IMAGE_SIZE,
+        export_catalogue: &import_catalogue,
+        import_limits: ImportResolutionLimits::default(),
+        iat_limits: IatPatchPlanLimits::default(),
+        relocation_limits: RelocationPlanLimits::default(),
+    };
+    println!("import_fixture: libraries={}, symbols={}",
+        import_report.import_metadata.len(), import_report.import_metadata[0].symbols.len());
+    let mut import_allocator = CountingAllocator::default();
+    measure("prepare_image_import_bearing_counting_allocator", prepare_count, || {
+        let prepared = prepare_image(import_request(), &mut import_allocator)
+            .expect("import-bearing preparation must succeed");
+        assert_eq!(prepared.iat_patch_plan().patches.len(), 1);
+        black_box(prepared.image_bytes());
+    });
+    println!("import_prepare_allocator_calls: {}", import_allocator.calls);
+    println!("import_prepare_allocator_requested_bytes: {}", import_allocator.requested_bytes);
+
+    let relocation_input = relocation_fixture();
+    let relocation_report = inspect(&relocation_input).expect("relocation fixture must parse");
+    assert_eq!(relocation_report.relocation_entries, 1);
+    let relocation_catalogue = ExportCatalogue::new(
+        Vec::new(), ExportCatalogueLimits::default()
+    ).expect("empty export catalogue must be valid");
+    let relocation_request = || ImagePreparationRequest {
+        input: &relocation_input,
+        requested_image_base: IMAGE_BASE + 0x0100_0000,
+        layout_limits: limits,
+        max_image_size: IMAGE_SIZE,
+        export_catalogue: &relocation_catalogue,
+        import_limits: ImportResolutionLimits::default(),
+        iat_limits: IatPatchPlanLimits::default(),
+        relocation_limits: RelocationPlanLimits::default(),
+    };
+    println!("relocation_fixture: entries={}", relocation_report.relocation_entries);
+    let mut relocation_allocator = CountingAllocator::default();
+    measure("prepare_image_relocation_bearing_counting_allocator", prepare_count, || {
+        let prepared = prepare_image(relocation_request(), &mut relocation_allocator)
+            .expect("relocation-bearing preparation must succeed");
+        let relocated_value = u64::from_le_bytes(
+            prepared.image_bytes()[0x1080..0x1088].try_into().unwrap()
+        );
+        assert_eq!(relocated_value, 0x1_4100_1234);
+        black_box(prepared.image_bytes());
+    });
+    println!("relocation_prepare_allocator_calls: {}", relocation_allocator.calls);
+    println!("relocation_prepare_allocator_requested_bytes: {}", relocation_allocator.requested_bytes);
+
     println!("measurement_scope: wall-clock elapsed time and logical image allocator calls");
     println!("not_measured: process-wide heap allocations, peak RSS, cold-start effects, loader compatibility");
-    println!("fixture_limit: no imports or relocations; this is a baseline, not real-world corpus coverage");
+    println!("fixture_limit: deterministic synthetic baseline plus separate import-bearing and relocation-bearing cases; not real-world corpus coverage");
 
     // Keep the process alive for an external working-set sampler if requested.
     let hold_ms = std::env::var("NEXA_BENCH_HOLD_MS")
