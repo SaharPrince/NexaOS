@@ -2,7 +2,7 @@
 
 ## Status
 
-**Hosted Linux CI and one physical low-memory Windows laptop baseline collected; physical-device collection and review are complete for this single-device diagnostic baseline. NCE-005c remains open only for project-level review and closeout.**
+**Physical-device collection and review are complete for this single-device diagnostic baseline. Final branch validation passed in workflow run [#408](https://github.com/SaharPrince/NexaOS/actions/runs/44493932243), with all five jobs successful. NCE-005c is complete as a single-device diagnostic baseline; the broader NCE-005 milestone remains open.**
 
 This milestone extends the synthetic, non-executing image-preparation measurements from NCE-005b. It does not authorize PE execution, loader behavior, planner acceptance changes, or new compatibility claims.
 
@@ -165,4 +165,4 @@ The collected device has a clearly documented low-memory configuration and is re
 - [x] Five repeated physical-device measurements and their phase/working-set summaries are recorded; the original transcript remains in the user's local temporary directory and has not been committed.
 - [x] Device workload/idle state is explicitly recorded as unknown, and additional evidence limitations are documented; no resource budget, compatibility decision, or general readiness claim is made from this single-device sample.
 
-NCE-005c physical-device collection and evidence review are recorded as complete for this single-device diagnostic baseline. The milestone remains open pending any remaining project-level review; no general low-end readiness, resource-budget, or compatibility conclusion is authorized by these measurements.
+NCE-005c physical-device collection, evidence review, project-level closeout review, and final branch validation are complete for this single-device diagnostic baseline. Workflow run [#408](https://github.com/SaharPrince/NexaOS/actions/runs/44493932243) passed all five jobs at the documentation-review commit. This closes NCE-005c only; the broader NCE-005 milestone remains open for the corpus and compatibility evidence gaps recorded in `docs/milestones/NCE-005.md`. No general low-end readiness, resource-budget, or compatibility conclusion is authorized by these measurements.
