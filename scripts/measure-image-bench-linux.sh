@@ -40,10 +40,33 @@ echo "buffer_iterations=$NEXA_BENCH_BUFFER_ITERS"
 echo "preparation_iterations=$NEXA_BENCH_PREPARE_ITERS"
 echo "hold_milliseconds=$NEXA_BENCH_HOLD_MS"
 
-cargo bench --locked -p nexa-inspect --bench nexa_image --no-run
-BENCH="$(find target/release/deps -maxdepth 1 -type f -name 'nexa_image-*' -executable -print | sort | tail -n 1)"
-if [[ -z "$BENCH" ]]; then
-  echo "could not locate executable nexa_image benchmark under target/release/deps" >&2
+# Ask Cargo for the actual executable path instead of assuming the target
+# directory layout (which may include a target triple or custom target dir).
+cargo bench --locked -p nexa-inspect --bench nexa_image --no-run --message-format=json > "$TMP/cargo-build.jsonl"
+BENCH="$(python3 - "$TMP/cargo-build.jsonl" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as stream:
+    for line in stream:
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if message.get("reason") != "compiler-artifact":
+            continue
+        target = message.get("target", {})
+        if "bench" in target.get("kind", []) and target.get("name") == "nexa_image":
+            executable = message.get("executable")
+            if executable:
+                print(executable)
+                break
+PY
+)"
+if [[ -z "$BENCH" || ! -x "$BENCH" ]]; then
+  echo "Cargo did not report an executable nexa_image benchmark" >&2
+  cat "$TMP/cargo-build.jsonl" >&2
   exit 1
 fi
 echo "benchmark_executable=$BENCH"
