@@ -175,7 +175,7 @@ class NexaWelcome(QMainWindow):
         # The path is display-only. It is never passed to a process or shell.
         name = safe_display_name(os.path.basename(path))
         return (
-            f"Selected: {name}\\n\\n"
+            f"Selected: {name}\n\n"
             "This NexaOS preview can identify the selected file only. "
             "Windows application execution is not available yet. "
             "No process was started and the selected file was not executed."
