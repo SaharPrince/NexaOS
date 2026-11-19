@@ -82,13 +82,11 @@ impl DirectoryModel {
                 EntryKind::Directory => 0,
                 EntryKind::File => 1,
             };
-            rank(left.kind)
-                .cmp(&rank(right.kind))
-                .then_with(|| {
-                    left.display_name
-                        .to_lowercase()
-                        .cmp(&right.display_name.to_lowercase())
-                })
+            rank(left.kind).cmp(&rank(right.kind)).then_with(|| {
+                left.display_name
+                    .to_lowercase()
+                    .cmp(&right.display_name.to_lowercase())
+            })
         });
         Self {
             current_directory,
@@ -229,7 +227,10 @@ impl MockLauncher {
 
     /// Cancellation updates only mock state; no process exists to interrupt.
     pub fn cancel(&mut self, id: RequestId) -> Result<LaunchRecord, LaunchError> {
-        let record = self.records.get_mut(&id).ok_or(LaunchError::UnknownRequest)?;
+        let record = self
+            .records
+            .get_mut(&id)
+            .ok_or(LaunchError::UnknownRequest)?;
         if record.status == LaunchStatus::Cancelled {
             return Err(LaunchError::RequestAlreadyCancelled);
         }
@@ -270,10 +271,7 @@ mod tests {
         assert_eq!(view.entries()[2].display_name(), "z.exe");
         assert_eq!(view.select(1), Ok(()));
         assert_eq!(view.selected().unwrap().display_name(), "a.txt");
-        assert_eq!(
-            view.select(99),
-            Err(DirectoryError::SelectionOutOfRange)
-        );
+        assert_eq!(view.select(99), Err(DirectoryError::SelectionOutOfRange));
         view.clear_selection();
         assert!(view.selected().is_none());
     }
