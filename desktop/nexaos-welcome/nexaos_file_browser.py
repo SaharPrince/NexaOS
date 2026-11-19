@@ -52,6 +52,13 @@ class SafeDirectoryReader:
             raise ValueError("The browser root must be a directory.")
         if limit < 1:
             raise ValueError("The entry limit must be positive.")
+        if (
+            not hasattr(os, "O_DIRECTORY")
+            or not hasattr(os, "O_NOFOLLOW")
+            or os.open not in os.supports_dir_fd
+            or os.scandir not in os.supports_fd
+        ):
+            raise RuntimeError("This browser requires safe descriptor-relative directory access.")
         self.limit = limit
 
     def _open_directory(self, candidate: Path) -> tuple[Path, int]:
@@ -63,8 +70,7 @@ class SafeDirectoryReader:
         except ValueError as error:
             raise PermissionError("This location is outside the allowed home folder.") from error
 
-        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
         descriptor = os.open(self.root, flags)
         try:
             for component in relative.parts:
