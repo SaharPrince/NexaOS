@@ -1,49 +1,63 @@
 # NexaOS
 
 NexaOS is an experimental Linux-based operating system project focused on running
-Windows user applications and games through an independently developed user-mode
+Windows user applications and games through an independently developed
 compatibility engine, without requiring a Windows virtual machine for normal use.
 
-**Implementation status: early development.** Compatibility, performance, hardware
-support, and low-memory targets are goals—not achieved guarantees.
+**Implementation status: early development.** Nexa currently has a Rust PE
+inspection and non-executing image-preparation foundation. It is not yet a
+general-purpose Windows application runtime or installable desktop OS. Compatibility,
+performance, hardware support, and low-memory targets remain goals—not guarantees.
 
-## Project principles
+## Product goals
 
-- Linux remains the host operating-system foundation.
-- Build an original compatibility engine; do not present a repackaged Wine build as
-  the Nexa engine.
-- Start with x86-64 Windows PE executables and grow API coverage incrementally.
-- Never claim that every Windows application, driver, or game will work.
-- Windows kernel drivers and publisher-controlled kernel anti-cheat require
-  appropriate native support; user-mode API compatibility cannot solve those cases.
-- Security, evidence-based compatibility reporting, and low-resource measurements
-  are first-class requirements.
-- Keep optional runtime components demand-driven; avoid background services and
-  unbounded caches that consume resources when no Windows application is running.
+- **Familiar desktop:** make the desktop, file handling, settings, and everyday
+  workflows feel natural to people switching from Windows.
+- **Simple launching:** the intended experience is double-clicking a Windows .exe
+  in the file manager, with no command-line setup and minimal avoidable launch delay.
+- **Broad compatibility:** progressively support ordinary Windows applications,
+  productivity software, and games; report compatibility by app/version rather than
+  claiming every program works.
+- **Lightweight operation:** keep idle CPU/RAM use, background services, storage
+  footprint, and launch overhead low, especially on modest hardware.
+- **Original engineering:** build Nexa's own compatibility components; do not
+  misrepresent a repackaged Wine build as the Nexa engine.
+- **Linux foundation:** use the Linux kernel and its hardware-driver ecosystem as
+  the host foundation. Windows kernel drivers cannot be replaced by user-mode API
+  compatibility.
 
-## Current milestone: NCE-001 — Nexa PE Inspector
+## Anti-cheat and account-safety requirements
 
-A read-only Rust tool that identifies and inspects Windows Portable Executable
-(PE) files. It does not execute files or load DLLs.
+Anti-cheat compatibility is a high-risk, publisher-controlled area—not something
+NexaOS may force by bypassing protections.
 
-Initial scope:
-- DOS, COFF, and PE optional headers
-- PE32 / PE32+ and machine architecture identification
-- Section table and data-directory inspection
-- Import and export metadata
-- Base-relocation directory summary
-- Human-readable and JSON output
-- Bounds-checked parsing and malformed-input tests
+- Support anti-cheat only through legitimate, vendor- and publisher-approved
+  compatibility paths.
+- Never bypass, spoof, disable, or tamper with anti-cheat, protected processes,
+  game memory, or security drivers.
+- Fail closed when required anti-cheat support is absent, uncertain, or reports an
+  integrity problem; do not repeatedly retry or silently force a launch.
+- Clearly distinguish verified, unverified, and unsupported game configurations.
+- Do not use a user's primary gaming account as a compatibility test account.
+  Use vendor-approved test arrangements where available.
+- Treat account protection as a design objective, not an absolute guarantee:
+  third-party publishers control detection and enforcement, so no OS can promise
+  that an account will never be flagged or restricted.
 
-## Next milestone design: NCE-002 — PE Image Layout
+## Current engineering status
 
-The [NCE-002 design specification](docs/milestones/NCE-002.md) defines the staged,
-bounded design for laying out PE32+ AMD64 images in non-executable memory. It is a
-design document, not an implemented loader. The first implementation stages will
-plan and verify image layouts before any memory population; no Windows code will
-be executed by NCE-002.
+The repository contains the NCE PE inspection, bounded image-layout planning,
+non-executable image population, explicit-catalogue import modelling, relocation
+planning/application, and transactional image-preparation foundations. These
+produce data only: they do not launch Windows applications, load Windows DLLs,
+create executable mappings, or transfer control to PE entry points.
 
-## Build
+The active development branch is
+nce-005c/low-end-resource-baseline. **NCE-005 remains open** while its
+representative-corpus and compatibility/resource evidence gates are addressed.
+See [NCE-005](docs/milestones/NCE-005.md) for exact scope, limitations, and evidence.
+
+## Build and inspect
 
 Requires a stable Rust toolchain.
 
@@ -53,33 +67,40 @@ cargo run -p nexa-inspect -- inspect path/to/program.exe
 cargo run -p nexa-inspect -- inspect --json path/to/program.exe
 ```
 
-The inspector only reads the selected file. **Execution: NOT ATTEMPTED.**
+The inspector reads the selected file as data only. **Execution: NOT ATTEMPTED.**
+
+## Development priorities
+
+To reach a useful user experience without spending time on low-value work, prioritize
+in this order:
+
+1. Close the remaining NCE-005 evidence gates with a small, provenance- and
+   license-reviewed sample set. Do not expand benchmarks or corpus work without a
+   decision they can inform.
+2. Design and implement the smallest safe end-to-end Windows user-mode application
+   compatibility slice, with explicit boundaries, failure handling, and measurable
+   launch/resource costs.
+3. Add the common Win32, process, memory, file, thread, synchronization, and DLL
+   behaviors required by real applications; expand from purpose-built test programs
+   to appropriately licensed applications.
+4. Add the familiar desktop integration and double-click .exe launch workflow.
+5. Expand graphics, input, audio, and game compatibility. Treat kernel anti-cheat
+   support as a separate vendor-approval gate.
+6. Engineer installation, updates, recovery, hardware support, and release-quality
+   distribution.
+
+Use risk-based validation: spend test effort on memory safety, bounds, privilege
+boundaries, data integrity, failure recovery, and regressions that could affect a
+user's machine. Avoid duplicative benchmarks and low-value repeated checks. Never
+trade away system safety to make a compatibility test pass.
 
 ## Continuous validation
 
-GitHub Actions automatically checks changes on the development branch and pull
-requests targeting `main`:
+GitHub Actions checks Rust formatting, workspace tests on Linux and Windows,
+Clippy, bounded parser fuzzing, and Rust dependency advisories. Keep required
+correctness and security checks; use targeted validation for documentation-only
+or isolated changes when full CI adds no meaningful protection.
 
-- Rust formatting, including the isolated fuzz target
-- Workspace tests and CLI startup on Linux and Windows
-- Clippy with warnings denied
-- A bounded PE parser fuzz run
-- Rust dependency advisory audits for both the main workspace and fuzz harness
-
-Dependency audits also run weekly. Dependabot proposes weekly updates for Cargo
-and GitHub Actions dependencies; proposed updates must pass the same checks
-before they are accepted.
-
-## Roadmap
-
-- [ ] NCE-001: PE inspector
-- [ ] NCE-002: PE image layout and memory-loader design
-- [ ] NCE-003: Import/export resolution model
-- [ ] NCE-004: Windows x64 ABI bridge
-- [ ] NCE-005: First purpose-built Windows test executable
-- [ ] NCE-006: Initial GUI compatibility surface
-- [ ] NCE-007: Broader user-mode application compatibility
-- [ ] NCE-008: Graphics, input, audio, and publisher-supported game compatibility
-- [ ] NCE-009: NexaOS distribution engineering
-
-Milestones are not complete until their acceptance tests and documentation pass.
+Milestones are complete only when their stated acceptance criteria and evidence
+are satisfied. No universal Windows compatibility, anti-cheat safety, or
+performance claim should be made without supporting evidence.
