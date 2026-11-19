@@ -128,6 +128,19 @@ The PowerShell queries for CPU and installed memory returned no property values 
 
 The exact benchmark host hardware cannot be fully characterized from this evidence.
 
+A separate GitHub-hosted Windows measurement was collected in [Actions run #394](https://github.com/SaharPrince/NexaOS/actions/runs/44463113688), from commit `46ce9e5cebfccaba46f4b1941bf885d8d08e04ad`. This is a hosted CI runner, not the previously described lab PC.
+
+| Property | Hosted runner observation |
+|---|---|
+| OS build | Windows 10.0.26100 |
+| Architecture | 64-bit |
+| PowerShell | 7.6.9 |
+| CPU | Intel Xeon Platinum 8573C |
+| Logical processors | 4 |
+| Installed memory | 17,174,360,064 bytes (about 15.99 GiB) |
+
+The hosted-runner results below must not be combined with the lab-PC observations as though they came from the same hardware.
+
 ## End-to-end timing observations
 
 The following are observed per-iteration averages from separate runs of the new benchmark. Values are nanoseconds per iteration.
@@ -166,6 +179,26 @@ Another validation run reported:
 | Allocation and population | 200 | 0.324 ms | 1,622 ns |
 
 These phase timings are also diagnostic observations and should not be treated as stable performance guarantees.
+
+### Five-run GitHub-hosted Windows sample
+
+The helper ran five fresh benchmark processes with 1,000 parse iterations, 1,000 layout iterations, 200 buffer iterations, 200 preparation iterations, and a 1,000 ms external sampling hold per process. The table reports nanoseconds per iteration; p90 uses the nearest-rank method.
+
+| Phase | Minimum | Median | p90 | Maximum |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 2,865 | 2,928 | 3,291 | 3,291 |
+| Layout planning | 288 | 309 | 325 | 325 |
+| Image-buffer allocation | 254 | 257 | 407 | 407 |
+| Allocation and population | 364 | 434 | 584 | 584 |
+| Population only | 215 | 245 | 307 | 307 |
+| Full preparation, counting allocator | 3,713 | 3,805 | 3,955 | 3,955 |
+| Full preparation, system allocator | 3,746 | 3,821 | 3,930 | 3,930 |
+| Import-bearing preparation | 5,128 | 5,224 | 5,282 | 5,282 |
+| Relocation-bearing preparation | 4,007 | 4,071 | 4,175 | 4,175 |
+
+The import workload contained one library and one named symbol. The relocation workload contained one DIR64 entry. Each preparation iteration requested one 8,192-byte image buffer; each 200-iteration phase therefore recorded 200 allocator calls and 1,638,400 requested bytes.
+
+These five observations are a small diagnostic sample from a shared hosted runner. They do not establish statistical significance, predict lab-PC performance, or support a general claim that one allocator or workload is faster.
 
 ## Corrected helper verification
 
@@ -206,6 +239,8 @@ The benchmark reported:
 | Allocation-only phase | 200 | 1,638,400 |
 | Allocation and population | 200 | 1,638,400 |
 | Full preparation with counting allocator | 200 | 1,638,400 |
+| Import-bearing preparation | 200 | 1,638,400 |
+| Relocation-bearing preparation | 200 | 1,638,400 |
 
 These counters describe the image-buffer allocator interface. They do not represent process-wide allocation totals or peak memory consumption.
 
@@ -224,6 +259,17 @@ Three captured observations were:
 | C | 3,178,496 | 3.03 |
 
 These values are the Windows process working-set high-water marks reported by the helper for the benchmark process.
+
+The separate five-run hosted Windows sample in Actions run #394 reported:
+
+| Statistic | Peak working-set bytes |
+|---|---:|
+| Minimum | 3,792,896 |
+| Median | 3,796,992 |
+| Nearest-rank p90 | 3,813,376 |
+| Maximum | 3,813,376 |
+
+This remains a benchmark-process working-set observation only. It is not a process-wide allocation count, private-byte peak, or full application memory measurement.
 
 They are not measurements of:
 
@@ -296,12 +342,12 @@ The external compiler integration tests reported success in the captured run. Th
 
 The current evidence is an initial baseline, not completion of all NCE-005b requirements.
 
-1. **Population-only measurement:** an isolated population-only phase is now included for the same deterministic fixture. It allocates each destination before timing and reports setup allocator calls separately. The first measurements from this new phase still need to be collected and recorded.
-2. **Imports:** a separate one-library/one-symbol synthetic import-bearing preparation case is now included and CI-smoke-tested. It is not a real-world import corpus.
-3. **Relocations:** a separate one-entry DIR64 synthetic relocation-bearing preparation case is now included and CI-smoke-tested. It does not establish broad relocation compatibility.
-4. **Environment completeness:** CPU identity, core counts, and installed RAM were not captured successfully.
-5. **Statistical repeatability:** the observations show run-to-run variation. A controlled repeated-run procedure with summarized distributions remains outstanding.
-6. **Memory coverage:** only Windows process working-set high-water observations were collected. Process-wide allocation counts, peak RSS on other platforms, and broader application memory behavior remain unmeasured.
+1. **Population-only measurement:** an isolated population-only phase is included for the same deterministic fixture and has five-run hosted Windows observations recorded above. A separate run on the lab PC remains useful for hardware-specific comparison.
+2. **Imports:** a separate one-library/one-symbol synthetic import-bearing preparation case is included and has five-run hosted Windows observations. It is not a real-world import corpus.
+3. **Relocations:** a separate one-entry DIR64 synthetic relocation-bearing preparation case is included and has five-run hosted Windows observations. It does not establish broad relocation compatibility.
+4. **Environment completeness:** CPU model, logical processor count, and installed memory were captured for the GitHub-hosted runner. The older lab-PC capture still lacks CPU identity, core counts, and installed RAM.
+5. **Statistical repeatability:** the helper now records five-run min/median/p90/max summaries, and one hosted Windows sample is recorded. Larger controlled samples and a separate lab-PC run remain outstanding.
+6. **Memory coverage:** Windows benchmark-process working-set high-water observations were collected on the lab PC and hosted runner. Process-wide allocation counts, peak RSS on Linux, and broader application memory behavior remain unmeasured.
 7. **Low-end hardware:** no 4-GB-class Windows or Linux baseline is included here.
 8. **Real-world corpus:** this benchmark uses a synthetic fixture and does not replace the separately documented NCE-005a real-world sample evidence.
 9. **Compatibility:** benchmark completion does not establish Windows loader compatibility or broad PE compatibility.
@@ -310,7 +356,7 @@ The current evidence is an initial baseline, not completion of all NCE-005b requ
 ## Follow-up work
 
 - Capture CPU model, core and logical processor counts, and installed memory.
-- Run the helper with representative iteration counts on a characterized host; record the repeated-run distributions and hardware inventory rather than selecting the best run.
+- Repeat the five-run helper measurement on the lab PC and compare only after recording its CPU, processor count, RAM, OS, and power-plan details.
 - Collect and record population-only measurements from the new same-fixture phase, plus import-bearing and relocation-bearing phase observations from a controlled Windows run.
 - Collect low-end Windows and Linux resource baselines under NCE-005c.
 - Update the parent NCE-005 milestone with the evidence and remaining gaps before making compatibility or cost decisions under NCE-005d.
