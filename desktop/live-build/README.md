@@ -37,8 +37,22 @@ bash scripts/build-live-image.sh
 
 The script clears generated live-build stages, configures Debian Trixie, builds
 an amd64 hybrid ISO, and writes the image and SHA-256 checksum to
-`artifacts/`. The GitHub Actions workflow performs the same build and uploads
-the preview artifact for a short retention period.
+`artifacts/`. The GitHub Actions workflow then boots that ISO in an isolated
+QEMU VM with networking disabled. The smoke test observes the VM for 150 seconds
+and saves a framebuffer screenshot plus QEMU log in `artifacts/`. The workflow
+uploads the ISO, checksum, screenshot, and log for a short retention period.
+
+Run the VM smoke test locally after building (requires QEMU, Xvfb, x11-apps,
+ImageMagick, and a Linux host):
+
+```sh
+bash scripts/smoke-boot-live-image.sh
+```
+
+This is an early boot/framebuffer smoke test, not proof of a usable LXQt login,
+working input devices, networking, physical-hardware support, or Windows-app
+compatibility. Inspect the captured screenshot and log; do not install the live
+image to a host disk.
 
 ## Safety and limitations
 
