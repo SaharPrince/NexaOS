@@ -291,21 +291,21 @@ mod tests {
             LaunchError::PathMustBeAbsolute
         );
         assert_eq!(
-            LaunchRequest::new(PathBuf::from("/tmp/app.txt")).unwrap_err(),
+            LaunchRequest::new(std::env::temp_dir().join("app.txt")).unwrap_err(),
             LaunchError::UnsupportedFileType
         );
         assert_eq!(
             LaunchRequest::new(PathBuf::from("")).unwrap_err(),
             LaunchError::EmptyPath
         );
-        assert!(LaunchRequest::new(PathBuf::from("/tmp/App.EXE")).is_ok());
+        assert!(LaunchRequest::new(std::env::temp_dir().join("App.EXE")).is_ok());
     }
 
     #[test]
     fn mock_launcher_never_starts_a_process_and_can_cancel_preview() {
         let mut launcher = MockLauncher::new();
         let record = launcher
-            .submit(LaunchRequest::new(PathBuf::from("/tmp/game.exe")).unwrap())
+            .submit(LaunchRequest::new(std::env::temp_dir().join("game.exe")).unwrap())
             .unwrap();
         assert_eq!(record.status, LaunchStatus::PreviewOnly);
         assert!(record.explanation.contains("no process was created"));
@@ -342,7 +342,7 @@ mod tests {
     fn default_launcher_starts_request_ids_at_one() {
         let mut launcher = MockLauncher::default();
         let record = launcher
-            .submit(LaunchRequest::new(PathBuf::from("/tmp/app.exe")).unwrap())
+            .submit(LaunchRequest::new(std::env::temp_dir().join("app.exe")).unwrap())
             .unwrap();
         assert_eq!(record.id.get(), 1);
     }
@@ -353,7 +353,7 @@ mod tests {
             next_id: u64::MAX,
             records: BTreeMap::new(),
         };
-        let request = LaunchRequest::new(PathBuf::from("/tmp/app.exe")).unwrap();
+        let request = LaunchRequest::new(std::env::temp_dir().join("app.exe")).unwrap();
         assert_eq!(
             launcher.submit(request),
             Err(LaunchError::RequestIdExhausted)
