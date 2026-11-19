@@ -170,15 +170,21 @@ class NexaWelcome(QMainWindow):
         if path:
             self.show_executable_preview(path)
 
-    def show_executable_preview(self, path: str) -> None:
+    @staticmethod
+    def executable_preview_text(path: str) -> str:
         # The path is display-only. It is never passed to a process or shell.
         name = safe_display_name(os.path.basename(path))
-        QMessageBox.information(
-            self, "Windows application preview",
-            f"Selected: {name}\n\n"
+        return (
+            f"Selected: {name}\\n\\n"
             "This NexaOS preview can identify the selected file only. "
             "Windows application execution is not available yet. "
-            "No process was started and the selected file was not executed.",
+            "No process was started and the selected file was not executed."
+        )
+
+    def show_executable_preview(self, path: str) -> None:
+        QMessageBox.information(
+            self, "Windows application preview",
+            self.executable_preview_text(path),
         )
 
 
