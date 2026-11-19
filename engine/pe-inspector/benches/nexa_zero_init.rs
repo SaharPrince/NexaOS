@@ -60,7 +60,10 @@ fn main() -> Result<(), ImageAllocationError> {
     summarize("isolated_second_clear", count, second_clear_elapsed);
 
     println!("allocator_calls_for_each_phase: {count}");
-    println!("allocator_requested_bytes_for_each_phase: {}", image_bytes.saturating_mul(count));
+    println!(
+        "allocator_requested_bytes_for_each_phase: {}",
+        image_bytes.saturating_mul(count)
+    );
     println!("interpretation: isolated_second_clear is a diagnostic of the extra fill only; it is not an end-to-end speedup estimate");
     Ok(())
 }
