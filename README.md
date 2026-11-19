@@ -56,6 +56,9 @@ The active development branch is
 nce-005c/low-end-resource-baseline. **NCE-005 remains open** while its
 representative-corpus and compatibility/resource evidence gates are addressed.
 See [NCE-005](docs/milestones/NCE-005.md) for exact scope, limitations, and evidence.
+The [NCE-006 desktop and application-entry design](docs/milestones/NCE-006.md)
+records the intended Windows-familiar desktop and safe double-click launch workflow;
+it is a design baseline, not an implemented launcher.
 
 ## Build and inspect
 
@@ -77,13 +80,15 @@ in this order:
 1. Close the remaining NCE-005 evidence gates with a small, provenance- and
    license-reviewed sample set. Do not expand benchmarks or corpus work without a
    decision they can inform.
-2. Design and implement the smallest safe end-to-end Windows user-mode application
+2. Build the NCE-006 desktop shell and file-manager integration against a mock
+   launcher, while keeping real PE execution disabled until its runtime security
+   milestone is reviewed.
+3. Design and implement the smallest safe end-to-end Windows user-mode application
    compatibility slice, with explicit boundaries, failure handling, and measurable
    launch/resource costs.
-3. Add the common Win32, process, memory, file, thread, synchronization, and DLL
+4. Add the common Win32, process, memory, file, thread, synchronization, and DLL
    behaviors required by real applications; expand from purpose-built test programs
    to appropriately licensed applications.
-4. Add the familiar desktop integration and double-click .exe launch workflow.
 5. Expand graphics, input, audio, and game compatibility. Treat kernel anti-cheat
    support as a separate vendor-approval gate.
 6. Engineer installation, updates, recovery, hardware support, and release-quality
