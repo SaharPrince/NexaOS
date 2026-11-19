@@ -24,6 +24,8 @@ The benchmark covers:
 4. Allocation and population together.
 5. Complete `prepare_image` operation using a counting image allocator.
 6. Complete `prepare_image` operation using the system image allocator.
+7. Complete preparation with a separate import-bearing synthetic fixture.
+8. Complete preparation with a separate relocation-bearing synthetic fixture.
 
 The benchmark is diagnostic. It is intended to establish an initial reproducible workload and expose measurement gaps, not to establish production performance guarantees.
 
@@ -59,7 +61,16 @@ The new benchmark constructs deterministic PE32+ AMD64 input bytes.
 
 The full preparation path uses an empty export catalogue and the configured default import, IAT, and relocation limits.
 
-The fixture is deliberately small and deterministic. It exercises the no-import/no-relocation preparation path; it is not a representative real-world PE corpus.
+The baseline fixture is deliberately small and deterministic. It exercises the no-import/no-relocation preparation path; it is not a representative real-world PE corpus.
+
+Two additional deterministic variants exercise feature-bearing preparation paths independently:
+
+| Variant | Workload |
+|---|---|
+| Import-bearing | One `KERNEL32.dll` import library with one named symbol, resolved against a caller-supplied in-memory export catalogue |
+| Relocation-bearing | One AMD64 `DIR64` relocation entry, applied while preparing at a different requested image base |
+
+The import and relocation variants are separate workloads, not a combined fixture. They use the same bounded image size and preparation iteration setting as the baseline. The import path performs no DLL loading or filesystem discovery; the relocation path operates only on the prepared image data.
 
 The benchmark reports `execution: NOT_ATTEMPTED`. No PE entry point or sample code is executed.
 
@@ -69,12 +80,14 @@ The benchmark records wall-clock elapsed time for each phase and logical image a
 
 The counting allocator measures calls to the image-buffer allocator. It does not count all process-wide heap allocations.
 
-The full preparation measurements use the same fixture and pipeline, with two allocator configurations:
+The baseline full-preparation measurements use the same fixture and pipeline, with two allocator configurations:
 
 - Counting image allocator.
 - System image allocator.
 
 The phase named `image_allocation_and_population` intentionally includes allocation in its timed interval. A separate `population_only` phase now allocates a fresh destination buffer before each timed sample, then times only `populate_image_buffer`. The allocation setup is reported separately as `population_only_setup_allocator_*`; setup time is excluded from the population timing.
+
+The additional `prepare_image_import_bearing_counting_allocator` and `prepare_image_relocation_bearing_counting_allocator` phases measure their respective fixture variants with the counting image allocator. Their expected fixture properties are asserted before and during measurement, so a malformed workload fails the benchmark instead of producing misleading timings.
 
 The optional `NEXA_BENCH_HOLD_MS` delay allows the external PowerShell helper to sample the benchmark process working set. The hold occurs after benchmark phase measurements and is excluded from the reported phase timings.
 
@@ -273,9 +286,9 @@ The workspace test result was:
 | External compiler PE integration tests | 7 |
 | Image layout compatibility integration tests | 16 |
 | Image preparation public API integration test | 1 |
-| **Total** | **177** |
+| **Total** | **178** |
 
-Result: **177 passed, 0 failed**.
+Result: **178 passed, 0 failed**.
 
 The external compiler integration tests reported success in the captured run. Their names indicate optional fixture-dependent coverage; this report does not infer that every optional external compiler was installed or exercised.
 
@@ -284,23 +297,21 @@ The external compiler integration tests reported success in the captured run. Th
 The current evidence is an initial baseline, not completion of all NCE-005b requirements.
 
 1. **Population-only measurement:** an isolated population-only phase is now included for the same deterministic fixture. It allocates each destination before timing and reports setup allocator calls separately. The first measurements from this new phase still need to be collected and recorded.
-2. **Imports:** the new full-preparation fixture has no imports. An import-bearing deterministic preparation case remains outstanding.
-3. **Relocations:** the new full-preparation fixture has no relocation entries. A relocation-bearing deterministic preparation case remains outstanding.
+2. **Imports:** a separate one-library/one-symbol synthetic import-bearing preparation case is now included and CI-smoke-tested. It is not a real-world import corpus.
+3. **Relocations:** a separate one-entry DIR64 synthetic relocation-bearing preparation case is now included and CI-smoke-tested. It does not establish broad relocation compatibility.
 4. **Environment completeness:** CPU identity, core counts, and installed RAM were not captured successfully.
 5. **Statistical repeatability:** the observations show run-to-run variation. A controlled repeated-run procedure with summarized distributions remains outstanding.
 6. **Memory coverage:** only Windows process working-set high-water observations were collected. Process-wide allocation counts, peak RSS on other platforms, and broader application memory behavior remain unmeasured.
 7. **Low-end hardware:** no 4-GB-class Windows or Linux baseline is included here.
 8. **Real-world corpus:** this benchmark uses a synthetic fixture and does not replace the separately documented NCE-005a real-world sample evidence.
 9. **Compatibility:** benchmark completion does not establish Windows loader compatibility or broad PE compatibility.
-10. **Helper configuration:** the layout-iteration mapping has been corrected and tested. The helper does not currently expose a separate preparation-iteration parameter.
+10. **Helper configuration:** layout, buffer/population, and preparation iteration controls are exposed and the preparation setting is smoke-tested in Windows CI.
 
 ## Follow-up work
 
-- Consider exposing a separate preparation-iteration parameter in the PowerShell helper.
 - Capture CPU model, core and logical processor counts, and installed memory.
 - Define and run a controlled repeated benchmark procedure; report distributions rather than selecting the best run.
-- Add deterministic import-bearing and relocation-bearing preparation fixtures where feasible.
-- Collect and record population-only measurements from the new same-fixture phase.
+- Collect and record population-only measurements from the new same-fixture phase, plus import-bearing and relocation-bearing phase observations from a controlled Windows run.
 - Collect low-end Windows and Linux resource baselines under NCE-005c.
 - Update the parent NCE-005 milestone with the evidence and remaining gaps before making compatibility or cost decisions under NCE-005d.
 
@@ -309,7 +320,7 @@ The current evidence is an initial baseline, not completion of all NCE-005b requ
 All benchmark work is static preparation and measurement.
 
 - The fixture is deterministic synthetic PE data.
-- The benchmark does not execute the input or prepared image.
+- The benchmark does not execute the input or prepared image. The import and relocation fixtures are synthetic metadata-only test inputs.
 - No PE entry point is invoked.
 - No process is created to run a PE sample.
 - No executable memory or loader behavior is exercised.
