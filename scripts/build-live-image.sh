@@ -18,7 +18,7 @@ if [[ ! -f "$BUILD_DIR/config/package-lists/nexaos-desktop.list.chroot" ]]; then
 fi
 
 if [[ ! -s "$ROOT_DIR/desktop/nexaos-welcome/nexaos_welcome.py" ]]; then
-    printf 'NexaOS Welcome application source is missing.\\n' >&2
+    printf 'NexaOS Welcome application source is missing.\n' >&2
     exit 1
 fi
 
