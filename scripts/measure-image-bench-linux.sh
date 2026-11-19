@@ -71,6 +71,17 @@ if [[ -z "$BENCH" || ! -x "$BENCH" ]]; then
 fi
 echo "benchmark_executable=$BENCH"
 
+EXPECTED_PHASES=(
+  parse_inspect
+  layout_planning
+  image_buffer_allocation
+  image_allocation_and_population
+  population_only
+  prepare_image_end_to_end_counting_allocator
+  prepare_image_end_to_end_system_allocator
+  prepare_image_import_bearing_counting_allocator
+  prepare_image_relocation_bearing_counting_allocator
+)
 declare -A PHASE_VALUES=()
 RSS_VALUES=()
 for ((run=1; run<=RUNS; run++)); do
@@ -79,6 +90,10 @@ for ((run=1; run<=RUNS; run++)); do
   /usr/bin/time -f '%M' -o "$TMP/rss" "$BENCH" >"$TMP/stdout" 2>"$TMP/stderr"
   cat "$TMP/stdout"
   cat "$TMP/stderr" >&2
+  if ! grep -qx 'execution: NOT_ATTEMPTED' "$TMP/stdout"; then
+    echo "benchmark run $run did not confirm that fixture execution was not attempted" >&2
+    exit 1
+  fi
   rss="$(tr -d '[:space:]' < "$TMP/rss")"
   if ! [[ "$rss" =~ ^[0-9]+$ ]] || (( rss <= 0 )); then
     echo "GNU time did not return a valid maximum-RSS value for run $run" >&2
@@ -114,7 +129,11 @@ summarize() {
 
 echo
 echo "=== REPEATED-RUN PHASE SUMMARY (NANOSECONDS / ITERATION) ==="
-for phase in "${!PHASE_VALUES[@]}"; do
+for phase in "${EXPECTED_PHASES[@]}"; do
+  if [[ -z "${PHASE_VALUES[$phase]:-}" ]]; then
+    echo "required benchmark phase '$phase' was missing from every run" >&2
+    exit 1
+  fi
   read -r -a values <<< "${PHASE_VALUES[$phase]}"
   if (( ${#values[@]} != RUNS )); then
     echo "phase $phase produced ${#values[@]} samples; expected $RUNS" >&2
