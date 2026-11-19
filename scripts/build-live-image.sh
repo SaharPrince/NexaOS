@@ -34,7 +34,6 @@ sudo lb config \
     --firmware-chroot true \
     --firmware-binary true \
     --system live \
-    --image-name nexaos-preview \
     --iso-application "NexaOS Preview" \
     --iso-publisher "NexaOS Project" \
     --iso-volume NEXAOS_PREVIEW \
