@@ -319,10 +319,11 @@ fn accepts_section_alignment_just_below_page_size() {
 
 #[test]
 fn planner_preserves_non_overlapping_section_gaps_without_requiring_adjacency() {
-    let input = report(vec![
+    let mut input = report(vec![
         section(".text", 0x1000, 0x1000, 0x1000, 0x200),
         section(".data", 0x1000, 0x3000, 0x1000, 0x1200),
     ]);
+    input.size_of_image = 0x5000;
 
     let plan = plan_image_layout(&input, 0x2200, limits()).unwrap();
 
