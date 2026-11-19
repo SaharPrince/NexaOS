@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -257,7 +258,7 @@ class FileBrowserDialog(QDialog):
             name_item = QTableWidgetItem(entry.name)
             name_item.setData(Qt.ItemDataRole.UserRole, row)
             if entry.is_symlink or entry.kind != "Folder":
-                name_item.setForeground(Qt.GlobalColor.darkGray)
+                name_item.setForeground(QColor(Qt.GlobalColor.darkGray))
             self.table.setItem(row, 0, name_item)
             self.table.setItem(row, 1, QTableWidgetItem(entry.kind))
             self.table.setItem(row, 2, QTableWidgetItem(format_size(entry.size)))
