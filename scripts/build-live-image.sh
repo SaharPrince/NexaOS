@@ -25,6 +25,7 @@ sudo lb clean --purge
 
 sudo lb config \
     --ignore-system-defaults \
+    --mode debian \
     --distribution trixie \
     --architecture amd64 \
     --archive-areas "main non-free-firmware" \
