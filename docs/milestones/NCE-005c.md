@@ -2,7 +2,7 @@
 
 ## Status
 
-**Hosted Linux CI and one physical low-memory Windows laptop baseline collected; evidence review remains open. This milestone is open.**
+**Hosted Linux CI and one physical low-memory Windows laptop baseline collected; physical-device collection and review are complete for this single-device diagnostic baseline. NCE-005c remains open only for project-level review and closeout.**
 
 This milestone extends the synthetic, non-executing image-preparation measurements from NCE-005b. It does not authorize PE execution, loader behavior, planner acceptance changes, or new compatibility claims.
 
