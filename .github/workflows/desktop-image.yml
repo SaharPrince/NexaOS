@@ -1,0 +1,52 @@
+name: NexaOS desktop preview
+
+on:
+  push:
+    paths:
+      - "desktop/live-build/**"
+      - "scripts/build-live-image.sh"
+      - ".github/workflows/desktop-image.yml"
+  pull_request:
+    paths:
+      - "desktop/live-build/**"
+      - "scripts/build-live-image.sh"
+      - ".github/workflows/desktop-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexaos-desktop-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-live-image:
+    name: Build Debian 13 LXQt live preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install live-build host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            live-build \
+            debootstrap \
+            xorriso \
+            squashfs-tools
+
+      - name: Build preview ISO
+        run: bash scripts/build-live-image.sh
+
+      - name: Upload preview ISO and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexaos-desktop-preview-amd64
+          path: |
+            artifacts/nexaos-preview-amd64.iso
+            artifacts/nexaos-preview-amd64.iso.sha256
+          if-no-files-found: error
+          retention-days: 3
