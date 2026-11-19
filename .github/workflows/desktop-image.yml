@@ -47,6 +47,7 @@ jobs:
             xorriso \
             squashfs-tools \
             qemu-system-x86 \
+            qemu-system-gui \
             xvfb \
             x11-apps \
             imagemagick
