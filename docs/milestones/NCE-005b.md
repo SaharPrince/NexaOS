@@ -95,7 +95,7 @@ Iteration values are clamped to the range 1 through 1,000,000.
 
 The existing PowerShell helper, `scripts/measure-image-bench.ps1`, builds and launches the benchmark and samples the process working-set high-water mark. It reports that measurement separately from benchmark phase timings.
 
-**Helper configuration correction:** the PowerShell helper now maps `-PlanIterations` to `NEXA_BENCH_LAYOUT_ITERS`. The corrected mapping was verified with a run using 7 layout iterations and 3 buffer iterations.
+**Helper configuration correction:** the PowerShell helper now maps `-PlanIterations` to `NEXA_BENCH_LAYOUT_ITERS`. The corrected mapping was verified with a run using 7 layout iterations and 3 buffer iterations. The helper now also exposes `-PreparationIterations` and maps it to `NEXA_BENCH_PREPARE_ITERS`; the previous process environment value is restored when the helper exits.
 
 ## Windows environment
 
@@ -177,7 +177,7 @@ The output confirmed:
 
 The helper reported a process working-set high-water mark of 3,170,304 bytes (3.02 MiB). The external measurement hold was zero milliseconds.
 
-This verifies the layout and buffer iteration mappings. The preparation iteration count remains at its benchmark default of 200 because the helper does not expose a preparation-iteration parameter.
+This verifies the layout and buffer iteration mappings. The preparation iteration count was previously fixed at the benchmark default of 200. The helper now exposes `-PreparationIterations` (default 200), allowing the complete preparation phases to be configured independently.
 
 This was a configuration verification run with deliberately small iteration counts, not a directly comparable performance run.
 ## Logical allocation accounting
@@ -331,6 +331,7 @@ For a Windows working-set observation:
 ```powershell
 .\scripts\measure-image-bench.ps1 `
     -BufferIterations 200 `
+    -PreparationIterations 200 `
     -HoldMilliseconds 1000
 ```
 
