@@ -224,8 +224,7 @@ fn main() {
         );
         population_only_elapsed += started.elapsed();
     }
-    let population_average_ns =
-        population_only_elapsed.as_nanos() / u128::from(buffer_count);
+    let population_average_ns = population_only_elapsed.as_nanos() / u128::from(buffer_count);
     println!(
         "population_only: iterations={buffer_count}, total_ms={:.3}, ns_per_iteration={population_average_ns}",
         population_only_elapsed.as_secs_f64() * 1000.0
