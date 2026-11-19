@@ -198,8 +198,10 @@ def main() -> int:
         assert "not available yet" in (
             "Windows application execution is not available yet."
         )
-        window.show_executable_preview("/tmp/example.exe")
-        # The self-test must not display a modal dialog or execute the fixture.
+        preview = window.executable_preview_text("/tmp/example.exe")
+        assert "example.exe" in preview
+        assert "not executed" in preview
+        # The self-test creates no process and displays no modal dialog.
         return 0
     window.show()
     return app.exec()
