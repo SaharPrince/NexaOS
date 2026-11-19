@@ -107,7 +107,7 @@ jobs:
       - name: Smoke-test Windows peak working-set benchmark helper
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: ./scripts/measure-image-bench.ps1 -PlanIterations 5 -BufferIterations 2 -HoldMilliseconds 500
+        run: ./scripts/measure-image-bench.ps1 -PlanIterations 5 -BufferIterations 2 -PreparationIterations 2 -HoldMilliseconds 500
 
   external-pe-corpus:
     name: External compiler PE layout (MinGW + LLVM/LLD)
