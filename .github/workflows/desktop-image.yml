@@ -38,7 +38,6 @@ jobs:
           bash -n scripts/build-live-image.sh
           bash -n scripts/smoke-boot-live-image.sh
           python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py
-          QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-welcome.desktop
           awk 'NF && $1 !~ /^#/ { if (NF != 1) exit 1; count++ } END { if (count == 0) exit 1 }' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
@@ -61,6 +60,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
           live-build --version
+
+      - name: Smoke-test NexaOS Welcome UI without opening a display
+        run: QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
 
       - name: Build preview ISO
         run: bash scripts/build-live-image.sh
