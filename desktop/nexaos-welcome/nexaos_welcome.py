@@ -11,10 +11,11 @@ import argparse
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from nexaos_file_browser import FileBrowserDialog
+from nexaos_file_browser import FileBrowserDialog, SafeDirectoryReader
 
 from PyQt6.QtWidgets(
     QApplication,
@@ -215,6 +216,28 @@ def main() -> int:
         assert "execution is not available yet" in preview
         assert "No process was started" in preview
         assert "not executed" in preview
+        # Exercise real directory enumeration only inside a disposable fixture.
+        with tempfile.TemporaryDirectory(prefix="nexaos-browser-test-") as temporary:
+            root = Path(temporary)
+            (root / "Documents").mkdir()
+            (root / "notes.txt").write_text("preview fixture", encoding="utf-8")
+            (root / ".hidden").write_text("hidden fixture", encoding="utf-8")
+            reader = SafeDirectoryReader(root)
+            entries, truncated = reader.list_entries(root)
+            assert not truncated
+            assert [entry.name for entry in entries] == ["Documents", "notes.txt"]
+            visible, _ = reader.list_entries(root, show_hidden=True)
+            assert ".hidden" in [entry.name for entry in visible]
+            try:
+                reader.validate_directory(root.parent)
+            except PermissionError:
+                pass
+            else:
+                raise AssertionError("browser allowed navigation outside its root")
+            browser = FileBrowserDialog(root=root)
+            assert browser.table.rowCount() == 2
+            assert browser.current == root.resolve()
+            browser.close()
         # The self-test creates no process and displays no modal dialog.
         return 0
     window.show()
