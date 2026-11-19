@@ -38,7 +38,6 @@ def safe_display_name(value: str) -> str:
 
 class NexaWelcome(QMainWindow):
     PROGRAMS = {
-        "pcmanfm-qt": "/usr/bin/pcmanfm-qt",
         "lxqt-config-appearance": "/usr/bin/lxqt-config-appearance",
         "lxqt-config-monitor": "/usr/bin/lxqt-config-monitor",
         "lxqt-config-input": "/usr/bin/lxqt-config-input",
@@ -171,6 +170,10 @@ class NexaWelcome(QMainWindow):
                 self, "Could not open application",
                 f"The desktop application could not be started: {error}",
             )
+    def _open_file_browser(self) -> None:
+        browser = FileBrowserDialog(self)
+        browser.exec()
+
     def _choose_executable(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Choose a Windows application", str(Path.home()),
