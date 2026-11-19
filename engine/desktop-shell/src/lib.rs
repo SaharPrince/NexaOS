@@ -161,6 +161,7 @@ pub enum LaunchError {
     UnknownRequest,
     RequestAlreadyCancelled,
     RequestIdExhausted,
+    NoSelection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -248,12 +249,117 @@ impl MockLauncher {
     }
 }
 
+
+/// UI-facing controller that connects a directory selection to the mock launcher.
+///
+/// A graphical frontend can use this narrow API without building shell command
+/// strings or gaining permission to execute files. The controller remains
+/// preview-only until a separately reviewed runtime exists.
+#[derive(Debug)]
+pub struct DesktopController {
+    directory: DirectoryModel,
+    launcher: MockLauncher,
+}
+
+impl DesktopController {
+    pub fn new(directory: DirectoryModel) -> Self {
+        Self {
+            directory,
+            launcher: MockLauncher::new(),
+        }
+    }
+
+    pub fn directory(&self) -> &DirectoryModel {
+        &self.directory
+    }
+
+    pub fn select_entry(&mut self, index: usize) -> Result<(), DirectoryError> {
+        self.directory.select(index)
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.directory.clear_selection();
+    }
+
+    /// Activating a selected .exe creates a preview record only.
+    pub fn activate_selected(&mut self) -> Result<LaunchRecord, LaunchError> {
+        let selected = self.directory.selected().ok_or(LaunchError::NoSelection)?;
+        if !selected.is_windows_executable_candidate() {
+            return Err(LaunchError::UnsupportedFileType);
+        }
+        let request = LaunchRequest::new(selected.path().to_path_buf())?;
+        self.launcher.submit(request)
+    }
+
+    pub fn cancel_preview(&mut self, id: RequestId) -> Result<LaunchRecord, LaunchError> {
+        self.launcher.cancel(id)
+    }
+
+    pub fn launch_records(&self) -> impl Iterator<Item = &LaunchRecord> {
+        self.launcher.records()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn entry(path: &str, name: &str, kind: EntryKind) -> FileEntry {
         FileEntry::new(PathBuf::from(path), name, kind)
+    }
+
+    #[test]
+    fn controller_connects_selection_to_preview_only_launcher() {
+        let view = DirectoryModel::new(
+            std::env::temp_dir(),
+            vec![
+                FileEntry::new(
+                    std::env::temp_dir().join("notes.txt"),
+                    "notes.txt",
+                    EntryKind::File,
+                ),
+                FileEntry::new(
+                    std::env::temp_dir().join("demo.exe"),
+                    "demo.exe",
+                    EntryKind::File,
+                ),
+            ],
+        );
+        let mut controller = DesktopController::new(view);
+
+        assert_eq!(
+            controller.activate_selected(),
+            Err(LaunchError::NoSelection)
+        );
+        // DirectoryModel sorts file entries alphabetically, so demo.exe is first.
+        controller.select_entry(0).unwrap();
+        let preview = controller.activate_selected().unwrap();
+        assert_eq!(preview.status, LaunchStatus::PreviewOnly);
+        assert!(preview.explanation.contains("no process was created"));
+        assert_eq!(controller.launch_records().count(), 1);
+
+        let cancelled = controller.cancel_preview(preview.id).unwrap();
+        assert_eq!(cancelled.status, LaunchStatus::Cancelled);
+        assert_eq!(controller.launch_records().count(), 1);
+    }
+
+    #[test]
+    fn controller_rejects_selected_non_executable_files() {
+        let view = DirectoryModel::new(
+            std::env::temp_dir(),
+            vec![FileEntry::new(
+                std::env::temp_dir().join("notes.txt"),
+                "notes.txt",
+                EntryKind::File,
+            )],
+        );
+        let mut controller = DesktopController::new(view);
+        controller.select_entry(0).unwrap();
+        assert_eq!(
+            controller.activate_selected(),
+            Err(LaunchError::UnsupportedFileType)
+        );
+        assert_eq!(controller.launch_records().count(), 0);
     }
 
     #[test]
