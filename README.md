@@ -20,6 +20,9 @@ performance, hardware support, and low-memory targets remain goals—not guarant
   claiming every program works.
 - **Lightweight operation:** keep idle CPU/RAM use, background services, storage
   footprint, and launch overhead low, especially on modest hardware.
+- **User choice:** keep the default desktop lightweight while letting each
+  person customize layout, appearance, shortcuts, window behavior, and optional
+  desktop components. The default arrangement is a starting point, not a restriction.
 - **Original engineering:** build Nexa's own compatibility components; do not
   misrepresent a repackaged Wine build as the Nexa engine.
 - **Linux foundation:** use the Linux kernel and its hardware-driver ecosystem as
