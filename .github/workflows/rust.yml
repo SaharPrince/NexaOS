@@ -2,9 +2,7 @@ name: Rust checks
 
 on:
   push:
-    branches: [main, automation/nce-005a-real-world-pe, nce-005b/end-to-end-preparation-benchmark]
   pull_request:
-    branches: [main, automation/nce-005a-real-world-pe]
   workflow_dispatch:
 
 concurrency:
