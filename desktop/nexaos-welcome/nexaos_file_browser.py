@@ -52,27 +52,43 @@ class SafeDirectoryReader:
             raise ValueError("The entry limit must be positive.")
         self.limit = limit
 
-    def validate_directory(self, candidate: Path) -> Path:
-        # Reject a symlink at the requested leaf before resolving it.
-        if candidate.is_symlink():
-            raise PermissionError("Symbolic links cannot be opened in this preview.")
-        resolved = candidate.resolve(strict=True)
+    def _open_directory(self, candidate: Path) -> tuple[Path, int]:
+        # Walk from the trusted root with O_NOFOLLOW so a symlink cannot redirect
+        # navigation outside the home folder, including during path resolution.
+        lexical = Path(os.path.abspath(candidate))
         try:
-            resolved.relative_to(self.root)
+            relative = lexical.relative_to(self.root)
         except ValueError as error:
             raise PermissionError("This location is outside the allowed home folder.") from error
-        if not resolved.is_dir():
-            raise NotADirectoryError(str(candidate))
-        return resolved
+
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        descriptor = os.open(self.root, flags)
+        try:
+            for component in relative.parts:
+                next_descriptor = os.open(component, flags, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = next_descriptor
+            if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise NotADirectoryError(str(candidate))
+            return lexical, descriptor
+        except Exception:
+            os.close(descriptor)
+            raise
+
+    def validate_directory(self, candidate: Path) -> Path:
+        lexical, descriptor = self._open_directory(candidate)
+        os.close(descriptor)
+        return lexical
 
     def list_entries(
         self, directory: Path, show_hidden: bool = False
     ) -> tuple[list[BrowserEntry], bool]:
-        current = self.validate_directory(directory)
+        current, descriptor = self._open_directory(directory)
         entries: list[BrowserEntry] = []
         truncated = False
         try:
-            with os.scandir(current) as iterator:
+            with os.scandir(descriptor) as iterator:
                 for item in iterator:
                     if not show_hidden and item.name.startswith("."):
                         continue
@@ -103,10 +119,10 @@ class SafeDirectoryReader:
                             is_symlink=is_link,
                         )
                     )
-        except PermissionError:
-            raise
         except OSError as error:
             raise OSError(f"Could not read this folder: {error}") from error
+        finally:
+            os.close(descriptor)
 
         entries.sort(
             key=lambda entry: (
