@@ -359,6 +359,15 @@ pub struct DesktopController {
 }
 
 impl DesktopController {
+    /// Construct the preview-only controller from a validated UI snapshot.
+    ///
+    /// The snapshot is untrusted input: its paths are relative to a declared
+    /// home root, bounded, and validated before becoming model entries.
+    pub fn from_browser_snapshot_json(input: &str) -> Result<Self, BrowserSnapshotError> {
+        let directory = BrowserSnapshot::from_json(input)?.into_directory_model()?;
+        Ok(Self::new(directory))
+    }
+
     pub fn new(directory: DirectoryModel) -> Self {
         Self {
             directory,
@@ -413,10 +422,10 @@ mod tests {
     fn browser_snapshot_accepts_versioned_relative_entries() {
         let root = json_temp_root();
         let json = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"Downloads","entries":[{{"name":"setup.exe","relative_path":"setup.exe","kind":"file","size":42}},{{"name":"Docs","relative_path":"Docs","kind":"directory","size":null}}]}}"#);
-        let model = BrowserSnapshot::from_json(&json).unwrap().into_directory_model().unwrap();
-        assert_eq!(model.current_directory(), &std::env::temp_dir().join("Downloads"));
-        assert_eq!(model.entries()[0].display_name(), "Docs");
-        assert_eq!(model.entries()[1].display_name(), "setup.exe");
+        let controller = DesktopController::from_browser_snapshot_json(&json).unwrap();
+        assert_eq!(controller.directory().current_directory(), &std::env::temp_dir().join("Downloads"));
+        assert_eq!(controller.directory().entries()[0].display_name(), "Docs");
+        assert_eq!(controller.directory().entries()[1].display_name(), "setup.exe");
     }
 
     #[test]
