@@ -1,7 +1,7 @@
-"""Read-only, home-confined file browser for the NexaOS preview.
+"""Home-confined file browser for the NexaOS preview.
 
-This module deliberately does not open arbitrary files, follow symbolic links,
-invoke desktop handlers, or execute Windows applications.
+The browser supports safe folder creation, but does not open arbitrary files,
+follow symbolic links, invoke desktop handlers, or execute Windows applications.
 """
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QInputDialog,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -191,7 +191,6 @@ class SafeDirectoryReader:
         current, descriptor = self._open_directory(directory)
         try:
             os.mkdir(name, mode=0o755, dir_fd=descriptor)
-            os.fsync(descriptor)
         except FileExistsError as error:
             raise FileExistsError("An item with that name already exists.") from error
         except OSError as error:
