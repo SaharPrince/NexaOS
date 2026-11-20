@@ -67,6 +67,104 @@ pub fn sanitize_display_text(input: &str) -> String {
         .collect()
 }
 
+/// Versioned, untrusted directory snapshot exchanged across the future UI boundary.
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserSnapshot {
+    protocol_version: u32,
+    root: PathBuf,
+    current_directory: PathBuf,
+    entries: Vec<BrowserSnapshotEntry>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrowserSnapshotEntry {
+    name: String,
+    relative_path: PathBuf,
+    kind: SnapshotEntryKind,
+    #[allow(dead_code)]
+    size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SnapshotEntryKind {
+    Directory,
+    File,
+}
+
+/// Fail-closed errors for data received from the graphical file browser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserSnapshotError {
+    InvalidJson,
+    UnsupportedProtocolVersion,
+    RootMustBeAbsolute,
+    RootContainsTraversal,
+    CurrentDirectoryMustBeRelative,
+    CurrentDirectoryContainsTraversal,
+    TooManyEntries,
+    InvalidEntryPath,
+    EntryNameMismatch,
+    DuplicateEntry,
+    EntryOutsideCurrentDirectory,
+}
+
+impl BrowserSnapshot {
+    /// Decode and validate a bounded JSON snapshot. This never reads the filesystem.
+    pub fn from_json(input: &str) -> Result<Self, BrowserSnapshotError> {
+        serde_json::from_str(input).map_err(|_| BrowserSnapshotError::InvalidJson)
+    }
+
+    /// Convert a validated snapshot into the existing UI-independent model.
+    pub fn into_directory_model(self) -> Result<DirectoryModel, BrowserSnapshotError> {
+        if self.protocol_version != 1 {
+            return Err(BrowserSnapshotError::UnsupportedProtocolVersion);
+        }
+        if !self.root.is_absolute() {
+            return Err(BrowserSnapshotError::RootMustBeAbsolute);
+        }
+        if self.root.components().any(|part| matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir)) {
+            return Err(BrowserSnapshotError::RootContainsTraversal);
+        }
+        if self.current_directory.is_absolute() {
+            return Err(BrowserSnapshotError::CurrentDirectoryMustBeRelative);
+        }
+        if self.current_directory.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
+            return Err(BrowserSnapshotError::CurrentDirectoryContainsTraversal);
+        }
+        if self.entries.len() > 1000 {
+            return Err(BrowserSnapshotError::TooManyEntries);
+        }
+
+        let current = self.root.join(&self.current_directory);
+        let mut seen = std::collections::BTreeSet::new();
+        let mut entries = Vec::with_capacity(self.entries.len());
+        for entry in self.entries {
+            let mut components = entry.relative_path.components();
+            let Some(std::path::Component::Normal(component)) = components.next() else {
+                return Err(BrowserSnapshotError::InvalidEntryPath);
+            };
+            if components.next().is_some() {
+                return Err(BrowserSnapshotError::EntryOutsideCurrentDirectory);
+            }
+            if component.to_str() != Some(entry.name.as_str()) || entry.name.is_empty() {
+                return Err(BrowserSnapshotError::EntryNameMismatch);
+            }
+            if !seen.insert(entry.relative_path.clone()) {
+                return Err(BrowserSnapshotError::DuplicateEntry);
+            }
+            let path = current.join(&entry.relative_path);
+            let kind = match entry.kind {
+                SnapshotEntryKind::Directory => EntryKind::Directory,
+                SnapshotEntryKind::File => EntryKind::File,
+            };
+            entries.push(FileEntry::new(path, entry.name, kind));
+        }
+        Ok(DirectoryModel::new(current, entries))
+    }
+}
+
 /// In-memory directory view model. It performs no filesystem traversal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectoryModel {
@@ -305,6 +403,45 @@ mod tests {
 
     fn entry(path: &str, name: &str, kind: EntryKind) -> FileEntry {
         FileEntry::new(PathBuf::from(path), name, kind)
+    }
+
+    #[test]
+    fn browser_snapshot_accepts_versioned_relative_entries() {
+        let json = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"Downloads","entries":[{"name":"setup.exe","relative_path":"setup.exe","kind":"file","size":42},{"name":"Docs","relative_path":"Docs","kind":"directory","size":null}]}"#;
+        let model = BrowserSnapshot::from_json(json).unwrap().into_directory_model().unwrap();
+        assert_eq!(model.current_directory(), Path::new("/home/demo/Downloads"));
+        assert_eq!(model.entries()[0].display_name(), "Docs");
+        assert_eq!(model.entries()[1].display_name(), "setup.exe");
+    }
+
+    #[test]
+    fn browser_snapshot_rejects_parent_traversal_and_nested_paths() {
+        let traversal = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"../outside","entries":[]}"#;
+        assert_eq!(
+            BrowserSnapshot::from_json(traversal).unwrap().into_directory_model(),
+            Err(BrowserSnapshotError::CurrentDirectoryContainsTraversal)
+        );
+        let nested = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[{"name":"escape","relative_path":"sub/escape","kind":"file","size":null}]}"#;
+        assert_eq!(
+            BrowserSnapshot::from_json(nested).unwrap().into_directory_model(),
+            Err(BrowserSnapshotError::EntryOutsideCurrentDirectory)
+        );
+    }
+
+    #[test]
+    fn browser_snapshot_rejects_unknown_versions_duplicate_names_and_extra_fields() {
+        let version = r#"{"protocol_version":2,"root":"/home/demo","current_directory":"","entries":[]}"#;
+        assert_eq!(
+            BrowserSnapshot::from_json(version).unwrap().into_directory_model(),
+            Err(BrowserSnapshotError::UnsupportedProtocolVersion)
+        );
+        let duplicate = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[{"name":"a","relative_path":"a","kind":"file","size":1},{"name":"a","relative_path":"a","kind":"file","size":1}]}"#;
+        assert_eq!(
+            BrowserSnapshot::from_json(duplicate).unwrap().into_directory_model(),
+            Err(BrowserSnapshotError::DuplicateEntry)
+        );
+        let extra = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[],"run_command":"unsafe"}"#;
+        assert_eq!(BrowserSnapshot::from_json(extra), Err(BrowserSnapshotError::InvalidJson));
     }
 
     #[test]
