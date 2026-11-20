@@ -130,7 +130,7 @@ jobs:
           cp release-input/nexaos-preview-amd64.iso.sha256 release-assets/nexaos-preview-amd64.iso.sha256
 
       - name: Publish ISO and checksum as a prerelease
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: nexaos-preview-${{ github.sha }}
           target_commitish: ${{ github.sha }}
