@@ -305,7 +305,7 @@ def main() -> int:
             browser.search_input.clear()
             assert browser.table.rowCount() == 5
             browser.sort_by_column(0)
-            assert browser.table.item(0, 0).text() == "Documents"
+            assert browser.table.item(0, 0).text() == "Projects"
             browser.sort_by_column(0)
             assert browser.table.item(0, 0).text() == "Documents"
             selected_index = browser.table.item(1, 0).data(Qt.ItemDataRole.UserRole)
