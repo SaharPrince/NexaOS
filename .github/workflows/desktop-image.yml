@@ -115,7 +115,7 @@ jobs:
       actions: read
     steps:
       - name: Download ISO and build evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nexaos-desktop-preview-amd64
           path: release-input
