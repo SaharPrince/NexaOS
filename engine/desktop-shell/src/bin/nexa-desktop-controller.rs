@@ -81,7 +81,10 @@ fn main() {
     match result {
         Ok(response) => println!("{response}"),
         Err(code) => {
-            println!("{}", json!({"protocol_version": 1, "status": "error", "error": code}));
+            println!(
+                "{}",
+                json!({"protocol_version": 1, "status": "error", "error": code})
+            );
             std::process::exit(2);
         }
     }
