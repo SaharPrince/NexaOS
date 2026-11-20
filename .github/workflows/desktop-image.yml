@@ -5,6 +5,12 @@ on:
     paths:
       - "desktop/live-build/config/**"
       - "desktop/nexaos-welcome/**"
+      - "engine/desktop-shell/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "engine/desktop-shell/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "scripts/build-live-image.sh"
       - "scripts/smoke-boot-live-image.sh"
       - ".github/workflows/desktop-image.yml"
