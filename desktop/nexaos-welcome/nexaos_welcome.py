@@ -19,6 +19,7 @@ from nexaos_file_browser import (
     FileBrowserDialog,
     SafeDirectoryReader,
     build_controller_preview_request,
+    request_controller_preview,
 )
 
 from PyQt6.QtWidgets import (
@@ -243,6 +244,10 @@ def main() -> int:
             assert command["selected_relative_path"] == "demo.exe"
             assert command["snapshot"]["entries"][0]["kind"] == "directory"
             assert all(item["name"] != "folder-link" for item in command["snapshot"]["entries"])
+            controller_binary = Path.cwd() / "target" / "release" / "nexa-desktop-controller"
+            response = request_controller_preview(command, controller_binary)
+            assert response["status"] == "preview_only"
+            assert "no process was created" in response["explanation"]
             try:
                 reader.validate_directory(root / "folder-link")
             except OSError:
