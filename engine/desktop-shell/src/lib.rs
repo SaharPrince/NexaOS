@@ -230,6 +230,7 @@ impl DirectoryModel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirectoryError {
     SelectionOutOfRange,
+    EntryNotFound,
 }
 
 /// Structured launch data; this type never stores shell command text.
@@ -395,6 +396,25 @@ impl DesktopController {
     pub fn clear_selection(&mut self) {
         self.directory.clear_selection();
     }
+
+    /// Select one direct child by a relative path from the current directory.
+    pub fn select_relative_path(&mut self, relative_path: &Path) -> Result<(), DirectoryError> {
+        let mut components = relative_path.components();
+        if !matches!(components.next(), Some(std::path::Component::Normal(_)))
+            || components.next().is_some()
+        {
+            return Err(DirectoryError::EntryNotFound);
+        }
+        let target = self.directory.current_directory().join(relative_path);
+        let index = self
+            .directory
+            .entries()
+            .iter()
+            .position(|entry| entry.path() == target)
+            .ok_or(DirectoryError::EntryNotFound)?;
+        self.directory.select(index)
+    }
+
 
     /// Activating a selected .exe creates a preview record only.
     pub fn activate_selected(&mut self) -> Result<LaunchRecord, LaunchError> {
