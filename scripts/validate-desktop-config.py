@@ -55,22 +55,33 @@ def main() -> int:
     assert panel.get("fancymenu", "icon") == "/usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
     assert panel.get("fancymenu", "ownIcon").lower() == "true"
 
-    package_names = {
+    package_entries = [
         line.strip()
         for line in PACKAGE_LIST.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
-    }
+    ]
+    if any(len(entry.split()) != 1 for entry in package_entries):
+        raise SystemExit("desktop package list entries must contain exactly one package name")
+    seen_packages: set[str] = set()
+    duplicate_packages: set[str] = set()
+    for package in package_entries:
+        if package in seen_packages:
+            duplicate_packages.add(package)
+        seen_packages.add(package)
+    if duplicate_packages:
+        raise SystemExit(f"desktop package list contains duplicates: {sorted(duplicate_packages)}")
+
     required_packages = {
         "user-setup", "gvfs-backends", "gvfs-fuse", "papirus-icon-theme",
         "qt6-svg-plugins", "fonts-noto-core", "lximage-qt", "lxqt-policykit",
         "lxqt-qtplugin", "lxqt-archiver", "featherpad", "pavucontrol-qt",
         "lxqt-powermanagement", "screengrab", "pcmanfm-qt-l10n",
     }
-    missing_packages = required_packages - package_names
+    missing_packages = required_packages - seen_packages
     if missing_packages:
         raise SystemExit(f"desktop package list is missing: {sorted(missing_packages)}")
 
-    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, and feature packages are valid.")
+    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, and unique feature packages are valid.")
     return 0
 
 
