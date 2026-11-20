@@ -51,6 +51,12 @@ jobs:
           test -s engine/desktop-shell/src/bin/nexa-desktop-controller.rs
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-welcome.desktop
+          test -s desktop/live-build/config/includes.chroot/etc/skel/.config/pcmanfm-qt/lxqt/settings.conf
+          test -s desktop/live-build/config/includes.chroot/usr/share/backgrounds/nexaos/nexaos-default.svg
+          grep -Fxq 'gvfs-backends' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'gvfs-fuse' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'papirus-icon-theme' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'qt6-svg-plugins' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           awk 'NF && $1 !~ /^#/ { if (NF != 1) exit 1; count++ } END { if (count == 0) exit 1 }' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
 
       - name: Install Debian live-build and host tools
