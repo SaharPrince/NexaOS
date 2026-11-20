@@ -65,6 +65,7 @@ jobs:
         with:
           name: NexaOS Preview ${{ github.ref_name }}
           generate_release_notes: true
+          prerelease: true
           files: |
             release-assets/nexaos-preview-amd64.iso
             release-assets/nexaos-preview-amd64.iso.sha256
