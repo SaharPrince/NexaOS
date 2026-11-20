@@ -300,7 +300,7 @@ def sort_entries(
 
 
 class FileBrowserDialog(QDialog):
-    """Small read-only browser. Directories navigate; files are never opened."""
+    """Home-confined browser with limited folder creation; files are never opened."""
 
     def __init__(self, parent=None, root: Path | None = None) -> None:
         super().__init__(parent)
