@@ -23,6 +23,23 @@ firmware-realtek
 # sudo allows the live user to perform permitted shutdown/reboot actions.
 user-setup
 sudo
+
+# Keep the desktop visually complete and useful instead of dropping optional
+# desktop integrations just to reduce the package count.
+gvfs-backends
+gvfs-fuse
+papirus-icon-theme
+qt6-svg-plugins
+fonts-noto-core
+lximage-qt
+lxqt-policykit
+lxqt-qtplugin
+lxqt-archiver
+featherpad
+pavucontrol-qt
+lxqt-powermanagement
+screengrab
+pcmanfm-qt-l10n
 # PCManFM-Qt optional integrations are needed for desktop locations and icons.
 # Recommendations are disabled globally, so include these explicitly.
 gvfs-backends
