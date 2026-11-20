@@ -24,6 +24,9 @@ firmware-realtek
 user-setup
 sudo
 
+# Lightweight Qt 6 process manager with live CPU/RAM history graphs and process controls.
+qps
+
 # Keep the desktop visually complete and useful instead of dropping optional
 # desktop integrations just to reduce the package count.
 # These explicit packages provide PCManFM-Qt locations, icons, SVG support,
