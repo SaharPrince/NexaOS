@@ -36,3 +36,25 @@ This is a model/controller layer, not yet a graphical shell, filesystem-backed
 file manager, compatibility runtime, or executable launcher. A future GUI
 should bind to this controller and keep the same privilege and execution
 boundary.
+
+## Versioned browser snapshot boundary
+
+The controller now accepts a bounded JSON snapshot through
+`DesktopController::from_browser_snapshot_json`. Protocol version 1 carries
+an absolute trusted home-root path, a relative current-directory path, and up
+to 1,000 direct-child entries. Entry kinds are limited to `directory` and
+`file`; paths are relative components rather than shell fragments or
+caller-supplied commands.
+
+The decoder rejects unknown JSON fields, unsupported protocol versions,
+absolute or traversing relative paths, nested entry paths, mismatched names,
+duplicate entries, and oversized snapshots. It performs no filesystem access.
+The resulting model still routes `.exe` activation only to the preview-only
+mock launcher.
+
+This establishes and tests a data contract; it is **not yet live IPC**. The Qt
+browser does not start a Rust process or send this payload yet. Before that
+connection, a separately reviewed adapter must define process discovery,
+message framing/size limits, request correlation, timeout and crash behavior,
+and privilege separation. Do not add an executable launcher as part of this
+bridge.
