@@ -247,7 +247,7 @@ def main() -> int:
             controller_binary = Path.cwd() / "target" / "release" / "nexa-desktop-controller"
             response = request_controller_preview(command, controller_binary)
             assert response["status"] == "preview_only"
-            assert "no process was created" in response["explanation"]
+            assert "no application process was started" in response["explanation"]
             try:
                 reader.validate_directory(root / "folder-link")
             except OSError:
