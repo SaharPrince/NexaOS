@@ -17,3 +17,9 @@ firmware-linux-free
 firmware-misc-nonfree
 firmware-iwlwifi
 firmware-realtek
+
+# live-config recommends these packages; recommendations are disabled globally.
+# user-setup creates the live user account used by console and desktop autologin.
+# sudo allows the live user to perform permitted shutdown/reboot actions.
+user-setup
+sudo
