@@ -5,8 +5,10 @@ invoke desktop handlers, or execute Windows applications.
 """
 from __future__ import annotations
 
+import json
 import os
 import stat
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +29,92 @@ from PyQt6.QtWidgets import (
 
 
 MAX_VISIBLE_ENTRIES = 1000
+
+CONTROLLER_EXECUTABLE = Path("/usr/lib/nexaos/nexa-desktop-controller")
+MAX_CONTROLLER_REQUEST_BYTES = 1024 * 1024
+
+
+def build_controller_preview_request(
+    reader: "SafeDirectoryReader",
+    directory: Path,
+    entries: list["BrowserEntry"],
+    selected: "BrowserEntry",
+) -> dict:
+    """Build a version-1, home-relative request for the preview-only Rust controller."""
+    current = reader.validate_directory(directory)
+    if selected.is_symlink or selected.kind != "File" or selected.path.suffix.casefold() != ".exe":
+        raise ValueError("Only a regular .exe file can be sent for preview.")
+    try:
+        current_relative = current.relative_to(reader.root).as_posix()
+    except ValueError as error:
+        raise ValueError("The current folder is outside the browser root.") from error
+    if current_relative == ".":
+        current_relative = ""
+
+    serialized_entries = []
+    selected_seen = False
+    for entry in entries:
+        if entry.is_symlink or entry.kind not in ("Folder", "File"):
+            continue
+        if entry.path.parent != current:
+            continue
+        name = entry.path.name
+        serialized_entries.append({
+            "name": name,
+            "relative_path": name,
+            "kind": "directory" if entry.kind == "Folder" else "file",
+            "size": entry.size,
+        })
+        if entry.path == selected.path:
+            selected_seen = True
+    if not selected_seen:
+        raise ValueError("The selected file is not part of the current safe directory listing.")
+    if len(serialized_entries) > MAX_VISIBLE_ENTRIES:
+        raise ValueError("The directory listing exceeds the controller limit.")
+
+    return {
+        "protocol_version": 1,
+        "action": "preview_selected",
+        "snapshot": {
+            "protocol_version": 1,
+            "root": str(reader.root),
+            "current_directory": current_relative,
+            "entries": serialized_entries,
+        },
+        "selected_relative_path": selected.path.name,
+    }
+
+
+def request_controller_preview(
+    command: dict,
+    executable: Path = CONTROLLER_EXECUTABLE,
+) -> dict:
+    """Call only the fixed installed Rust adapter; never invoke a shell or file handler."""
+    if not executable.is_absolute() or not executable.is_file() or not os.access(executable, os.X_OK):
+        raise FileNotFoundError("The NexaOS desktop controller is not installed.")
+    payload = json.dumps(command, ensure_ascii=True, separators=(",", ":"))
+    if len(payload.encode("utf-8")) > MAX_CONTROLLER_REQUEST_BYTES:
+        raise ValueError("The controller request is too large.")
+    completed = subprocess.run(
+        [str(executable)],
+        input=payload,
+        text=True,
+        capture_output=True,
+        timeout=3,
+        check=False,
+        close_fds=True,
+    )
+    try:
+        response = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("The desktop controller returned an invalid response.") from error
+    if completed.returncode != 0 or response.get("status") != "preview_only":
+        code = response.get("error", "controller_request_failed")
+        raise RuntimeError(f"The desktop controller rejected the preview: {code}")
+    if response.get("protocol_version") != 1:
+        raise RuntimeError("The desktop controller returned an unsupported protocol version.")
+    return response
+
 
 
 def safe_display_name(value: str) -> str:
@@ -285,12 +373,20 @@ class FileBrowserDialog(QDialog):
         elif entry.kind == "Folder":
             self.navigate(entry.path)
         elif entry.kind == "File" and entry.path.suffix.casefold() == ".exe":
+            try:
+                command = build_controller_preview_request(
+                    self.reader, self.current, self.entries, entry
+                )
+                response = request_controller_preview(command)
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                self.status_label.setText(f"Preview unavailable: {error}")
+                return
             QMessageBox.information(
                 self,
                 "Windows application preview",
                 f"Selected: {entry.name}\n\n"
-                "Windows application execution is not enabled. "
-                "No process was started and the file was not executed.",
+                f"{response['explanation']}\n"
+                "Windows application execution is not enabled.",
             )
         else:
             self.status_label.setText(
