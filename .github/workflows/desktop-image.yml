@@ -72,6 +72,9 @@ jobs:
           sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
           live-build --version
 
+      - name: Build preview-only Rust desktop controller
+        run: cargo build --locked --release -p nexa-desktop-shell --bin nexa-desktop-controller
+
       - name: Smoke-test NexaOS Welcome UI without opening a display
         run: QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
 
