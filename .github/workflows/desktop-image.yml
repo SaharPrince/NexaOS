@@ -8,8 +8,6 @@ on:
       - "scripts/build-live-image.sh"
       - "scripts/smoke-boot-live-image.sh"
       - ".github/workflows/desktop-image.yml"
-    tags:
-      - "nexaos-preview-*"
   pull_request:
     paths:
       - "desktop/live-build/**"
@@ -84,36 +82,3 @@ jobs:
             artifacts/nexaos-qemu-boot-smoke.log
           if-no-files-found: error
           retention-days: 3
-
-  publish-iso-release:
-    name: Publish directly downloadable ISO
-    if: startsWith(github.ref, 'refs/tags/nexaos-preview-')
-    needs: build-live-image
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - name: Download build evidence artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: nexaos-desktop-preview-amd64
-          path: release-input
-
-      - name: Verify and stage the ISO release asset
-        run: |
-          test -s release-input/nexaos-preview-amd64.iso
-          test -s release-input/nexaos-preview-amd64.iso.sha256
-          (cd release-input && sha256sum --check nexaos-preview-amd64.iso.sha256)
-          mkdir -p release-assets
-          cp release-input/nexaos-preview-amd64.iso release-assets/nexaos-preview-amd64.iso
-          cp release-input/nexaos-preview-amd64.iso.sha256 release-assets/nexaos-preview-amd64.iso.sha256
-
-      - name: Publish ISO and checksum as release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          name: NexaOS Preview ${{ github.ref_name }}
-          generate_release_notes: true
-          files: |
-            release-assets/nexaos-preview-amd64.iso
-            release-assets/nexaos-preview-amd64.iso.sha256
