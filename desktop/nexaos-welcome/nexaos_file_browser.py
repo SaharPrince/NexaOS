@@ -13,13 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
     QHeaderView,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -241,6 +242,37 @@ def format_size(size: int | None) -> str:
     return f"{value:.1f} TB"
 
 
+def filter_entries(entries: list[BrowserEntry], query: str) -> list[BrowserEntry]:
+    """Filter the current bounded listing only; never scan child directories."""
+    needle = query.strip().casefold()
+    if not needle:
+        return list(entries)
+    return [
+        entry for entry in entries
+        if needle in entry.name.casefold() or needle in entry.kind.casefold()
+    ]
+
+
+def sort_entries(
+    entries: list[BrowserEntry], column: int, descending: bool = False
+) -> list[BrowserEntry]:
+    """Sort entries while keeping folders first, independent of sort direction."""
+    if column == 0:
+        key = lambda entry: entry.name.casefold()
+    elif column == 1:
+        key = lambda entry: entry.kind.casefold()
+    elif column == 2:
+        key = lambda entry: -1 if entry.size is None else entry.size
+    else:
+        raise ValueError("Unsupported file-browser sort column.")
+
+    folders = [entry for entry in entries if entry.kind == "Folder"]
+    others = [entry for entry in entries if entry.kind != "Folder"]
+    return sorted(folders, key=key, reverse=descending) + sorted(
+        others, key=key, reverse=descending
+    )
+
+
 class FileBrowserDialog(QDialog):
     """Small read-only browser. Directories navigate; files are never opened."""
 
@@ -250,6 +282,9 @@ class FileBrowserDialog(QDialog):
         self.current = self.reader.root
         self.history: list[Path] = []
         self.entries: list[BrowserEntry] = []
+        self.truncated = False
+        self.sort_column = 0
+        self.sort_descending = False
 
         self.setWindowTitle("NexaOS Files")
         self.setMinimumSize(720, 480)
@@ -268,6 +303,12 @@ class FileBrowserDialog(QDialog):
             navigation.addWidget(button)
         layout.addLayout(navigation)
 
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search this folder…")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.setAccessibleName("Search current folder")
+        layout.addWidget(self.search_input)
+
         self.location_label = QLabel()
         self.location_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -279,6 +320,7 @@ class FileBrowserDialog(QDialog):
 
         self.table = QTableWidget(0, 3)
         self.table.setHorizontalHeaderLabels(["Name", "Type", "Size"])
+        self.table.setSortingEnabled(False)
         self.table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
@@ -288,6 +330,7 @@ class FileBrowserDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setColumnWidth(1, 150)
         self.table.setColumnWidth(2, 90)
+        self.table.horizontalHeader().sectionClicked.connect(self.sort_by_column)
         layout.addWidget(self.table)
 
         self.status_label = QLabel(
@@ -301,7 +344,20 @@ class FileBrowserDialog(QDialog):
         self.home_button.clicked.connect(self.go_home)
         self.refresh_button.clicked.connect(self.refresh)
         self.hidden_toggle.toggled.connect(self.refresh)
+        self.search_input.textChanged.connect(self.apply_filter)
         self.table.cellDoubleClicked.connect(self.activate_row)
+        self._shortcuts = []
+        for sequence, callback in (
+            ("Ctrl+F", self.search_input.setFocus),
+            ("Alt+Left", self.go_back),
+            ("Alt+Up", self.go_up),
+            ("Alt+Home", self.go_home),
+            ("F5", self.refresh),
+            ("Escape", self.search_input.clear),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.activated.connect(callback)
+            self._shortcuts.append(shortcut)
         self.refresh()
 
     def navigate(self, destination: Path) -> None:
@@ -347,27 +403,58 @@ class FileBrowserDialog(QDialog):
             return
 
         self.location_label.setText(str(self.current))
-        self.table.setRowCount(len(self.entries))
-        for row, entry in enumerate(self.entries):
+        self.truncated = truncated
+        self.back_button.setEnabled(bool(self.history))
+        self.up_button.setEnabled(self.current != self.reader.root)
+        self.apply_filter()
+
+    def apply_filter(self) -> None:
+        """Render a filtered/sorted view without changing the trusted source listing."""
+        visible = sort_entries(
+            filter_entries(self.entries, self.search_input.text()),
+            self.sort_column,
+            self.sort_descending,
+        )
+        source_indices = {entry.path: index for index, entry in enumerate(self.entries)}
+        self.table.setRowCount(len(visible))
+        for row, entry in enumerate(visible):
             name_item = QTableWidgetItem(entry.name)
-            name_item.setData(Qt.ItemDataRole.UserRole, row)
+            name_item.setData(Qt.ItemDataRole.UserRole, source_indices[entry.path])
             if entry.is_symlink or entry.kind != "Folder":
                 name_item.setForeground(QColor(Qt.GlobalColor.darkGray))
             self.table.setItem(row, 0, name_item)
             self.table.setItem(row, 1, QTableWidgetItem(entry.kind))
             self.table.setItem(row, 2, QTableWidgetItem(format_size(entry.size)))
 
-        self.back_button.setEnabled(bool(self.history))
-        self.up_button.setEnabled(self.current != self.reader.root)
-        suffix = f" Showing the first {self.reader.limit} items." if truncated else ""
-        self.status_label.setText(
-            f"{len(self.entries)} item(s). Read-only: files are not opened or executed.{suffix}"
-        )
+        query = self.search_input.text().strip()
+        if query:
+            status = f"Showing {len(visible)} of {len(self.entries)} item(s) matching ‘{safe_display_name(query)}’."
+        else:
+            status = f"{len(visible)} item(s)."
+        status += " Read-only: files are not opened or executed."
+        if self.truncated:
+            status += f" Showing the first {self.reader.limit} items from this folder."
+        self.status_label.setText(status)
+
+    def sort_by_column(self, column: int) -> None:
+        if column == self.sort_column:
+            self.sort_descending = not self.sort_descending
+        else:
+            self.sort_column = column
+            self.sort_descending = False
+        self.apply_filter()
 
     def activate_row(self, row: int, _column: int) -> None:
-        if row < 0 or row >= len(self.entries):
+        if row < 0 or row >= self.table.rowCount():
             return
-        entry = self.entries[row]
+        name_item = self.table.item(row, 0)
+        if name_item is None:
+            return
+        entry_index = name_item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(entry_index, int) or not 0 <= entry_index < len(self.entries):
+            self.status_label.setText("The selected item is no longer available. Refresh the folder.")
+            return
+        entry = self.entries[entry_index]
         if entry.is_symlink:
             self.status_label.setText("Symbolic links are not opened in this preview.")
         elif entry.kind == "Folder":
