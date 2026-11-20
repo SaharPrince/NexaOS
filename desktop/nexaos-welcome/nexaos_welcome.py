@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """NexaOS Welcome: a lightweight LXQt-facing desktop hub.
 
-This application provides a read-only home-folder browser and opens installed
+This application provides a home-confined file browser and opens installed
 desktop settings through fixed executable paths. It never constructs shell
 commands and never executes Windows files. The .exe chooser is preview-only.
 """
@@ -265,6 +265,30 @@ def main() -> int:
             assert len(limited) == 1 and truncated
             visible, _ = reader.list_entries(root, show_hidden=True)
             assert ".hidden" in [entry.name for entry in visible]
+
+            created = reader.create_directory(root, "Projects")
+            assert created == root / "Projects" and created.is_dir()
+            try:
+                reader.create_directory(root, "Projects")
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("browser allowed a duplicate folder name")
+            for invalid_name in ("", ".", "..", "../outside", "nested\\\\folder", " bad", "bad "):
+                try:
+                    reader.create_directory(root, invalid_name)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError(f"browser accepted invalid folder name: {invalid_name!r}")
+            assert not (root.parent / "outside").exists()
+            try:
+                reader.create_directory(root / "folder-link", "escaped")
+            except OSError:
+                pass
+            else:
+                raise AssertionError("browser created a folder through a symbolic link")
+
             try:
                 reader.validate_directory(root.parent)
             except PermissionError:
@@ -272,15 +296,16 @@ def main() -> int:
             else:
                 raise AssertionError("browser allowed navigation outside its root")
             browser = FileBrowserDialog(root=root)
-            assert browser.table.rowCount() == 4
+            assert browser.table.rowCount() == 5
+            assert browser.new_folder_button.isEnabled()
             assert browser.current == root.resolve()
             browser.search_input.setText("DEMO")
             assert browser.table.rowCount() == 1
             assert browser.table.item(0, 0).text() == "demo.exe"
             browser.search_input.clear()
-            assert browser.table.rowCount() == 4
+            assert browser.table.rowCount() == 5
             browser.sort_by_column(0)
-            assert browser.table.item(0, 0).text() == "Documents"
+            assert browser.table.item(0, 0).text() == "Projects"
             browser.sort_by_column(0)
             assert browser.table.item(0, 0).text() == "Documents"
             selected_index = browser.table.item(1, 0).data(Qt.ItemDataRole.UserRole)
