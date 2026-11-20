@@ -52,9 +52,20 @@ duplicate entries, and oversized snapshots. It performs no filesystem access.
 The resulting model still routes `.exe` activation only to the preview-only
 mock launcher.
 
-This establishes and tests a data contract; it is **not yet live IPC**. The Qt
-browser does not start a Rust process or send this payload yet. Before that
-connection, a separately reviewed adapter must define process discovery,
-message framing/size limits, request correlation, timeout and crash behavior,
-and privilege separation. Do not add an executable launcher as part of this
-bridge.
+The Qt file browser now sends this versioned request to the fixed installed
+`/usr/lib/nexaos/nexa-desktop-controller` helper using a structured argument
+list and JSON on standard input. The helper is built from this crate and is
+invoked with a short timeout; no filename or request data is interpolated into
+a shell command. The helper returns a structured preview-only response. It
+does not open the selected file or start the selected application.
+
+The helper is a one-shot process boundary, not a long-running privileged
+service. Requests are capped at 1 MiB, and the controller validates the
+snapshot before handling the selected relative path. The graphical frontend
+fails closed if the helper is missing, times out, or returns an invalid/error
+response. The helper itself runs with the logged-in user's privileges.
+
+This is a real preview-controller connection, **not an executable launcher**.
+No file association or `.exe` execution is enabled. A future real runtime still
+requires its own reviewed process model, sandbox, crash isolation, and
+vendor-approved anti-cheat gates.
