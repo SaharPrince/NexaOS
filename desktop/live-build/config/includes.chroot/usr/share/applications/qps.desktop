@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NexaOS Task Manager
+GenericName=Task Manager
+Comment=View processes and monitor CPU and memory usage
+Exec=qps
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Utility;
+Keywords=task;manager;process;cpu;memory;performance;
+StartupNotify=true
