@@ -26,6 +26,9 @@ sudo
 
 # Keep the desktop visually complete and useful instead of dropping optional
 # desktop integrations just to reduce the package count.
+# These explicit packages provide PCManFM-Qt locations, icons, SVG support,
+# fonts, image viewing, archive handling, text editing, audio controls, power
+# management, screenshots, and localized file-manager UI.
 gvfs-backends
 gvfs-fuse
 papirus-icon-theme
@@ -40,8 +43,3 @@ pavucontrol-qt
 lxqt-powermanagement
 screengrab
 pcmanfm-qt-l10n
-# PCManFM-Qt optional integrations are needed for desktop locations and icons.
-# Recommendations are disabled globally, so include these explicitly.
-gvfs-backends
-gvfs-fuse
-papirus-icon-theme
