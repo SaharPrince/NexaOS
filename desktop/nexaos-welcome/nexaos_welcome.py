@@ -19,7 +19,9 @@ from nexaos_file_browser import (
     FileBrowserDialog,
     SafeDirectoryReader,
     build_controller_preview_request,
+    filter_entries,
     request_controller_preview,
+    sort_entries,
 )
 
 from PyQt6.QtWidgets import (
@@ -238,6 +240,11 @@ def main() -> int:
             assert not truncated
             assert [entry.name for entry in entries] == ["Documents", "demo.exe", "folder-link", "notes.txt"]
             assert next(entry for entry in entries if entry.name == "folder-link").is_symlink
+            assert [entry.name for entry in filter_entries(entries, "DOC")] == ["Documents"]
+            assert [entry.name for entry in filter_entries(entries, "  ")] == [entry.name for entry in entries]
+            descending = sort_entries(entries, 0, descending=True)
+            assert descending[0].name == "Documents"
+            assert [entry.name for entry in descending[1:]] == ["notes.txt", "folder-link", "demo.exe"]
             executable_entry = next(entry for entry in entries if entry.name == "demo.exe")
             command = build_controller_preview_request(reader, root, entries, executable_entry)
             assert command["action"] == "preview_selected"
@@ -267,6 +274,17 @@ def main() -> int:
             browser = FileBrowserDialog(root=root)
             assert browser.table.rowCount() == 4
             assert browser.current == root.resolve()
+            browser.search_input.setText("DEMO")
+            assert browser.table.rowCount() == 1
+            assert browser.table.item(0, 0).text() == "demo.exe"
+            browser.search_input.clear()
+            assert browser.table.rowCount() == 4
+            browser.sort_by_column(0)
+            assert browser.table.item(0, 0).text() == "Documents"
+            browser.sort_by_column(0)
+            assert browser.table.item(0, 0).text() == "Documents"
+            selected_index = browser.table.item(1, 0).data(Qt.ItemDataRole.UserRole)
+            assert browser.entries[selected_index].name == browser.table.item(1, 0).text()
             browser.close()
         # The self-test creates no process and displays no modal dialog.
         return 0
