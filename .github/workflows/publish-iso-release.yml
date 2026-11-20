@@ -1,53 +1,31 @@
 name: NexaOS direct ISO release
 
 on:
-  push:
-    tags:
-      - "nexaos-preview-*"
+  workflow_run:
+    workflows: ["NexaOS desktop preview"]
+    types: [completed]
+    branches:
+      - "nce-005c/low-end-resource-baseline"
 
 permissions:
   contents: write
   actions: read
 
 concurrency:
-  group: nexaos-iso-release-${{ github.ref }}
+  group: nexaos-iso-release-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Publish verified ISO from matching successful build
+    name: Publish verified ISO as a direct release asset
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     steps:
-      - name: Find successful desktop build for this exact commit
-        id: build
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const response = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "desktop-image.yml",
-              head_sha: context.sha,
-              status: "success",
-              per_page: 20
-            });
-            const run = response.data.workflow_runs.find(item =>
-              item.conclusion === "success" &&
-              item.head_sha === context.sha &&
-              item.head_branch === "nce-005c/low-end-resource-baseline"
-            );
-            if (!run) {
-              core.setFailed("No successful desktop ISO build exists for this exact commit. Push the commit to the development branch and wait for its desktop workflow to pass before tagging it.");
-              return;
-            }
-            core.setOutput("run_id", String(run.id));
-            core.info(`Using successful build run ${run.id} for ${context.sha}`);
-
-      - name: Download ISO and build evidence
+      - name: Download ISO and build evidence from the successful run
         uses: actions/download-artifact@v4
         with:
           name: nexaos-desktop-preview-amd64
-          run-id: ${{ steps.build.outputs.run_id }}
+          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: release-input
 
@@ -63,7 +41,9 @@ jobs:
       - name: Publish direct ISO download
         uses: softprops/action-gh-release@v2
         with:
-          name: NexaOS Preview ${{ github.ref_name }}
+          tag_name: nexaos-preview-${{ github.event.workflow_run.head_sha }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: NexaOS Preview ${{ github.event.workflow_run.head_sha }}
           generate_release_notes: true
           prerelease: true
           files: |
