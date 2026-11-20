@@ -1,0 +1,143 @@
+name: NexaOS desktop preview
+
+on:
+  push:
+    paths:
+      - "desktop/live-build/config/**"
+      - "desktop/nexaos-welcome/**"
+      - "engine/desktop-shell/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/build-live-image.sh"
+      - "scripts/smoke-boot-live-image.sh"
+      - ".github/workflows/desktop-image.yml"
+  pull_request:
+    paths:
+      - "desktop/live-build/**"
+      - "desktop/nexaos-welcome/**"
+      - "engine/desktop-shell/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/build-live-image.sh"
+      - "scripts/smoke-boot-live-image.sh"
+      - ".github/workflows/desktop-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexaos-desktop-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-live-image:
+    name: Build Debian 13 LXQt live preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate build script and package list
+        run: |
+          bash -n scripts/build-live-image.sh
+          bash -n scripts/smoke-boot-live-image.sh
+          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py
+          python3 scripts/validate-desktop-config.py
+          test -s desktop/nexaos-welcome/nexaos_file_browser.py
+          test -s engine/desktop-shell/src/bin/nexa-desktop-controller.rs
+          test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-welcome.desktop
+          test -s desktop/live-build/config/includes.chroot/etc/skel/.config/pcmanfm-qt/lxqt/settings.conf
+          test -s desktop/live-build/config/includes.chroot/usr/share/backgrounds/nexaos/nexaos-default.svg
+          test -s desktop/live-build/config/includes.chroot/etc/skel/.config/lxqt/panel.conf
+          test -s desktop/live-build/config/includes.chroot/usr/share/lxqt/themes/nexaos/nexaos-menu.svg
+          grep -Fxq 'gvfs-backends' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'gvfs-fuse' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'papirus-icon-theme' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          grep -Fxq 'qt6-svg-plugins' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+          awk 'NF && $1 !~ /^#/ { if (NF != 1) exit 1; count++ } END { if (count == 0) exit 1 }' desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
+
+      - name: Install Debian live-build and host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            debian-archive-keyring \
+            debootstrap \
+            xorriso \
+            squashfs-tools \
+            qemu-system-x86 \
+            qemu-system-gui \
+            xvfb \
+            x11-apps \
+            imagemagick \
+            python3-pyqt6
+          echo "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://deb.debian.org/debian trixie main" | sudo tee /etc/apt/sources.list.d/debian-trixie-live-build.list
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
+          live-build --version
+
+      - name: Build preview-only Rust desktop controller
+        run: cargo build --locked --release -p nexa-desktop-shell --bin nexa-desktop-controller
+
+      - name: Smoke-test NexaOS Welcome UI without opening a display
+        run: QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
+
+      - name: Build preview ISO
+        run: bash scripts/build-live-image.sh
+
+      - name: Boot preview ISO in isolated QEMU VM
+        run: bash scripts/smoke-boot-live-image.sh
+
+      - name: Upload preview ISO, checksum, and VM evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexaos-desktop-preview-amd64
+          path: |
+            artifacts/nexaos-preview-amd64.iso
+            artifacts/nexaos-preview-amd64.iso.sha256
+            artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-smoke.log
+          if-no-files-found: error
+          retention-days: 3
+ 
+  publish-iso-release:
+    name: Publish direct ISO release
+    if: github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+    needs: build-live-image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download ISO and build evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: nexaos-desktop-preview-amd64
+          path: release-input
+
+      - name: Verify and stage direct ISO assets
+        run: |
+          test -s release-input/nexaos-preview-amd64.iso
+          test -s release-input/nexaos-preview-amd64.iso.sha256
+          (cd release-input && sha256sum --check nexaos-preview-amd64.iso.sha256)
+          mkdir -p release-assets
+          cp release-input/nexaos-preview-amd64.iso release-assets/nexaos-preview-amd64.iso
+          cp release-input/nexaos-preview-amd64.iso.sha256 release-assets/nexaos-preview-amd64.iso.sha256
+
+      - name: Publish ISO and checksum as a prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nexaos-preview-${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          name: NexaOS Preview ${{ github.sha }}
+          generate_release_notes: true
+          prerelease: true
+          files: |
+            release-assets/nexaos-preview-amd64.iso
+            release-assets/nexaos-preview-amd64.iso.sha256
+

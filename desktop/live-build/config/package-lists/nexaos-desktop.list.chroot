@@ -1,0 +1,48 @@
+# Debian's maintained LXQt desktop task provides the X11 session, display
+# manager, panel, file manager, settings tools, and hardware input/video stack.
+# APT recommendations are disabled by the build config to avoid pulling in
+# optional office suites and other nonessential recommended applications.
+task-lxqt-desktop
+
+# NexaOS's small Qt 6 welcome hub (uses the desktop's existing Qt stack).
+python3
+python3-pyqt6
+
+# Network management UI for the live desktop.
+network-manager
+network-manager-gnome
+
+# Common firmware packages; hardware coverage still requires device testing.
+firmware-linux-free
+firmware-misc-nonfree
+firmware-iwlwifi
+firmware-realtek
+
+# live-config recommends these packages; recommendations are disabled globally.
+# user-setup creates the live user account used by console and desktop autologin.
+# sudo allows the live user to perform permitted shutdown/reboot actions.
+user-setup
+sudo
+
+# Lightweight Qt 6 process manager with live CPU/RAM history graphs and process controls.
+qps
+
+# Keep the desktop visually complete and useful instead of dropping optional
+# desktop integrations just to reduce the package count.
+# These explicit packages provide PCManFM-Qt locations, icons, SVG support,
+# fonts, image viewing, archive handling, text editing, audio controls, power
+# management, screenshots, and localized file-manager UI.
+gvfs-backends
+gvfs-fuse
+papirus-icon-theme
+qt6-svg-plugins
+fonts-noto-core
+lximage-qt
+lxqt-policykit
+lxqt-qtplugin
+lxqt-archiver
+featherpad
+pavucontrol-qt
+lxqt-powermanagement
+screengrab
+pcmanfm-qt-l10n

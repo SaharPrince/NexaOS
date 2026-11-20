@@ -1,0 +1,168 @@
+# NCE-005c: Low-End Resource Baseline
+
+## Status
+
+**Physical-device collection and review are complete for this single-device diagnostic baseline. Final branch validation passed in workflow run [#408](https://github.com/SaharPrince/NexaOS/actions/runs/44493932243), with all five jobs successful. NCE-005c is complete as a single-device diagnostic baseline; the broader NCE-005 milestone remains open.**
+
+This milestone extends the synthetic, non-executing image-preparation measurements from NCE-005b. It does not authorize PE execution, loader behavior, planner acceptance changes, or new compatibility claims.
+
+## Scope and measurement boundaries
+
+The benchmark workload remains the deterministic synthetic PE32+ AMD64 fixture documented in [NCE-005b](NCE-005b.md). The benchmark inspects and prepares bytes in memory; no PE entry point or sample code is executed.
+
+The Linux helper is `scripts/measure-image-bench-linux.sh`. It builds the harness-free benchmark once, then launches a fresh benchmark process for each repetition. For every process it records GNU `time` maximum resident set size (`%M`, reported in KiB) independently from the benchmark's phase timings.
+
+The helper records:
+- OS/kernel string and architecture;
+- CPU model when exposed by `/proc/cpuinfo`, logical processor count, and installed memory from `/proc/meminfo`;
+- Rust and Cargo versions;
+- benchmark iteration settings and repetition count;
+- each run's phase output and process maximum RSS;
+- min, median, nearest-rank p90, and max across repetitions.
+
+The CI workflow invokes five fresh processes on the hosted Ubuntu runner and uploads the transcript as a seven-day artifact. These are hosted-CI observations only. The runner is not a low-end device and must not be represented as one.
+
+## Hosted Linux CI observation
+
+The first successful repeated Linux collection was produced by workflow run [#402](https://github.com/SaharPrince/NexaOS/actions/runs/44468543311), at commit `00b179c95d1c31e5bff29fbf701ea215ca5d1fc8`. The raw artifact is `nce-005c-hosted-linux-benchmark-44468543311-1` (artifact ID `14502319869`; seven-day retention).
+
+Runner inventory:
+- OS/kernel: Linux `7.0.0-1019-azure` (Ubuntu hosted runner);
+- architecture: `x86_64`;
+- CPU: AMD EPYC 7763 64-Core Processor;
+- logical processors: 4;
+- installed memory: 16,366,640 KiB (about 15.6 GiB);
+- Rust: `rustc 1.100.0`;
+- Cargo: `cargo 1.100.0`.
+
+Five fresh benchmark processes were measured with 1,000 parse and layout iterations, 200 buffer and preparation iterations, and a 1,000 ms external hold. Repeated phase summaries (nanoseconds per iteration; min / median / nearest-rank p90 / max):
+
+| Phase | Min | Median | p90 | Max |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 1,391 | 1,431 | 1,543 | 1,543 |
+| Layout planning | 67 | 67 | 70 | 70 |
+| Image-buffer allocation | 193 | 197 | 202 | 202 |
+| Allocation and population | 250 | 251 | 338 | 338 |
+| Population only | 97 | 99 | 105 | 105 |
+| Full preparation, counting allocator | 1,919 | 1,950 | 2,080 | 2,080 |
+| Full preparation, system allocator | 1,876 | 1,898 | 2,002 | 2,002 |
+| Import-bearing preparation | 2,712 | 2,740 | 2,903 | 2,903 |
+| Relocation-bearing preparation | 2,082 | 2,200 | 2,219 | 2,219 |
+
+Process maximum RSS (GNU `time`, KiB): min 2,268; median 2,332; nearest-rank p90 2,332; max 2,332.
+
+These values are a small synthetic diagnostic baseline on a shared hosted runner. They are not statistically significant performance guarantees, not representative of a physical low-end device, and not evidence that one allocator is superior. Process maximum RSS is not total heap allocation, and it must not be directly equated with the Windows working-set metric collected by the separate Windows helper. The fixture does not establish real-world PE corpus coverage or loader compatibility.
+
+## Latest hardened-helper validation
+
+The latest helper validation was collected by workflow run [#404](https://github.com/SaharPrince/NexaOS/actions/runs/44469556444), at commit `67cac7c20266a0d6e89934f49d4a72770727bbcd`. All five workflow jobs passed, including the Linux repeated-resource-baseline job, formatting, Clippy with warnings denied, Windows tests, and external compiler PE layout checks. The Linux job verified that every fresh process emitted `execution: NOT_ATTEMPTED` and that all nine expected benchmark phases had exactly five samples.
+
+Raw transcript artifact: `nce-005c-hosted-linux-benchmark-44469556444-1` (artifact ID `14503451684`; seven-day retention).
+
+Runner inventory for this run:
+- OS/kernel: Linux `7.0.0-1016-aws` (Ubuntu hosted runner);
+- architecture: `x86_64`;
+- CPU: Intel(R) Xeon(R) 6975P-C;
+- logical processors: 4;
+- installed memory: 16,077,544 KiB;
+- Rust: `rustc 1.100.0`;
+- Cargo: `cargo 1.100.0`.
+
+Five fresh processes used 1,000 parse and layout iterations, 200 buffer and preparation iterations, and a 1,000 ms external hold. Repeated phase summaries (nanoseconds per iteration; min / median / nearest-rank p90 / max):
+
+| Phase | Min | Median | p90 | Max |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 981 | 1,004 | 1,010 | 1,010 |
+| Layout planning | 46 | 47 | 48 | 48 |
+| Image-buffer allocation | 97 | 98 | 103 | 103 |
+| Allocation and population | 127 | 129 | 136 | 136 |
+| Population only | 65 | 66 | 68 | 68 |
+| Full preparation, counting allocator | 1,352 | 1,412 | 1,483 | 1,483 |
+| Full preparation, system allocator | 1,308 | 1,369 | 1,478 | 1,478 |
+| Import-bearing preparation | 1,836 | 1,863 | 1,938 | 1,938 |
+| Relocation-bearing preparation | 1,409 | 1,447 | 1,552 | 1,552 |
+
+Process maximum RSS (GNU `time`, KiB): min 2,268; median 2,332; nearest-rank p90 2,332; max 2,332.
+
+This second hosted-runner sample is a separate observation, not a direct performance comparison with the earlier run because the runner CPU and kernel differ. It remains a synthetic CI baseline, not a physical low-end-device result. No execution was attempted.
+
+## Physical Windows laptop baseline
+
+A repeated physical-device collection was completed on a legacy, low-memory laptop. The device is a credible low-memory test candidate (4 GiB installed RAM and an Intel Core i5-3210M); this single machine does not represent every low-end computer. The benchmark remains synthetic and non-executing.
+
+Device and environment inventory:
+- CPU: Intel(R) Core(TM) i5-3210M CPU @ 2.50GHz;
+- logical processors: 4;
+- installed memory: 4,195,192,832 bytes (approximately 3.91 GiB);
+- OS: Microsoft Windows 10 IoT Enterprise LTSC, version 10.0.19044, build 19044, 64-bit;
+- Rust: `rustc 1.100.0 (0ef1bc386 2026-11-09)`;
+- Cargo: `cargo 1.100.0 (3acc79c0c 2026-11-05)`;
+- Rust host: `x86_64-pc-windows-msvc`;
+- active power plan: High performance;
+- repository commit measured: `daf939ab33898016489ae2633b020e62228d6bca`;
+- repetitions: five fresh benchmark processes;
+- settings: 1,000 parse and layout iterations, 200 buffer and preparation iterations, 1,000 ms external hold.
+
+Repeated phase summaries (nanoseconds per iteration; min / median / nearest-rank p90 / max):
+
+| Phase | Min | Median | p90 | Max |
+|---|---:|---:|---:|---:|
+| Parse and inspect | 11,715 | 14,098 | 16,252 | 16,252 |
+| Layout planning | 944 | 1,312 | 1,561 | 1,561 |
+| Image-buffer allocation | 1,086 | 1,786 | 3,383 | 3,383 |
+| Allocation and population | 1,810 | 2,141 | 4,235 | 4,235 |
+| Population only | 785 | 857 | 1,473 | 1,473 |
+| Full preparation, counting allocator | 14,612 | 16,993 | 17,989 | 17,989 |
+| Full preparation, system allocator | 14,371 | 15,376 | 18,131 | 18,131 |
+| Import-bearing preparation | 19,635 | 23,148 | 25,877 | 25,877 |
+| Relocation-bearing preparation | 14,536 | 18,431 | 20,812 | 20,812 |
+
+Windows benchmark-process working-set high-water mark (bytes): min 3,174,400; median 3,244,032; nearest-rank p90 3,645,440; max 3,645,440.
+
+All five runs reported `execution: NOT_ATTEMPTED`. Each 200-iteration image-buffer preparation phase requested 1,638,400 bytes across 200 logical allocator calls. These allocator counters are not process-wide heap allocations. The working-set values describe the benchmark process only and are not total system RAM consumption.
+
+The laptop's active power plan was High performance. Whether the machine was otherwise idle or under competing workload was not recorded; this is an evidence limitation. The original PowerShell transcript was saved locally as `NexaOS-NCE-005c-Laptop-Benchmark.txt` in the user's temporary directory. The values above were transcribed from the console output supplied for this review; the local transcript has not been uploaded to the repository.
+
+These measurements are one physical-device diagnostic baseline, not a performance guarantee, universal low-end threshold, real-world PE corpus result, or evidence of loader compatibility. They must not be compared directly with Linux GNU-time RSS values: Windows working set and Linux maximum RSS are different measurement sources and environments.
+
+## What the measurements mean
+
+Keep these metrics separate:
+
+1. **Phase timing:** wall-clock nanoseconds per iteration for the benchmark operations.
+2. **Process maximum RSS:** GNU `time` maximum resident set size for the benchmark process, reported in KiB. This is not system-wide memory use, a private-bytes measurement, or total heap allocation.
+3. **Logical image-buffer allocator counters:** reported by the Rust benchmark. These count calls and requested bytes through the image-buffer allocator interface, not every process allocation.
+
+The external hold interval is a sampling aid and is excluded from the benchmark phase timers. Repeated results are diagnostic observations, not statistical performance guarantees.
+
+## Physical low-end device evidence
+
+**One physical low-memory Windows laptop baseline has been collected and reviewed.** Hosted CI cannot substitute for physical-device evidence. The recorded laptop is a useful legacy low-memory test candidate and supports a device-specific diagnostic baseline; one device is not a representative sample of all low-end hardware. No universal low-end readiness or resource-budget decision is supported. Retain the following evidence requirements and gather additional devices/workloads before making broader claims:
+
+- exact CPU model and architecture;
+- installed RAM and OS version/build;
+- Rust/Cargo versions and target architecture;
+- power mode and whether the device was idle or under other load (unknown for this collection; explicitly recorded as a limitation);
+- exact repository commit and benchmark settings;
+- raw transcript for each repeated run;
+- min, median, nearest-rank p90, and max for every phase and process memory metric.
+
+On the Windows lab PC, use the existing helper:
+
+```powershell
+./scripts/measure-image-bench.ps1 -PlanIterations 1000 -BufferIterations 200 -PreparationIterations 200 -Runs 5 -HoldMilliseconds 1000
+```
+
+Also record CPU model and installed RAM independently if the helper's CIM inventory reports them as unavailable. Do not infer missing hardware details.
+
+The collected device has a clearly documented low-memory configuration and is recorded as a physical low-memory laptop baseline, not as a universal low-end baseline. Do not invent a RAM floor, latency budget, or universal performance threshold from one device or hosted-runner observations.
+
+## Exit criteria
+
+- [x] Linux helper completes repeated fresh-process measurements and reports all expected phases and RSS summaries.
+- [x] Hosted Linux workflow run succeeds and its raw transcript artifact is retained.
+- [x] A physical low-memory laptop candidate is identified and its hardware/software inventory is recorded.
+- [x] Five repeated physical-device measurements and their phase/working-set summaries are recorded; the original transcript remains in the user's local temporary directory and has not been committed.
+- [x] Device workload/idle state is explicitly recorded as unknown, and additional evidence limitations are documented; no resource budget, compatibility decision, or general readiness claim is made from this single-device sample.
+
+NCE-005c physical-device collection, evidence review, project-level closeout review, and final branch validation are complete for this single-device diagnostic baseline. Workflow run [#408](https://github.com/SaharPrince/NexaOS/actions/runs/44493932243) passed all five jobs at the documentation-review commit. This closes NCE-005c only; the broader NCE-005 milestone remains open for the corpus and compatibility evidence gaps recorded in `docs/milestones/NCE-005.md`. No general low-end readiness, resource-budget, or compatibility conclusion is authorized by these measurements.

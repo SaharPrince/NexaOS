@@ -1,0 +1,279 @@
+name: Rust checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Format Rust sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check workspace formatting
+        run: cargo fmt --all -- --check
+      - name: Check fuzz target formatting
+        run: cargo fmt --manifest-path fuzz/Cargo.toml -- --check
+
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run workspace tests
+        run: cargo test --workspace --locked
+      - name: Check CLI help
+        run: cargo run --locked -p nexa-inspect -- --help
+      - name: Run lightweight image benchmark smoke test
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          NEXA_BENCH_PARSE_ITERS: 5
+          NEXA_BENCH_LAYOUT_ITERS: 5
+          NEXA_BENCH_BUFFER_ITERS: 2
+          NEXA_BENCH_PREPARE_ITERS: 2
+        run: cargo bench --locked -p nexa-inspect --bench nexa_image
+      - name: Run duplicate zero-initialization diagnostic smoke test
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          NEXA_ZERO_INIT_ITERS: 5
+          NEXA_ZERO_INIT_BYTES: 8192
+        run: cargo bench --locked -p nexa-inspect --bench nexa_zero_init
+      - name: Collect repeated NCE-005c Linux resource baseline
+        if: matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+        shell: bash
+        run: |
+          mkdir -p target
+          bash ./scripts/measure-image-bench-linux.sh 5 | tee target/nce-005c-hosted-linux-benchmark.txt
+
+      - name: Upload hosted Linux benchmark observations
+        if: always() && matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nce-005c-hosted-linux-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/nce-005c-hosted-linux-benchmark.txt
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Inspect a compiler-produced PE32+ executable
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exe = "target/debug/nexa-inspect.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Expected Windows PE fixture was not built: $exe"
+          }
+          $report = cargo run --locked -p nexa-inspect -- inspect --json $exe | ConvertFrom-Json
+          if ($report.format -ne "PE32+") {
+            throw "Expected PE32+ format, got: $($report.format)"
+          }
+          if ($report.machine -ne "AMD64") {
+            throw "Expected AMD64 machine, got: $($report.machine)"
+          }
+          if ($report.sections.Count -lt 1) {
+            throw "Compiler-produced PE fixture has no parsed sections"
+          }
+          if ($report.execution -ne "NOT_ATTEMPTED") {
+            throw "Inspection must never execute the input"
+          }
+
+          # Build a genuine 32-bit Windows PE with the MSVC toolchain and
+          # inspect it without executing the generated binary.
+          rustup target add i686-pc-windows-msvc
+          cargo build --locked -p nexa-inspect --target i686-pc-windows-msvc
+          $pe32 = "target/i686-pc-windows-msvc/debug/nexa-inspect.exe"
+          if (-not (Test-Path $pe32)) {
+            throw "Expected compiler-produced PE32 fixture was not built: $pe32"
+          }
+          $pe32Report = cargo run --locked -p nexa-inspect -- inspect --json $pe32 | ConvertFrom-Json
+          if ($pe32Report.format -ne "PE32") {
+            throw "Expected PE32 format, got: $($pe32Report.format)"
+          }
+          if ($pe32Report.machine -ne "x86") {
+            throw "Expected x86 machine, got: $($pe32Report.machine)"
+          }
+          if ($pe32Report.sections.Count -lt 1) {
+            throw "Compiler-produced PE32 fixture has no parsed sections"
+          }
+          if ($pe32Report.execution -ne "NOT_ATTEMPTED") {
+            throw "Inspection must never execute the PE32 input"
+          }
+
+      - name: Plan a Windows system PE without executing it
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $systemPe = Join-Path (Join-Path $env:WINDIR "System32") "where.exe"
+          if (-not (Test-Path $systemPe)) {
+            throw "Expected Windows system PE fixture was not found: $systemPe"
+          }
+          $env:NEXA_WINDOWS_SYSTEM_PE_FIXTURE = $systemPe
+          cargo test --locked -p nexa-inspect --test external_compiler_pe plans_windows_system_pe_when_configured -- --exact --nocapture
+
+      - name: Smoke-test Windows peak working-set benchmark helper
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: ./scripts/measure-image-bench.ps1 -PlanIterations 5 -BufferIterations 2 -PreparationIterations 2 -HoldMilliseconds 500
+
+      - name: Collect repeated NCE-005b benchmark sample on hosted Windows
+        if: matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target | Out-Null
+          $transcript = Join-Path $PWD "target/nce-005b-hosted-windows-benchmark.txt"
+          Start-Transcript -Path $transcript -Force
+          try {
+            ./scripts/measure-image-bench.ps1 -PlanIterations 1000 -BufferIterations 200 -PreparationIterations 200 -Runs 5 -HoldMilliseconds 1000
+          }
+          finally {
+            Stop-Transcript
+          }
+
+      - name: Upload hosted Windows benchmark observations
+        if: always() && matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nce-005b-hosted-windows-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/nce-005b-hosted-windows-benchmark.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  external-pe-corpus:
+    name: External compiler PE layout (MinGW + LLVM/LLD)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install MinGW-w64 cross compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686 clang lld llvm
+      - name: Build independent PE32+ and PE32 fixtures
+        shell: bash
+        run: |
+          mkdir -p target/pe-corpus
+          x86_64-w64-mingw32-gcc --version | head -n 1 | tee target/pe-corpus/compiler-x86_64-version.txt
+          x86_64-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
+            -o target/pe-corpus/mingw-x86_64.exe \
+            engine/pe-inspector/tests/fixtures/mingw_layout.c
+          x86_64-w64-mingw32-objdump -h target/pe-corpus/mingw-x86_64.exe
+          x86_64-w64-mingw32-objdump -p target/pe-corpus/mingw-x86_64.exe | sed -n '/The Data Directory/,+20p'
+          i686-w64-mingw32-gcc --version | head -n 1 | tee target/pe-corpus/compiler-i686-version.txt
+          i686-w64-mingw32-gcc -O0 -g0 -Wl,--no-insert-timestamp \
+            -o target/pe-corpus/mingw-i686.exe \
+            engine/pe-inspector/tests/fixtures/mingw_layout.c
+          i686-w64-mingw32-objdump -h target/pe-corpus/mingw-i686.exe
+          echo "NEXA_MINGW_PE_FIXTURE=$PWD/target/pe-corpus/mingw-x86_64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_MINGW_COMPILER_VERSION=$(cat target/pe-corpus/compiler-x86_64-version.txt)" >> "$GITHUB_ENV"
+          echo "NEXA_MINGW_PE32_FIXTURE=$PWD/target/pe-corpus/mingw-i686.exe" >> "$GITHUB_ENV"
+          echo "NEXA_MINGW_PE32_COMPILER_VERSION=$(cat target/pe-corpus/compiler-i686-version.txt)" >> "$GITHUB_ENV"
+          clang --version | head -n 1 | tee target/pe-corpus/clang-version.txt
+          ld.lld --version | head -n 1 | tee target/pe-corpus/lld-version.txt
+          clang --target=x86_64-pc-windows-msvc -fuse-ld=lld -nostdlib \
+            -Wl,/entry:entry -Wl,/subsystem:console -Wl,/nodefaultlib \
+            -Wl,/machine:x64 -Wl,/timestamp:0 \
+            -o target/pe-corpus/llvm-lld-x86_64.exe \
+            engine/pe-inspector/tests/fixtures/llvm_layout.c
+          objdump -h target/pe-corpus/llvm-lld-x86_64.exe
+          echo "NEXA_LLVM_PE_FIXTURE=$PWD/target/pe-corpus/llvm-lld-x86_64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_COMPILER_VERSION=$(cat target/pe-corpus/clang-version.txt)" >> "$GITHUB_ENV"
+          echo "NEXA_LLD_LINKER_VERSION=$(cat target/pe-corpus/lld-version.txt)" >> "$GITHUB_ENV"
+
+          # Reproduce three small AMD64 COFF linker cases from the pinned
+          # LLVM source revision. These outputs are inspected, never executed.
+          LLVM_REV=9a18a94ec1ffb4d050d5d17d245c44b1f2d073e8
+          LLVM_RAW="https://raw.githubusercontent.com/llvm/llvm-project/$LLVM_REV/lld/test/COFF"
+          mkdir -p target/pe-corpus/llvm-source
+          YAML2OBJ="$(command -v yaml2obj || find /usr/bin -maxdepth 1 -name 'yaml2obj-*' -print -quit)"
+          LLD_LINK="$(command -v lld-link || find /usr/bin -maxdepth 1 -name 'lld-link-*' -print -quit)"
+          if [[ -z "$YAML2OBJ" || -z "$LLD_LINK" ]]; then
+            echo "Could not locate yaml2obj and lld-link after installing LLVM tools" >&2
+            exit 1
+          fi
+          "$YAML2OBJ" --version | head -n 1 | tee target/pe-corpus/yaml2obj-version.txt
+          "$LLD_LINK" --version | head -n 1 | tee target/pe-corpus/lld-link-version.txt
+          printf '%s\n' "$LLVM_REV" > target/pe-corpus/llvm-source-revision.txt
+          curl --fail --silent --show-error --location "$LLVM_RAW/filealign.test" \
+            -o target/pe-corpus/llvm-source/filealign.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/default-alignment.test" \
+            -o target/pe-corpus/llvm-source/default-alignment.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/reloc-x64.test" \
+            -o target/pe-corpus/llvm-source/reloc-x64.test
+          curl --fail --silent --show-error --location "$LLVM_RAW/base.test" \
+            -o target/pe-corpus/llvm-source/base.test
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/filealign.test \
+            -o target/pe-corpus/llvm-filealign.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-filealign-default.exe /entry:main \
+            /timestamp:0 target/pe-corpus/llvm-filealign.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-filealign-4096.exe /entry:main \
+            /timestamp:0 /filealign:4096 target/pe-corpus/llvm-filealign.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/default-alignment.test \
+            -o target/pe-corpus/llvm-default-alignment.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-default-alignment.exe \
+            /entry:__ImageBase /subsystem:console /timestamp:0 \
+            target/pe-corpus/llvm-default-alignment.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/reloc-x64.test \
+            -o target/pe-corpus/llvm-reloc-x64.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-reloc-x64.exe /entry:main \
+            /timestamp:0 target/pe-corpus/llvm-reloc-x64.obj
+
+          "$YAML2OBJ" target/pe-corpus/llvm-source/base.test \
+            -o target/pe-corpus/llvm-base.obj
+          "$LLD_LINK" /out:target/pe-corpus/llvm-base.exe /entry:main \
+            /base:0x280000000 /timestamp:0 target/pe-corpus/llvm-base.obj
+
+          echo "NEXA_LLVM_FILEALIGN_DEFAULT_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-default.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_FILEALIGN_4096_FIXTURE=$PWD/target/pe-corpus/llvm-filealign-4096.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_DEFAULT_ALIGNMENT_FIXTURE=$PWD/target/pe-corpus/llvm-default-alignment.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_RELOC_FIXTURE=$PWD/target/pe-corpus/llvm-reloc-x64.exe" >> "$GITHUB_ENV"
+          echo "NEXA_LLVM_BASE_FIXTURE=$PWD/target/pe-corpus/llvm-base.exe" >> "$GITHUB_ENV"
+          (
+            cd target/pe-corpus
+            sha256sum *.exe > SHA256SUMS
+            stat -c '%n %s bytes' *.exe > fixture-sizes.txt
+          )
+      - name: Upload reproducible PE corpus fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/pe-corpus/*.exe
+            target/pe-corpus/*-version.txt
+            target/pe-corpus/SHA256SUMS
+            target/pe-corpus/fixture-sizes.txt
+            target/pe-corpus/llvm-source-revision.txt
+          if-no-files-found: error
+          retention-days: 3
+      - name: Inspect and plan external compiler output
+        run: cargo test --locked -p nexa-inspect --test external_compiler_pe -- --nocapture
+
+  clippy:
+    name: Clippy (warnings denied)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Lint all targets
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings

@@ -1,0 +1,33 @@
+name: Dependency security audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: Audit Rust dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Generate fuzz dependency lockfile
+        run: cargo generate-lockfile --manifest-path fuzz/Cargo.toml
+      - name: Check workspace dependencies
+        run: cargo audit --file Cargo.lock --deny warnings
+      - name: Check fuzz dependencies
+        run: cargo audit --file fuzz/Cargo.lock --deny warnings
