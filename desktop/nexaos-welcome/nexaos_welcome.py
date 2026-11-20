@@ -15,7 +15,11 @@ import tempfile
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from nexaos_file_browser import FileBrowserDialog, SafeDirectoryReader
+from nexaos_file_browser import (
+    FileBrowserDialog,
+    SafeDirectoryReader,
+    build_controller_preview_request,
+)
 
 from PyQt6.QtWidgets import (
     QApplication,
@@ -225,13 +229,20 @@ def main() -> int:
             root = Path(temporary)
             (root / "Documents").mkdir()
             (root / "notes.txt").write_text("preview fixture", encoding="utf-8")
+            (root / "demo.exe").write_bytes(b"not an executable; preview fixture only")
             (root / ".hidden").write_text("hidden fixture", encoding="utf-8")
             (root / "folder-link").symlink_to(root / "Documents", target_is_directory=True)
             reader = SafeDirectoryReader(root)
             entries, truncated = reader.list_entries(root)
             assert not truncated
-            assert [entry.name for entry in entries] == ["Documents", "folder-link", "notes.txt"]
+            assert [entry.name for entry in entries] == ["Documents", "demo.exe", "folder-link", "notes.txt"]
             assert next(entry for entry in entries if entry.name == "folder-link").is_symlink
+            executable_entry = next(entry for entry in entries if entry.name == "demo.exe")
+            command = build_controller_preview_request(reader, root, entries, executable_entry)
+            assert command["action"] == "preview_selected"
+            assert command["selected_relative_path"] == "demo.exe"
+            assert command["snapshot"]["entries"][0]["kind"] == "directory"
+            assert all(item["name"] != "folder-link" for item in command["snapshot"]["entries"])
             try:
                 reader.validate_directory(root / "folder-link")
             except OSError:
@@ -249,7 +260,7 @@ def main() -> int:
             else:
                 raise AssertionError("browser allowed navigation outside its root")
             browser = FileBrowserDialog(root=root)
-            assert browser.table.rowCount() == 3
+            assert browser.table.rowCount() == 4
             assert browser.current == root.resolve()
             browser.close()
         # The self-test creates no process and displays no modal dialog.
