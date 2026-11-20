@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QInputDialog,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -133,7 +134,7 @@ class BrowserEntry:
 
 
 class SafeDirectoryReader:
-    """Lists one directory at a time, confined to a canonical user-home root."""
+    """Lists and creates folders one level at a time inside a canonical home root."""
 
     def __init__(self, root: Path, limit: int = MAX_VISIBLE_ENTRIES) -> None:
         self.root = root.resolve(strict=True)
@@ -146,6 +147,7 @@ class SafeDirectoryReader:
             or not hasattr(os, "O_NOFOLLOW")
             or os.open not in os.supports_dir_fd
             or os.scandir not in os.supports_fd
+            or os.mkdir not in os.supports_dir_fd
         ):
             raise RuntimeError("This browser requires safe descriptor-relative directory access.")
         self.limit = limit
@@ -172,6 +174,31 @@ class SafeDirectoryReader:
         except Exception:
             os.close(descriptor)
             raise
+
+    def create_directory(self, directory: Path, name: str) -> Path:
+        """Create one new child directory without following links or accepting paths."""
+        if not isinstance(name, str):
+            raise ValueError("Folder name must be text.")
+        if not name or name in (".", "..") or name.strip() != name:
+            raise ValueError("Enter a folder name without leading or trailing spaces.")
+        if len(name.encode("utf-8")) > 255:
+            raise ValueError("Folder names must be 255 UTF-8 bytes or fewer.")
+        if any(ord(char) < 32 or ord(char) == 127 for char in name):
+            raise ValueError("Folder names cannot contain control characters.")
+        if "/" in name or "\\" in name:
+            raise ValueError("Enter a folder name, not a path.")
+
+        current, descriptor = self._open_directory(directory)
+        try:
+            os.mkdir(name, mode=0o755, dir_fd=descriptor)
+            os.fsync(descriptor)
+        except FileExistsError as error:
+            raise FileExistsError("An item with that name already exists.") from error
+        except OSError as error:
+            raise OSError(f"Could not create folder: {error}") from error
+        finally:
+            os.close(descriptor)
+        return current / name
 
     def validate_directory(self, candidate: Path) -> Path:
         lexical, descriptor = self._open_directory(candidate)
@@ -299,7 +326,11 @@ class FileBrowserDialog(QDialog):
         self.up_button = QPushButton("Up")
         self.home_button = QPushButton("Home")
         self.refresh_button = QPushButton("Refresh")
-        for button in (self.back_button, self.up_button, self.home_button, self.refresh_button):
+        self.new_folder_button = QPushButton("New folder")
+        for button in (
+            self.back_button, self.up_button, self.home_button,
+            self.refresh_button, self.new_folder_button,
+        ):
             navigation.addWidget(button)
         layout.addLayout(navigation)
 
@@ -334,7 +365,7 @@ class FileBrowserDialog(QDialog):
         layout.addWidget(self.table)
 
         self.status_label = QLabel(
-            "Read-only preview. Files are not launched or opened."
+            "Folders can be created here. Files are not opened or launched."
         )
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
@@ -343,6 +374,7 @@ class FileBrowserDialog(QDialog):
         self.up_button.clicked.connect(self.go_up)
         self.home_button.clicked.connect(self.go_home)
         self.refresh_button.clicked.connect(self.refresh)
+        self.new_folder_button.clicked.connect(self.create_folder)
         self.hidden_toggle.toggled.connect(self.refresh)
         self.search_input.textChanged.connect(self.apply_filter)
         self.table.cellDoubleClicked.connect(self.activate_row)
@@ -353,6 +385,7 @@ class FileBrowserDialog(QDialog):
             ("Alt+Up", self.go_up),
             ("Alt+Home", self.go_home),
             ("F5", self.refresh),
+            ("Ctrl+Shift+N", self.create_folder),
             ("Escape", self.search_input.clear),
         ):
             shortcut = QShortcut(QKeySequence(sequence), self)
@@ -406,7 +439,22 @@ class FileBrowserDialog(QDialog):
         self.truncated = truncated
         self.back_button.setEnabled(bool(self.history))
         self.up_button.setEnabled(self.current != self.reader.root)
+        self.new_folder_button.setEnabled(True)
         self.apply_filter()
+
+    def create_folder(self) -> None:
+        name, accepted = QInputDialog.getText(
+            self, "Create folder", "Folder name:"
+        )
+        if not accepted:
+            return
+        try:
+            created = self.reader.create_directory(self.current, name)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Folder not created", str(error))
+            return
+        self.refresh()
+        self.status_label.setText(f"Created folder: {safe_display_name(created.name)}")
 
     def apply_filter(self) -> None:
         """Render a filtered/sorted view without changing the trusted source listing."""
@@ -431,7 +479,7 @@ class FileBrowserDialog(QDialog):
             status = f"Showing {len(visible)} of {len(self.entries)} item(s) matching ‘{safe_display_name(query)}’."
         else:
             status = f"{len(visible)} item(s)."
-        status += " Read-only: files are not opened or executed."
+        status += " Files are not opened or executed; folder creation is enabled."
         if self.truncated:
             status += f" Showing the first {self.reader.limit} items from this folder."
         self.status_label.setText(status)
