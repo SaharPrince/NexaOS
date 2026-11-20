@@ -328,7 +328,8 @@ impl MockLauncher {
             id,
             path: request.path,
             status: LaunchStatus::PreviewOnly,
-            explanation: "Preview only: no application process was started and no file was executed.",
+            explanation:
+                "Preview only: no application process was started and no file was executed.",
         };
         self.records.insert(id, record.clone());
         Ok(record)
@@ -344,7 +345,8 @@ impl MockLauncher {
             return Err(LaunchError::RequestAlreadyCancelled);
         }
         record.status = LaunchStatus::Cancelled;
-        record.explanation = "Cancelled in the preview controller; no application process was started.";
+        record.explanation =
+            "Cancelled in the preview controller; no application process was started.";
         Ok(record.clone())
     }
 
@@ -414,7 +416,6 @@ impl DesktopController {
             .ok_or(DirectoryError::EntryNotFound)?;
         self.directory.select(index)
     }
-
 
     /// Activating a selected .exe creates a preview record only.
     pub fn activate_selected(&mut self) -> Result<LaunchRecord, LaunchError> {
@@ -545,7 +546,9 @@ mod tests {
         controller.select_entry(0).unwrap();
         let preview = controller.activate_selected().unwrap();
         assert_eq!(preview.status, LaunchStatus::PreviewOnly);
-        assert!(preview.explanation.contains("no application process was started"));
+        assert!(preview
+            .explanation
+            .contains("no application process was started"));
         assert_eq!(controller.launch_records().count(), 1);
 
         let cancelled = controller.cancel_preview(preview.id).unwrap();
@@ -622,12 +625,16 @@ mod tests {
             .submit(LaunchRequest::new(std::env::temp_dir().join("game.exe")).unwrap())
             .unwrap();
         assert_eq!(record.status, LaunchStatus::PreviewOnly);
-        assert!(record.explanation.contains("no application process was started"));
+        assert!(record
+            .explanation
+            .contains("no application process was started"));
         assert_eq!(launcher.get(record.id), Some(&record));
 
         let cancelled = launcher.cancel(record.id).unwrap();
         assert_eq!(cancelled.status, LaunchStatus::Cancelled);
-        assert!(cancelled.explanation.contains("no application process was started"));
+        assert!(cancelled
+            .explanation
+            .contains("no application process was started"));
         assert_eq!(
             launcher.cancel(record.id),
             Err(LaunchError::RequestAlreadyCancelled)
