@@ -68,7 +68,7 @@ pub fn sanitize_display_text(input: &str) -> String {
 }
 
 /// Versioned, untrusted directory snapshot exchanged across the future UI boundary.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrowserSnapshot {
     protocol_version: u32,
@@ -77,7 +77,7 @@ pub struct BrowserSnapshot {
     entries: Vec<BrowserSnapshotEntry>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BrowserSnapshotEntry {
     name: String,
@@ -87,7 +87,7 @@ struct BrowserSnapshotEntry {
     size: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum SnapshotEntryKind {
     Directory,
@@ -405,43 +405,50 @@ mod tests {
         FileEntry::new(PathBuf::from(path), name, kind)
     }
 
+    fn json_temp_root() -> String {
+        serde_json::to_string(&std::env::temp_dir()).unwrap()
+    }
+
     #[test]
     fn browser_snapshot_accepts_versioned_relative_entries() {
-        let json = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"Downloads","entries":[{"name":"setup.exe","relative_path":"setup.exe","kind":"file","size":42},{"name":"Docs","relative_path":"Docs","kind":"directory","size":null}]}"#;
-        let model = BrowserSnapshot::from_json(json).unwrap().into_directory_model().unwrap();
-        assert_eq!(model.current_directory(), Path::new("/home/demo/Downloads"));
+        let root = json_temp_root();
+        let json = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"Downloads","entries":[{{"name":"setup.exe","relative_path":"setup.exe","kind":"file","size":42}},{{"name":"Docs","relative_path":"Docs","kind":"directory","size":null}}]}}"#);
+        let model = BrowserSnapshot::from_json(&json).unwrap().into_directory_model().unwrap();
+        assert_eq!(model.current_directory(), &std::env::temp_dir().join("Downloads"));
         assert_eq!(model.entries()[0].display_name(), "Docs");
         assert_eq!(model.entries()[1].display_name(), "setup.exe");
     }
 
     #[test]
     fn browser_snapshot_rejects_parent_traversal_and_nested_paths() {
-        let traversal = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"../outside","entries":[]}"#;
+        let root = json_temp_root();
+        let traversal = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"../outside","entries":[]}}"#);
         assert_eq!(
-            BrowserSnapshot::from_json(traversal).unwrap().into_directory_model(),
+            BrowserSnapshot::from_json(&traversal).unwrap().into_directory_model(),
             Err(BrowserSnapshotError::CurrentDirectoryContainsTraversal)
         );
-        let nested = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[{"name":"escape","relative_path":"sub/escape","kind":"file","size":null}]}"#;
+        let nested = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"","entries":[{{"name":"escape","relative_path":"sub/escape","kind":"file","size":null}}]}}"#);
         assert_eq!(
-            BrowserSnapshot::from_json(nested).unwrap().into_directory_model(),
+            BrowserSnapshot::from_json(&nested).unwrap().into_directory_model(),
             Err(BrowserSnapshotError::EntryOutsideCurrentDirectory)
         );
     }
 
     #[test]
-    fn browser_snapshot_rejects_unknown_versions_duplicate_names_and_extra_fields() {
-        let version = r#"{"protocol_version":2,"root":"/home/demo","current_directory":"","entries":[]}"#;
+    fn browser_snapshot_rejects_unknown_versions_duplicates_and_extra_fields() {
+        let root = json_temp_root();
+        let version = format!(r#"{{"protocol_version":2,"root":{root},"current_directory":"","entries":[]}}"#);
         assert_eq!(
-            BrowserSnapshot::from_json(version).unwrap().into_directory_model(),
+            BrowserSnapshot::from_json(&version).unwrap().into_directory_model(),
             Err(BrowserSnapshotError::UnsupportedProtocolVersion)
         );
-        let duplicate = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[{"name":"a","relative_path":"a","kind":"file","size":1},{"name":"a","relative_path":"a","kind":"file","size":1}]}"#;
+        let duplicate = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"","entries":[{{"name":"a","relative_path":"a","kind":"file","size":1}},{{"name":"a","relative_path":"a","kind":"file","size":1}}]}}"#);
         assert_eq!(
-            BrowserSnapshot::from_json(duplicate).unwrap().into_directory_model(),
+            BrowserSnapshot::from_json(&duplicate).unwrap().into_directory_model(),
             Err(BrowserSnapshotError::DuplicateEntry)
         );
-        let extra = r#"{"protocol_version":1,"root":"/home/demo","current_directory":"","entries":[],"run_command":"unsafe"}"#;
-        assert_eq!(BrowserSnapshot::from_json(extra), Err(BrowserSnapshotError::InvalidJson));
+        let extra = format!(r#"{{"protocol_version":1,"root":{root},"current_directory":"","entries":[],"run_command":"unsafe"}}"#);
+        assert_eq!(BrowserSnapshot::from_json(&extra), Err(BrowserSnapshotError::InvalidJson));
     }
 
     #[test]
