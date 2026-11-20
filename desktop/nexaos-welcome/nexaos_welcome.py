@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """NexaOS Welcome: a lightweight LXQt-facing desktop hub.
 
-This application provides a read-only home-folder browser and opens installed
+This application provides a home-confined file browser and opens installed
 desktop settings through fixed executable paths. It never constructs shell
 commands and never executes Windows files. The .exe chooser is preview-only.
 """
