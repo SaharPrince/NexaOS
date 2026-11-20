@@ -5,7 +5,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/desktop/live-build"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 
-for command in lb sudo find sha256sum; do
+for command in lb sudo find sha256sum cargo; do
     if ! command -v "$command" >/dev/null 2>&1; then
         printf 'Required command not found: %s\n' "$command" >&2
         exit 1
@@ -31,6 +31,14 @@ install -D -m 0644 \
 install -D -m 0644 \
     "$ROOT_DIR/desktop/nexaos-welcome/nexaos_file_browser.py" \
     "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos_file_browser.py"
+# Build the small, preview-only Rust controller and stage it as a fixed system helper.
+(
+    cd "$ROOT_DIR"
+    cargo build --locked --release -p nexa-desktop-shell --bin nexa-desktop-controller
+)
+install -D -m 0755 \
+    "$ROOT_DIR/target/release/nexa-desktop-controller" \
+    "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexa-desktop-controller"
 mkdir -p "$ARTIFACT_DIR"
 cd "$BUILD_DIR"
 
