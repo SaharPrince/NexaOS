@@ -95,3 +95,40 @@ jobs:
             artifacts/nexaos-qemu-boot-smoke.log
           if-no-files-found: error
           retention-days: 3
+ 
+  publish-iso-release:
+    name: Publish direct ISO release
+    if: github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
+    needs: build-live-image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download ISO and build evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: nexaos-desktop-preview-amd64
+          path: release-input
+
+      - name: Verify and stage direct ISO assets
+        run: |
+          test -s release-input/nexaos-preview-amd64.iso
+          test -s release-input/nexaos-preview-amd64.iso.sha256
+          (cd release-input && sha256sum --check nexaos-preview-amd64.iso.sha256)
+          mkdir -p release-assets
+          cp release-input/nexaos-preview-amd64.iso release-assets/nexaos-preview-amd64.iso
+          cp release-input/nexaos-preview-amd64.iso.sha256 release-assets/nexaos-preview-amd64.iso.sha256
+
+      - name: Publish ISO and checksum as a prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nexaos-preview-${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          name: NexaOS Preview ${{ github.sha }}
+          generate_release_notes: true
+          prerelease: true
+          files: |
+            release-assets/nexaos-preview-amd64.iso
+            release-assets/nexaos-preview-amd64.iso.sha256
+
