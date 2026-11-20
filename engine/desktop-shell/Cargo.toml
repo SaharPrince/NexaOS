@@ -9,3 +9,7 @@ description = "Safe desktop file and mock-launcher interaction model for NexaOS"
 
 [lib]
 path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
