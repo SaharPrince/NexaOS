@@ -64,7 +64,7 @@ jobs:
 
       - name: Upload hosted Linux benchmark observations
         if: always() && matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nce-005c-hosted-linux-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/nce-005c-hosted-linux-benchmark.txt
@@ -146,7 +146,7 @@ jobs:
 
       - name: Upload hosted Windows benchmark observations
         if: always() && matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nce-005b-hosted-windows-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/nce-005b-hosted-windows-benchmark.txt
@@ -252,7 +252,7 @@ jobs:
             stat -c '%n %s bytes' *.exe > fixture-sizes.txt
           )
       - name: Upload reproducible PE corpus fixtures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
