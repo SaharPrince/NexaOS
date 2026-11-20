@@ -14,6 +14,7 @@ PANEL = OVERLAY / "etc/skel/.config/lxqt/panel.conf"
 WALLPAPER = OVERLAY / "usr/share/backgrounds/nexaos/nexaos-default.svg"
 MENU_ICON = OVERLAY / "usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
 PACKAGE_LIST = ROOT / "desktop/live-build/config/package-lists/nexaos-desktop.list.chroot"
+TASK_MANAGER = OVERLAY / "usr/share/applications/qps.desktop"
 
 
 def read_ini(path: Path, *, global_section: bool = False) -> configparser.ConfigParser:
@@ -24,7 +25,7 @@ def read_ini(path: Path, *, global_section: bool = False) -> configparser.Config
 
 
 def main() -> int:
-    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST):
+    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST, TASK_MANAGER):
         if not path.is_file() or path.stat().st_size == 0:
             raise SystemExit(f"required desktop asset is missing or empty: {path}")
 
@@ -55,6 +56,14 @@ def main() -> int:
     assert panel.get("fancymenu", "icon") == "/usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
     assert panel.get("fancymenu", "ownIcon").lower() == "true"
 
+    task_manager = configparser.ConfigParser(interpolation=None)
+    task_manager.read(TASK_MANAGER, encoding="utf-8")
+    if not task_manager.has_section("Desktop Entry"):
+        raise SystemExit("Task Manager desktop entry is missing its Desktop Entry section")
+    task_entry = task_manager["Desktop Entry"]
+    if task_entry.get("Name") != "NexaOS Task Manager" or task_entry.get("Exec") != "qps" or task_entry.get("Type") != "Application":
+        raise SystemExit("Task Manager launcher must use the NexaOS name and launch qps directly")
+
     package_entries = [
         line.strip()
         for line in PACKAGE_LIST.read_text(encoding="utf-8").splitlines()
@@ -75,13 +84,13 @@ def main() -> int:
         "user-setup", "gvfs-backends", "gvfs-fuse", "papirus-icon-theme",
         "qt6-svg-plugins", "fonts-noto-core", "lximage-qt", "lxqt-policykit",
         "lxqt-qtplugin", "lxqt-archiver", "featherpad", "pavucontrol-qt",
-        "lxqt-powermanagement", "screengrab", "pcmanfm-qt-l10n",
+        "lxqt-powermanagement", "screengrab", "pcmanfm-qt-l10n", "qps",
     }
     missing_packages = required_packages - seen_packages
     if missing_packages:
         raise SystemExit(f"desktop package list is missing: {sorted(missing_packages)}")
 
-    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, and unique feature packages are valid.")
+    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, Task Manager launcher, and unique feature packages are valid.")
     return 0
 
 
