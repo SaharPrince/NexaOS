@@ -12,20 +12,20 @@ SESSION_SMOKE="${NEXAOS_SESSION_SMOKE:-0}"
 
 for command in qemu-system-x86_64 xvfb-run xwd identify timeout python3; do
     if ! command -v "$command" >/dev/null 2>&1; then
-        printf 'Required command not found: %s\\n' "$command" >&2
+        printf 'Required command not found: %s\n' "$command" >&2
         exit 1
     fi
 done
 
 if [[ ! -s "$ISO_PATH" ]]; then
-    printf 'A non-empty preview ISO is required: %s\\n' "$ISO_PATH" >&2
+    printf 'A non-empty preview ISO is required: %s\n' "$ISO_PATH" >&2
     exit 1
 fi
 
 mkdir -p "$ARTIFACT_DIR"
 rm -f "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT"
 
-printf 'Starting isolated QEMU boot smoke test for: %s\\n' "$ISO_PATH"
+printf 'Starting isolated QEMU boot smoke test for: %s\n' "$ISO_PATH"
 
 timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     set -Eeuo pipefail
@@ -82,7 +82,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
         # Legacy framebuffer-only mode is retained for release-image builds.
         for second in $(seq 1 150); do
             if ! kill -0 "$qemu_pid" 2>/dev/null; then
-                printf "QEMU exited before the observation window completed.\\n" >&2
+                printf "QEMU exited before the observation window completed.\n" >&2
                 cat "$qemu_log" >&2 || true
                 exit 1
             fi
@@ -91,7 +91,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     fi
 
     if ! kill -0 "$qemu_pid" 2>/dev/null; then
-        printf "QEMU exited before evidence capture completed.\\n" >&2
+        printf "QEMU exited before evidence capture completed.\n" >&2
         cat "$qemu_log" >&2 || true
         exit 1
     fi
@@ -104,22 +104,22 @@ dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
 
 if [[ "$dimensions" != "1280x800" ]]; then
-    printf 'Unexpected VM screenshot dimensions: %s\\n' "$dimensions" >&2
+    printf 'Unexpected VM screenshot dimensions: %s\n' "$dimensions" >&2
     exit 1
 fi
 
 if [[ ! "$color_count" =~ ^[0-9]+$ ]] || (( color_count < 8 )); then
-    printf 'VM screenshot appears blank or invalid (unique colors: %s).\\n' "$color_count" >&2
+    printf 'VM screenshot appears blank or invalid (unique colors: %s).\n' "$color_count" >&2
     exit 1
 fi
 
 if [[ "$SESSION_SMOKE" == "1" ]]; then
     test -s "$SESSION_REPORT"
-    printf 'Interactive LXQt session report: %s\\n' "$SESSION_REPORT"
+    printf 'Interactive LXQt session report: %s\n' "$SESSION_REPORT"
 else
-    printf 'Framebuffer-only mode: no interactive session assertions were requested.\\n'
+    printf 'Framebuffer-only mode: no interactive session assertions were requested.\n'
 fi
 
-printf 'Captured graphical output: %s (%s, %s unique colors after downscaling).\\n' \\
+printf 'Captured graphical output: %s (%s, %s unique colors after downscaling).\n' \
     "$SCREENSHOT" "$dimensions" "$color_count"
-printf 'QEMU smoke does not establish physical-device compatibility.\\n'
+printf 'QEMU smoke does not establish physical-device compatibility.\n'
