@@ -12,12 +12,30 @@ import os
 from pathlib import Path
 import sys
 import time
+import traceback
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QPushButton
+DIAGNOSTIC_LOG = Path("/tmp/nexaos-session-smoke.log")
 
-from nexaos_welcome import NexaWelcome
+
+def diagnostic(message: str) -> None:
+    """Write bounded CI-only startup diagnostics without recording secrets."""
+    try:
+        with DIAGNOSTIC_LOG.open("a", encoding="utf-8") as stream:
+            stream.write(message[:1000] + "\\n")
+            stream.flush()
+    except OSError:
+        pass
+
+
+diagnostic("session-smoke launcher entered Python")
+try:
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QApplication, QPushButton
+    from nexaos_welcome import NexaWelcome
+except Exception:
+    diagnostic("session-smoke import failure:\\n" + traceback.format_exc())
+    raise
 
 
 REPORT_DEVICE = Path("/dev/virtio-ports/org.nexaos.session-smoke")
@@ -55,6 +73,7 @@ def process_exists(expected: str) -> bool:
 
 def send_report(report: dict) -> None:
     """Send one bounded JSON line to the host-owned QEMU test socket."""
+    diagnostic("attempting session report; virtio device exists=" + str(REPORT_DEVICE.exists()))
     if not REPORT_DEVICE.exists():
         raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
     payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
@@ -65,11 +84,17 @@ def send_report(report: dict) -> None:
         written = os.write(descriptor, payload)
         if written != len(payload):
             raise OSError("session-smoke report was not fully written")
+        diagnostic("session report write completed; bytes=" + str(written))
     finally:
         os.close(descriptor)
 
 
 def main() -> int:
+    diagnostic(
+        "main entered; DISPLAY set=" + str(bool(os.environ.get("DISPLAY")))
+        + "; DBUS session set=" + str(bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS")))
+        + "; desktop=" + os.environ.get("XDG_CURRENT_DESKTOP", "unset")[:80]
+    )
     checks = {
         "x11_display": bool(os.environ.get("DISPLAY")),
         "dbus_session_bus": bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS")),
@@ -107,9 +132,11 @@ def main() -> int:
         send_report(report)
         return 1
 
+    diagnostic("session prerequisites passed; creating QApplication")
     app = QApplication(sys.argv[:1])
     window = NexaWelcome()
     window.show()
+    diagnostic("NexaOS Welcome window shown")
 
     def run_checks() -> None:
         try:
@@ -180,9 +207,11 @@ def main() -> int:
                     failures.append(name)
 
         except Exception as error:  # report the failure instead of silently timing out
+            diagnostic("GUI check exception: " + traceback.format_exc())
             failures.append(f"exception:{type(error).__name__}")
         finally:
             report["status"] = "passed" if not failures and all(checks.values()) else "failed"
+            diagnostic("GUI checks finished; status=" + report["status"])
             window.close()
             try:
                 send_report(report)
