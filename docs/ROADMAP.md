@@ -24,7 +24,7 @@ This roadmap is based on the repository state reviewed on 2026-11-22.
 
 - **NCE-005 — PE evidence:** the inspection and non-executing image-preparation pipeline has synthetic and compiler-produced fixture coverage plus benchmark evidence. The remaining representative-corpus and evidence-based compatibility decisions are still open.
 - **NCE-006 — desktop:** the repository has a Debian/LXQt preview, a welcome application, and a Rust preview-only desktop model/controller. A live preview build or QEMU framebuffer smoke test is not proof of an interactive, hardware-validated desktop. Real PE execution remains disabled.
-- **NCE-007 — security and privacy:** PR #12 proposes the threat-model and isolation design gate. It remains a reviewable, unmerged change. The proposed controls are not current runtime capabilities.
+- **NCE-007 — security and privacy:** PR #12 has been merged. The threat model, security invariants, privacy requirements, and implementation gates are documented on `main`; they are design requirements, not implemented runtime protections.
 
 Work may proceed in parallel only where dependencies are respected. In particular, no real Windows application execution is enabled until the required NCE-007 design and implementation gates are accepted and tested.
 
@@ -170,9 +170,9 @@ Acceptance criteria:
 
 ## Immediate next actions
 
-1. Review and close the current NCE-007 design PR without merging until its CI and review are satisfactory.
-2. Finish only the remaining high-value NCE-005 evidence decisions.
-3. Continue NCE-006 session-level and physical-device validation; specify the task manager and customization architecture.
-4. Complete the NCE-007A threat model/data-flow inventory before any execution work.
-5. Establish NXP-001 whole-OS performance baselines before setting numerical resource budgets.
-6. Start NXP-002 and later runtime milestones only when their dependencies and acceptance criteria are met.
+1. Complete NCE-006 desktop session validation, including the read-only task manager, and record physical-device limitations.
+2. Finish the remaining high-value NCE-005 evidence decisions.
+3. Convert the merged NCE-007 design into separately reviewed implementation milestones; keep Windows executable launch disabled until the required gates pass.
+4. Establish NXP-001 whole-OS performance baselines before setting numerical resource budgets.
+5. Apply the secure-transparency review to public documentation, source changes, and release artifacts.
+6. Start later runtime milestones only when their dependencies and acceptance criteria are met.
