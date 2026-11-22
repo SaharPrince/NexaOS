@@ -151,10 +151,13 @@ class ProcfsCollector:
         return data.decode("ascii", errors="replace")
 
     def _read_system(self) -> tuple[SystemSample, int, int]:
-        lines = self._read_bounded(self.proc_root / "stat", 8192).splitlines()
-        if not lines:
-            raise ValueError("CPU statistics unavailable")
-        total, idle = parse_cpu_line(lines[0])
+        # /proc/stat grows with CPU count and interrupt counters. Only its
+        # first aggregate line is needed; never read the entire pseudo-file.
+        with (self.proc_root / "stat").open("rb") as stream:
+            cpu_line = stream.readline(513)
+        if not cpu_line or len(cpu_line) > 512 or not cpu_line.endswith(b"\\n"):
+            raise ValueError("aggregate CPU statistics unavailable")
+        total, idle = parse_cpu_line(cpu_line.decode("ascii", errors="replace"))
         memory = parse_memory_info(
             self._read_bounded(self.proc_root / "meminfo", MAX_SYSTEM_FILE_BYTES)
         )
@@ -166,13 +169,20 @@ class ProcfsCollector:
             uptime = None
         model = "Unavailable"
         try:
-            for line in self._read_bounded(
-                self.proc_root / "cpuinfo", MAX_SYSTEM_FILE_BYTES
-            ).splitlines():
-                key, separator, value = line.partition(":")
-                if separator and key.strip() in ("model name", "Hardware"):
-                    model = value.strip()[:MAX_NAME_CHARS] or model
-                    break
+            # Stop as soon as the model is found. cpuinfo can be large on
+            # many-core systems, so avoid requiring the whole file to fit a cap.
+            with (self.proc_root / "cpuinfo").open("rb") as stream:
+                remaining = MAX_SYSTEM_FILE_BYTES
+                while remaining > 0:
+                    raw_line = stream.readline(min(4096, remaining))
+                    if not raw_line:
+                        break
+                    remaining -= len(raw_line)
+                    line = raw_line.decode("ascii", errors="replace")
+                    key, separator, value = line.partition(":")
+                    if separator and key.strip() in ("model name", "Hardware"):
+                        model = value.strip()[:MAX_NAME_CHARS] or model
+                        break
         except OSError:
             pass
         sample = SystemSample(
