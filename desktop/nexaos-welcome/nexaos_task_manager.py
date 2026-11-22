@@ -155,7 +155,7 @@ class ProcfsCollector:
         # first aggregate line is needed; never read the entire pseudo-file.
         with (self.proc_root / "stat").open("rb") as stream:
             cpu_line = stream.readline(513)
-        if not cpu_line or len(cpu_line) > 512 or not cpu_line.endswith(b"\\n"):
+        if not cpu_line or len(cpu_line) > 512 or not cpu_line.endswith(b"\n"):
             raise ValueError("aggregate CPU statistics unavailable")
         total, idle = parse_cpu_line(cpu_line.decode("ascii", errors="replace"))
         memory = parse_memory_info(
