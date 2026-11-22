@@ -80,11 +80,7 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
         connection.close()
 
     line = bytes(data).split(b"\n", 1)[0]
-    report = json.loads(line.decode("utf-8"))
-    errors = validate_report(report)
-    if errors:
-        raise RuntimeError("; ".join(errors))
-    return report
+    return json.loads(line.decode("utf-8"))
 
 
 def main() -> int:
@@ -103,6 +99,10 @@ def main() -> int:
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    errors = validate_report(report)
+    if errors:
+        print("Desktop session validation failed: " + "; ".join(errors), flush=True)
+        return 1
     print("LXQt session and NexaOS GUI interaction checks passed.", flush=True)
     for name in REQUIRED_CHECKS:
         print(f"  PASS {name}", flush=True)
