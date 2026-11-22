@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
+from nexaos_task_manager import NexaTaskManager
 from nexaos_file_browser import (
     FileBrowserDialog,
     SafeDirectoryReader,
@@ -106,10 +107,15 @@ class NexaWelcome(QMainWindow):
             "Windows App Preview", "Inspect a selected .exe filename without running it.",
             self._choose_executable,
         )
+        self.task_manager_button = self._tile(
+            "Task Manager", "View processes and system usage without changing processes.",
+            self._open_task_manager,
+        )
 
         for index, tile in enumerate((
             self.file_button, self.appearance_button, self.display_button,
             self.input_button, self.settings_button, self.preview_button,
+            self.task_manager_button,
         )):
             grid.addWidget(tile, index // 2, index % 2)
 
@@ -182,6 +188,10 @@ class NexaWelcome(QMainWindow):
         browser = FileBrowserDialog(self)
         browser.exec()
 
+    def _open_task_manager(self) -> None:
+        manager = NexaTaskManager(self)
+        manager.exec()
+
     def _choose_executable(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Choose a Windows application", str(Path.home()),
@@ -221,12 +231,21 @@ def main() -> int:
         assert window.windowTitle() == "NexaOS Welcome"
         assert window.file_button is not None
         assert window.preview_button is not None
+        assert window.task_manager_button is not None
         preview = window.executable_preview_text("/tmp/example\n.exe")
         assert "example" in preview
         assert "\uFFFD.exe" in preview
         assert "execution is not available yet" in preview
         assert "No process was started" in preview
         assert "not executed" in preview
+        manager = NexaTaskManager()
+        assert manager.timer.interval() == 1200
+        assert not manager.timer.isActive()
+        manager.show()
+        app.processEvents()
+        assert manager.timer.isActive()
+        manager.close()
+        assert not manager.timer.isActive()
         # Exercise real directory enumeration only inside a disposable fixture.
         with tempfile.TemporaryDirectory(prefix="nexaos-browser-test-") as temporary:
             root = Path(temporary)

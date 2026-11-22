@@ -37,3 +37,15 @@ This is an early graphical integration slice, not a complete custom desktop shel
 ## Planned desktop work
 
 The graphical task manager is specified separately in [NCE-006C](../../docs/milestones/NCE-006C-task-manager.md). Its first stage is read-only process and performance monitoring; process termination is explicitly excluded until a separate safety review.
+
+
+## Read-only task manager (NCE-006C.1)
+
+The NexaOS Task Manager is an on-demand Qt application opened from NexaOS Welcome and the desktop application menu. Its first stage reads bounded Linux procfs summaries to show process names, PIDs, owners, CPU usage, resident memory, state, and basic system CPU/memory/swap information.
+
+- Sampling runs only while the task-manager window is visible and stops when it is hidden, minimized, or closed.
+- Process filtering uses the in-memory snapshot; it does not rescan procfs for each keystroke.
+- The collector caps process enumeration and record sizes, handles processes disappearing during reads, and does not read command lines, environment variables, process memory, credentials, or browser data.
+- The NexaOS Task Manager is read-only: it has no kill, suspend, priority, startup, or service controls.
+- The existing Debian QPS utility remains a separate upstream application in the preview image; it is not the implementation of the NexaOS read-only task manager.
+- Resource use must still be measured on a documented low-memory physical device before making performance claims.

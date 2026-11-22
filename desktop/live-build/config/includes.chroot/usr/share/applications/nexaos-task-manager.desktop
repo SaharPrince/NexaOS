@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NexaOS Task Manager
+Comment=View processes and system resource usage
+Exec=/usr/bin/python3 /usr/lib/nexaos/nexaos_task_manager.py
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+StartupNotify=true
