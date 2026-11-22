@@ -92,7 +92,8 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
     data = bytearray()
     try:
         connection.settimeout(max(0.1, deadline - time.monotonic()))
-        while b'"kind":"final"' not in data:
+        final_marker = data.find(b'"kind":"final"')
+        while final_marker < 0 or b"\n" not in data[final_marker:]:
             try:
                 chunk = connection.recv(1024)
             except TimeoutError as error:
@@ -104,6 +105,7 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
             if not chunk:
                 break
             data.extend(chunk)
+            final_marker = data.find(b'"kind":"final"')
             if len(data) > MAX_REPORT_BYTES:
                 raise ValueError("session-smoke report exceeded its size limit")
         return decode_report_stream(bytes(data))
