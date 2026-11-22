@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from check_live_session import REQUIRED_CHECKS, validate_report
