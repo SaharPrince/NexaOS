@@ -82,7 +82,7 @@ create executable mappings, or transfer control to PE entry points.
   model/controller. This is not yet a fully validated interactive desktop or a
   real Windows application launcher.
 - **NCE-007** defines the security and privacy gate before real Windows execution.
-  Its design proposal is under review in [PR #12](https://github.com/SaharPrince/NexaOS/pull/12);
+  Its requirements are documented in [docs/milestones/NCE-007.md](docs/milestones/NCE-007.md);
   proposed controls must not be mistaken for implemented runtime protections.
 
 The detailed, dependency-aware plan and measurable acceptance criteria are in
