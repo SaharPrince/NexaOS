@@ -1,5 +1,9 @@
 import json
 import unittest
+import tempfile
+import threading
+import time
+from pathlib import Path
 
 from check_live_session import REQUIRED_CHECKS, validate_report, receive_report
 
@@ -60,34 +64,28 @@ class SessionReportValidationTests(unittest.TestCase):
         ])
         self.assertEqual(validate_report(report), [])
 
-    def test_report_reader_writes_ready_marker_after_socket_connect(self):
-        import socket
-        import tempfile
-        import threading
-        from pathlib import Path
-        from check_live_session import receive_report
-
+    def test_report_reader_waits_for_final_record_in_file_stream(self):
         with tempfile.TemporaryDirectory() as directory:
-            socket_path = Path(directory) / "report.sock"
-            ready_path = Path(directory) / "connected"
-            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            listener.bind(str(socket_path))
-            listener.listen(1)
+            stream_path = Path(directory) / "guest-output.jsonl"
 
-            def send_report():
-                connection, _ = listener.accept()
-                with connection:
-                    report = self.passing_report()
-                    report["kind"] = "final"
-                    connection.sendall((json.dumps(report) + "\n").encode())
-                listener.close()
+            def write_report():
+                stream_path.write_bytes(
+                    b'{"kind":"event","stage":"launcher_started"}\\n'
+                )
+                time.sleep(0.1)
+                final = self.passing_report()
+                final["kind"] = "final"
+                with stream_path.open("ab") as stream:
+                    stream.write((json.dumps(final) + "\\n").encode("utf-8"))
 
-            sender = threading.Thread(target=send_report)
-            sender.start()
-            result = receive_report(socket_path, 5, ready_path)
-            sender.join(timeout=5)
-            self.assertTrue(ready_path.is_file())
-            self.assertEqual(ready_path.read_text(encoding="ascii"), "connected\n")
+            writer = threading.Thread(target=write_report)
+            writer.start()
+            result = receive_report(stream_path, 5)
+            writer.join(timeout=5)
+            self.assertEqual(
+                result["diagnostics"],
+                [{"kind": "event", "stage": "launcher_started"}],
+            )
             self.assertEqual(result["status"], "passed")
 
     def test_rejects_stream_without_final_report(self):
