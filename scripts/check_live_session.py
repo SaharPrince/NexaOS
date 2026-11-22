@@ -16,9 +16,9 @@ REQUIRED_CHECKS = (
     "lxqt_panel",
     "welcome_window",
     "welcome_controls",
-    "keyboard_activation",
+    "qt_keyboard_activation",
     "task_manager_sampling",
-    "pointer_activation",
+    "qt_mouse_activation",
     "file_browser_dialog",
 )
 MAX_REPORT_BYTES = 8192
