@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
@@ -168,11 +169,24 @@ class ProcfsCollectorTests(unittest.TestCase):
                     encoding="ascii",
                 )
 
+            class FakeScandir:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_args):
+                    return False
+
+                def __iter__(self):
+                    return iter(
+                        [type("Entry", (), {"name": str(pid)})() for pid in range(100, 110)]
+                    )
+
             collector = ProcfsCollector(
                 root, page_size=4096, cpu_count=2, max_processes=2
             )
-            _, processes = collector.snapshot()
-            self.assertLessEqual(len(processes), 2)
+            with patch("nexaos_task_manager.os.scandir", return_value=FakeScandir()):
+                _, processes = collector.snapshot()
+            self.assertEqual(len(processes), 2)
 
     def test_collector_first_sample_has_no_fabricated_cpu(self):
         with tempfile.TemporaryDirectory() as temporary:
