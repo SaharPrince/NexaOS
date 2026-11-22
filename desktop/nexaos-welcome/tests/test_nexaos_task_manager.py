@@ -153,14 +153,14 @@ class ProcfsCollectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "stat").write_text(
-                "cpu 100 0 50 800 0 0 0 0 0 0\\n", encoding="ascii"
+                "cpu 100 0 50 800 0 0 0 0 0 0" + chr(10), encoding="ascii"
             )
             (root / "meminfo").write_text(
-                "MemTotal: 1000 kB\\nMemAvailable: 500 kB\\n",
+                chr(10).join(["MemTotal: 1000 kB", "MemAvailable: 500 kB"]) + chr(10),
                 encoding="ascii",
             )
-            (root / "uptime").write_text("10.0 0.0\\n", encoding="ascii")
-            (root / "cpuinfo").write_text("model name : Test CPU\\n", encoding="ascii")
+            (root / "uptime").write_text("10.0 0.0" + chr(10), encoding="ascii")
+            (root / "cpuinfo").write_text("model name : Test CPU" + chr(10), encoding="ascii")
             for pid in range(100, 110):
                 process = root / str(pid)
                 process.mkdir()
