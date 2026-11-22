@@ -79,7 +79,7 @@ class SessionReportValidationTests(unittest.TestCase):
                 with connection:
                     report = self.passing_report()
                     report["kind"] = "final"
-                    connection.sendall((json.dumps(report) + "\\n").encode())
+                    connection.sendall((json.dumps(report) + "\n").encode())
                 listener.close()
 
             sender = threading.Thread(target=send_report)
@@ -87,7 +87,7 @@ class SessionReportValidationTests(unittest.TestCase):
             result = receive_report(socket_path, 5, ready_path)
             sender.join(timeout=5)
             self.assertTrue(ready_path.is_file())
-            self.assertEqual(ready_path.read_text(encoding="ascii"), "connected\\n")
+            self.assertEqual(ready_path.read_text(encoding="ascii"), "connected\n")
             self.assertEqual(result["status"], "passed")
 
     def test_rejects_stream_without_final_report(self):
