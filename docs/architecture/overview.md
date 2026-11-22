@@ -2,13 +2,15 @@
 
 NexaOS is planned as a lightweight Linux-based operating system with an ambitious long-term goal: run the widest possible range of modern Windows applications and games without requiring a Windows virtual machine for normal use. This includes multiplayer games using anti-cheat, pursued through legitimate provider- and publisher-approved support. The Linux kernel and its hardware-driver ecosystem provide the host foundation; Nexa's original work is the Nexa Compatibility Engine (NCE), its desktop integration, and the operating-system experience around it.
 
-The three non-negotiable product goals are:
+The five non-negotiable product goals are:
 
 1. **Maximum practical Windows compatibility:** support as much modern Windows software and gaming as technically and legally possible, including anti-cheat-protected multiplayer games where vendors and publishers provide an approved path.
-2. **Strong system security and resilience:** minimize attack surface, isolate failures, prevent application compromise from becoming host compromise, detect vulnerabilities through continuous testing and review, and deliver trustworthy recovery and security updates.
-3. **Privacy and account protection:** keep credentials, browser sessions, gaming accounts, personal files, and private activity inaccessible to applications unless the user explicitly authorizes a narrow capability.
+2. **Performance and efficiency:** deliver a responsive system with low avoidable CPU, RAM, storage, and launch overhead, including on modest hardware. Keep useful features and improve their engineering rather than removing them to improve benchmarks.
+3. **Customization and usability:** provide a complete, polished desktop with meaningful control over appearance, layout, panels, taskbar, windows, shortcuts, and optional components.
+4. **Strong system security and resilience:** minimize attack surface, isolate failures, prevent application compromise from becoming host compromise, detect vulnerabilities through continuous testing and review, and deliver trustworthy recovery and security updates.
+5. **Privacy and account protection:** keep credentials, browser sessions, gaming accounts, personal files, and private activity inaccessible to applications unless the user explicitly authorizes a narrow capability.
 
-Lightweight operation is an important engineering quality across all three goals: avoid unnecessary services and memory overhead, but never weaken security or break compatibility merely to achieve a smaller footprint.
+Lightweight operation is an important engineering quality across all five goals: avoid unnecessary services and memory overhead, but never weaken security or break compatibility merely to achieve a smaller footprint.
 
 No operating system can guarantee zero vulnerabilities or universal third-party compatibility. Nexa must state its tested coverage and residual risks precisely. A compatibility workaround that disables host protections, bypasses anti-cheat, or exposes credentials is not an acceptable compatibility improvement.
 
@@ -102,4 +104,4 @@ NCE-004a defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch 
 
 NCE-004b composes inspection, layout, bounded non-executable allocation, population, explicit-catalogue import resolution, symbolic IAT validation, and image-local relocation into a failure-atomic preparation pipeline. Its output remains non-executable prepared data; it does not write IAT values, load DLLs, set page permissions, or transfer control to an image entry point.
 
-The [NCE-007 milestone](../milestones/NCE-007.md) is the mandatory security-design gate before NCE can launch Windows executables. It defines the threat model, isolation, credential protection, privacy defaults, executable/dependency integrity, failure containment, and validation criteria. NCE-007 is currently a design proposal, not implemented isolation or a claim that user accounts are protected today.
+The [NCE-007 milestone](../milestones/NCE-007.md) is the mandatory security-design gate before NCE can launch Windows executables. Its security requirements and staged implementation gates are documented on `main`; the [NCE-007A threat-model and data-flow inventory](../milestones/NCE-007A-threat-model-data-flow.md) now makes the assets, trust boundaries, attacker assumptions, sensitive data flows, and residual risks explicit. These documents are design requirements, not implemented isolation or proof that user accounts are protected today. NCE-007B through NCE-007H remain separate implementation and review gates, and real PE execution remains disabled.

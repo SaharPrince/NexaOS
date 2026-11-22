@@ -23,7 +23,7 @@ Anti-cheat is a first-class compatibility workstream, but only through provider/
 This roadmap is based on the repository state reviewed on 2026-11-22.
 
 - **NCE-005 — PE evidence:** the inspection and non-executing image-preparation pipeline has synthetic and compiler-produced fixture coverage plus benchmark evidence. The remaining representative-corpus and evidence-based compatibility decisions are still open.
-- **NCE-006 — desktop:** the repository has a Debian/LXQt preview, a welcome application, and a Rust preview-only desktop model/controller. A live preview build or QEMU framebuffer smoke test is not proof of an interactive, hardware-validated desktop. Real PE execution remains disabled.
+- **NCE-006 — desktop:** the repository has a Debian/LXQt preview, Welcome hub, Rust preview-only desktop controller, and merged read-only Task Manager. The Task Manager's unit/UI tests, ISO build, and QEMU framebuffer smoke passed on the reviewed PR #16 head. This is not proof of an interactive, hardware-validated desktop; physical-device resource measurements and session-level interaction remain open. Real PE execution remains disabled.
 - **NCE-007 — security and privacy:** PR #12 has been merged. The threat model, security invariants, privacy requirements, and implementation gates are documented on `main`; they are design requirements, not implemented runtime protections.
 
 Work may proceed in parallel only where dependencies are respected. In particular, no real Windows application execution is enabled until the required NCE-007 design and implementation gates are accepted and tested.
