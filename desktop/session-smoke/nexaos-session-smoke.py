@@ -43,7 +43,8 @@ REQUIRED_CHECKS = (
 
 
 def send_report(report: dict) -> None:
-    """Send one bounded JSON line to the host-owned QEMU test socket."""
+    """Send one bounded final JSON line to the host-owned QEMU test socket."""
+    report["kind"] = "final"
     if not REPORT_DEVICE.exists():
         raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
     payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
