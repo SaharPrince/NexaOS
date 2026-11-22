@@ -131,6 +131,18 @@ jobs:
             artifacts/nexaos-session-smoke.json
           if-no-files-found: warn
           retention-days: 3
+
+      - name: Upload QEMU failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexaos-qemu-session-diagnostics
+          path: |
+            artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-smoke.log
+            artifacts/nexaos-session-smoke.json
+          if-no-files-found: warn
+          retention-days: 7
  
   publish-iso-release:
     name: Publish direct ISO release
