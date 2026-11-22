@@ -116,6 +116,7 @@ jobs:
         run: bash scripts/smoke-boot-live-image.sh
 
       - name: Upload preview ISO, checksum, and VM evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nexaos-desktop-preview-amd64
@@ -125,7 +126,7 @@ jobs:
             artifacts/nexaos-qemu-boot-smoke.xwd
             artifacts/nexaos-qemu-boot-smoke.log
             artifacts/nexaos-session-smoke.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 3
  
   publish-iso-release:
