@@ -2,6 +2,6 @@
 Type=Application
 Name=NexaOS CI Session Smoke
 Comment=CI-only interactive desktop validation
-Exec=/usr/bin/python3 /usr/lib/nexaos/nexaos-session-smoke.py
+Exec=/bin/sh /usr/lib/nexaos/nexaos-session-smoke-launcher.sh
 NoDisplay=true
 Terminal=false
