@@ -3,7 +3,8 @@ import unittest
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
-from nexaos_task_manager import NexaTaskManager,
+from nexaos_task_manager import (
+    NexaTaskManager,
     ProcfsCollector,
     parse_cpu_line,
     parse_memory_info,
