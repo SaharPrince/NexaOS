@@ -70,13 +70,13 @@ class SessionReportValidationTests(unittest.TestCase):
 
             def write_report():
                 stream_path.write_bytes(
-                    b'{"kind":"event","stage":"launcher_started"}\\n'
+                    b'{"kind":"event","stage":"launcher_started"}\n'
                 )
                 time.sleep(0.1)
                 final = self.passing_report()
                 final["kind"] = "final"
                 with stream_path.open("ab") as stream:
-                    stream.write((json.dumps(final) + "\\n").encode("utf-8"))
+                    stream.write((json.dumps(final) + "\n").encode("utf-8"))
 
             writer = threading.Thread(target=write_report)
             writer.start()
