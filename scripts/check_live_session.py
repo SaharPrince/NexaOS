@@ -95,7 +95,7 @@ def receive_report(
 
     if ready_file is not None:
         ready_file.parent.mkdir(parents=True, exist_ok=True)
-        ready_file.write_text("connected\\n", encoding="ascii")
+        ready_file.write_text("connected\n", encoding="ascii")
 
     data = bytearray()
     try:
