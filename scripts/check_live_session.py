@@ -70,7 +70,12 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
     try:
         connection.settimeout(max(0.1, deadline - time.monotonic()))
         while b"\n" not in data:
-            chunk = connection.recv(1024)
+            try:
+                chunk = connection.recv(1024)
+            except TimeoutError as error:
+                raise TimeoutError(
+                    "connected to QEMU, but the guest sent no session report before the deadline"
+                ) from error
             if not chunk:
                 raise ConnectionError("QEMU closed the session-smoke channel before reporting")
             data.extend(chunk)
