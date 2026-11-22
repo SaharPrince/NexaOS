@@ -402,7 +402,17 @@ class NexaTaskManager(QDialog):
         except (OSError, ValueError, RuntimeError) as error:
             self._snapshot = []
             self._render_processes()
+            # Never leave old readings visible as if they were current after a
+            # failed sample. Clear every metric and show an explicit unavailable
+            # state until a fresh snapshot succeeds.
             self.status.setText(f"System information unavailable: {str(error)[:180]}")
+            self.cpu_label.setText("CPU: unavailable")
+            self.cpu_bar.setValue(0)
+            self.memory_label.setText("Memory: unavailable")
+            self.memory_bar.setValue(0)
+            self.swap_label.setText("Swap: unavailable")
+            self.swap_bar.setValue(0)
+            self.system_label.setText("System information unavailable")
             return
         self._snapshot = processes
         self._render_processes()
