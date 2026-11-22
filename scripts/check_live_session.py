@@ -48,8 +48,31 @@ def validate_report(report: Any) -> list[str]:
     return errors
 
 
+def decode_report_stream(data: bytes) -> dict:
+    """Decode diagnostic JSONL events followed by one authoritative final report."""
+    events: list[dict] = []
+    final_report: dict | None = None
+    for raw_line in data.splitlines():
+        if not raw_line:
+            continue
+        item = json.loads(raw_line.decode("utf-8"))
+        if not isinstance(item, dict):
+            raise ValueError("session-smoke stream records must be JSON objects")
+        if item.get("kind") == "final":
+            final_report = item
+            break
+        if item.get("kind") == "event":
+            events.append(item)
+        else:
+            raise ValueError("unknown session-smoke stream record")
+    if final_report is None:
+        raise ValueError("QEMU closed the session-smoke channel without a final report")
+    final_report["diagnostics"] = events[-32:]
+    return final_report
+
+
 def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
-    """Connect to QEMU's local UNIX socket and receive exactly one JSON line."""
+    """Connect to QEMU's local UNIX socket and receive bounded JSONL records."""
     deadline = time.monotonic() + timeout_seconds
     connection: socket.socket | None = None
     while time.monotonic() < deadline:
@@ -69,23 +92,23 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
     data = bytearray()
     try:
         connection.settimeout(max(0.1, deadline - time.monotonic()))
-        while b"\n" not in data:
+        while b'"kind":"final"' not in data:
             try:
                 chunk = connection.recv(1024)
             except TimeoutError as error:
+                partial = bytes(data).decode("utf-8", errors="replace")[-1000:]
                 raise TimeoutError(
-                    "connected to QEMU, but the guest sent no session report before the deadline"
+                    "connected to QEMU, but no final guest report arrived; "
+                    "diagnostic stream tail=" + partial
                 ) from error
             if not chunk:
-                raise ConnectionError("QEMU closed the session-smoke channel before reporting")
+                break
             data.extend(chunk)
             if len(data) > MAX_REPORT_BYTES:
                 raise ValueError("session-smoke report exceeded its size limit")
+        return decode_report_stream(bytes(data))
     finally:
         connection.close()
-
-    line = bytes(data).split(b"\n", 1)[0]
-    return json.loads(line.decode("utf-8"))
 
 
 def main() -> int:
