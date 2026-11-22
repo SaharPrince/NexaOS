@@ -82,7 +82,7 @@ def receive_report(stream_path: Path, timeout_seconds: int) -> dict:
         if len(data) > MAX_REPORT_BYTES:
             raise ValueError("session-smoke report stream exceeded its size limit")
         final_marker = data.find(b'"kind":"final"')
-        if final_marker >= 0 and b"\\n" in data[final_marker:]:
+        if final_marker >= 0 and b"\n" in data[final_marker:]:
             return decode_report_stream(data)
         time.sleep(0.25)
     partial = data.decode("utf-8", errors="replace")[-1000:]
