@@ -1,11 +1,13 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication
 from nexaos_task_manager import (
     NexaTaskManager,
     ProcfsCollector,
+    SystemSample,
     parse_cpu_line,
     parse_memory_info,
     parse_process_stat,
@@ -37,6 +39,37 @@ class TaskManagerDisplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_sampling_timer_starts_and_stops_with_window_lifecycle(self):
+        class StaticCollector:
+            def snapshot(self):
+                return (
+                    SystemSample(
+                        None, 1024 * 1024, 512 * 1024, 0, 0,
+                        60.0, "Test CPU", 2, "test-kernel",
+                    ),
+                    [],
+                )
+
+        manager = NexaTaskManager()
+        manager.collector = StaticCollector()
+        self.assertFalse(manager.timer.isActive())
+
+        manager.show()
+        self.app.processEvents()
+        self.assertTrue(manager.timer.isActive())
+
+        manager.hide()
+        self.app.processEvents()
+        self.assertFalse(manager.timer.isActive())
+
+        manager.show()
+        self.app.processEvents()
+        self.assertTrue(manager.timer.isActive())
+
+        manager.close()
+        self.app.processEvents()
+        self.assertFalse(manager.timer.isActive())
 
     def test_failed_refresh_clears_stale_system_metrics(self):
         class FailingCollector:
@@ -115,6 +148,45 @@ class ProcfsCollectorTests(unittest.TestCase):
             system, total, idle = collector._read_system()
             self.assertEqual((total, idle), (950, 800))
             self.assertEqual(system.cpu_model, "Test CPU")
+
+    def test_process_enumeration_respects_configured_limit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "stat").write_text(
+                "cpu 100 0 50 800 0 0 0 0 0 0" + chr(10), encoding="ascii"
+            )
+            (root / "meminfo").write_text(
+                chr(10).join(["MemTotal: 1000 kB", "MemAvailable: 500 kB"]) + chr(10),
+                encoding="ascii",
+            )
+            (root / "uptime").write_text("10.0 0.0" + chr(10), encoding="ascii")
+            (root / "cpuinfo").write_text("model name : Test CPU" + chr(10), encoding="ascii")
+            for pid in range(100, 110):
+                process = root / str(pid)
+                process.mkdir()
+                (process / "stat").write_text(
+                    make_stat(pid=pid, name=f"worker-{pid}", start=pid),
+                    encoding="ascii",
+                )
+
+            class FakeScandir:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_args):
+                    return False
+
+                def __iter__(self):
+                    return iter(
+                        [type("Entry", (), {"name": str(pid)})() for pid in range(100, 110)]
+                    )
+
+            collector = ProcfsCollector(
+                root, page_size=4096, cpu_count=2, max_processes=2
+            )
+            with patch("nexaos_task_manager.os.scandir", return_value=FakeScandir()):
+                _, processes = collector.snapshot()
+            self.assertEqual(len(processes), 2)
 
     def test_collector_first_sample_has_no_fabricated_cpu(self):
         with tempfile.TemporaryDirectory() as temporary:
