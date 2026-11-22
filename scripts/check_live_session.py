@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import socket
 import time
 from typing import Any
 
@@ -71,69 +70,36 @@ def decode_report_stream(data: bytes) -> dict:
     return final_report
 
 
-def receive_report(
-    socket_path: Path,
-    timeout_seconds: int,
-    ready_file: Path | None = None,
-) -> dict:
-    """Connect to QEMU's local UNIX socket and receive bounded JSONL records."""
+def receive_report(stream_path: Path, timeout_seconds: int) -> dict:
+    """Poll QEMU's guest-output file until the final JSONL record arrives."""
     deadline = time.monotonic() + timeout_seconds
-    connection: socket.socket | None = None
+    data = b""
     while time.monotonic() < deadline:
         try:
-            connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            connection.settimeout(min(5.0, max(0.1, deadline - time.monotonic())))
-            connection.connect(str(socket_path))
-            break
-        except (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError):
-            if connection is not None:
-                connection.close()
-                connection = None
-            time.sleep(0.5)
-    if connection is None:
-        raise TimeoutError("QEMU session-smoke socket did not become available")
-
-    if ready_file is not None:
-        ready_file.parent.mkdir(parents=True, exist_ok=True)
-        ready_file.write_text("connected\n", encoding="ascii")
-
-    data = bytearray()
-    try:
-        connection.settimeout(max(0.1, deadline - time.monotonic()))
+            data = stream_path.read_bytes()
+        except FileNotFoundError:
+            data = b""
+        if len(data) > MAX_REPORT_BYTES:
+            raise ValueError("session-smoke report stream exceeded its size limit")
         final_marker = data.find(b'"kind":"final"')
-        while final_marker < 0 or b"\n" not in data[final_marker:]:
-            try:
-                chunk = connection.recv(1024)
-            except TimeoutError as error:
-                partial = bytes(data).decode("utf-8", errors="replace")[-1000:]
-                raise TimeoutError(
-                    "connected to QEMU, but no final guest report arrived; "
-                    "diagnostic stream tail=" + partial
-                ) from error
-            if not chunk:
-                break
-            data.extend(chunk)
-            final_marker = data.find(b'"kind":"final"')
-            if len(data) > MAX_REPORT_BYTES:
-                raise ValueError("session-smoke report exceeded its size limit")
-        return decode_report_stream(bytes(data))
-    finally:
-        connection.close()
+        if final_marker >= 0 and b"\\n" in data[final_marker:]:
+            return decode_report_stream(data)
+        time.sleep(0.25)
+    partial = data.decode("utf-8", errors="replace")[-1000:]
+    raise TimeoutError(
+        "QEMU report file did not receive a complete final guest report; "
+        "diagnostic stream tail=" + partial
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("socket_path", type=Path)
+    parser.add_argument("stream_path", type=Path)
     parser.add_argument("report_path", type=Path)
     parser.add_argument("--timeout", type=int, default=210)
-    parser.add_argument(
-        "--ready-file",
-        type=Path,
-        help="write this marker after the QEMU report socket is connected",
-    )
     args = parser.parse_args()
     try:
-        report = receive_report(args.socket_path, args.timeout, args.ready_file)
+        report = receive_report(args.stream_path, args.timeout)
     except Exception as error:
         print(f"Desktop session validation failed: {error}", flush=True)
         return 1
