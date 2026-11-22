@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""CI-only interactive LXQt session smoke test.
+
+This module is staged into the live image only when NEXAOS_SESSION_SMOKE=1.
+It exercises the real desktop session and NexaOS Qt dialogs, then reports a
+small, non-sensitive result over a dedicated QEMU virtio-serial port.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import sys
+
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QPushButton
+
+from nexaos_welcome import NexaWelcome
+
+
+REPORT_DEVICE = Path("/dev/virtio-ports/org.nexaos.session-smoke")
+REQUIRED_CHECKS = (
+    "x11_display",
+    "dbus_session_bus",
+    "lxqt_session",
+    "lxqt_panel",
+    "welcome_window",
+    "welcome_controls",
+    "keyboard_activation",
+    "task_manager_sampling",
+    "pointer_activation",
+    "file_browser_dialog",
+)
+
+
+def process_exists(expected: str) -> bool:
+    """Check process comm names only; never read command lines or environments."""
+    try:
+        entries = Path("/proc").iterdir()
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.name.isdecimal():
+            continue
+        try:
+            name = (entry / "comm").read_text(encoding="ascii").strip()
+        except (OSError, UnicodeError):
+            continue
+        if name == expected:
+            return True
+    return False
+
+
+def send_report(report: dict) -> None:
+    """Send one bounded JSON line to the host-owned QEMU test socket."""
+    if not REPORT_DEVICE.exists():
+        raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
+    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(payload) > 8192:
+        raise ValueError("session-smoke report exceeded its size limit")
+    descriptor = os.open(REPORT_DEVICE, os.O_WRONLY)
+    try:
+        written = os.write(descriptor, payload)
+        if written != len(payload):
+            raise OSError("session-smoke report was not fully written")
+    finally:
+        os.close(descriptor)
+
+
+def main() -> int:
+    checks = {
+        "x11_display": bool(os.environ.get("DISPLAY")),
+        "dbus_session_bus": bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS")),
+        "lxqt_session": process_exists("lxqt-session"),
+        "lxqt_panel": process_exists("lxqt-panel"),
+        "welcome_window": False,
+        "welcome_controls": False,
+        "keyboard_activation": False,
+        "task_manager_sampling": False,
+        "pointer_activation": False,
+        "file_browser_dialog": False,
+    }
+    failures: list[str] = []
+    report = {"schema_version": 1, "status": "failed", "checks": checks, "failures": failures}
+
+    # Do not attempt GUI tests when the session prerequisites are missing.
+    if not all(checks[name] for name in (
+        "x11_display", "dbus_session_bus", "lxqt_session", "lxqt_panel"
+    )):
+        failures.extend(name for name in (
+            "x11_display", "dbus_session_bus", "lxqt_session", "lxqt_panel"
+        ) if not checks[name])
+        send_report(report)
+        return 1
+
+    app = QApplication(sys.argv[:1])
+    window = NexaWelcome()
+    window.show()
+
+    def run_checks() -> None:
+        try:
+            QTest.qWait(250)
+            checks["welcome_window"] = (
+                window.isVisible() and window.width() >= 760 and window.height() >= 520
+            )
+
+            buttons = {
+                button.text(): button
+                for button in window.findChildren(QPushButton)
+            }
+            expected = {
+                "Open Files", "Appearance", "Display", "Keyboard & Mouse",
+                "System Settings", "Windows App Preview", "Task Manager",
+            }
+            checks["welcome_controls"] = expected <= set(buttons)
+
+            task_button = buttons.get("Task Manager")
+            if task_button is not None:
+                modal_result: dict[str, bool] = {}
+
+                def inspect_task_manager() -> None:
+                    dialog = QApplication.activeModalWidget()
+                    if dialog is None:
+                        modal_result["valid"] = False
+                        return
+                    timer = getattr(dialog, "timer", None)
+                    modal_result["valid"] = (
+                        dialog.windowTitle() == "NexaOS Task Manager"
+                        and timer is not None
+                        and timer.interval() == 1200
+                        and timer.isActive()
+                    )
+                    dialog.close()
+
+                QTimer.singleShot(350, inspect_task_manager)
+                task_button.setFocus()
+                QTest.keyClick(task_button, Qt.Key.Key_Return)
+                checks["keyboard_activation"] = modal_result.get("valid", False)
+                checks["task_manager_sampling"] = modal_result.get("valid", False)
+
+            files_button = buttons.get("Open Files")
+            if files_button is not None:
+                modal_result = {}
+
+                def inspect_file_browser() -> None:
+                    dialog = QApplication.activeModalWidget()
+                    if dialog is None:
+                        modal_result["valid"] = False
+                        return
+                    modal_result["valid"] = (
+                        dialog.windowTitle() == "NexaOS Files"
+                        and getattr(dialog, "table", None) is not None
+                        and getattr(dialog, "new_folder_button", None) is not None
+                        and dialog.new_folder_button.isEnabled()
+                        and dialog.current == Path.home().resolve()
+                    )
+                    dialog.close()
+
+                QTimer.singleShot(350, inspect_file_browser)
+                QTest.mouseClick(files_button, Qt.MouseButton.LeftButton)
+                checks["pointer_activation"] = modal_result.get("valid", False)
+                checks["file_browser_dialog"] = modal_result.get("valid", False)
+
+            for name in REQUIRED_CHECKS:
+                if not checks[name]:
+                    failures.append(name)
+
+        except Exception as error:  # report the failure instead of silently timing out
+            failures.append(f"exception:{type(error).__name__}")
+        finally:
+            report["status"] = "passed" if not failures and all(checks.values()) else "failed"
+            window.close()
+            try:
+                send_report(report)
+            except Exception:
+                # Without the host report channel, the QEMU test must fail closed.
+                app.exit(2)
+                return
+            app.exit(0 if report["status"] == "passed" else 1)
+
+    QTimer.singleShot(1200, run_checks)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
