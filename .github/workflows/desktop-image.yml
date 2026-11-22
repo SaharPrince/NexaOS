@@ -18,6 +18,9 @@ on:
     paths:
       - "desktop/live-build/**"
       - "desktop/nexaos-welcome/**"
+      - "desktop/session-smoke/**"
+      - "scripts/check_live_session.py"
+      - "scripts/tests/**"
       - "engine/desktop-shell/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -51,10 +54,12 @@ jobs:
         run: |
           bash -n scripts/build-live-image.sh
           bash -n scripts/smoke-boot-live-image.sh
-          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py desktop/nexaos-welcome/nexaos_task_manager.py
+          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py desktop/nexaos-welcome/nexaos_task_manager.py desktop/session-smoke/nexaos-session-smoke.py scripts/check_live_session.py
           python3 scripts/validate-desktop-config.py
           test -s desktop/nexaos-welcome/nexaos_file_browser.py
           test -s desktop/nexaos-welcome/nexaos_task_manager.py
+          test -s desktop/session-smoke/nexaos-session-smoke.py
+          test -s desktop/session-smoke/nexaos-session-smoke.desktop
           test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-task-manager.desktop
           test -s engine/desktop-shell/src/bin/nexa-desktop-controller.rs
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
