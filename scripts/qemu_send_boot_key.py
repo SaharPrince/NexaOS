@@ -57,7 +57,7 @@ def send_key(socket_path: Path, key: str, timeout_seconds: int = 30) -> None:
     # must fail the test rather than risk injecting Enter a second time.
     try:
         _read_until_prompt(connection, deadline)
-        connection.sendall(b"sendkey ret\\n")
+        connection.sendall(b"sendkey ret\n")
         response = _read_until_prompt(connection, deadline)
         lowered = response.lower()
         if b"unknown command" in lowered or b"error:" in lowered:
