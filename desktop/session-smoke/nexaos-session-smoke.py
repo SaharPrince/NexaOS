@@ -21,7 +21,7 @@ def diagnostic(message: str) -> None:
     """Write bounded CI-only startup diagnostics without recording secrets."""
     try:
         with DIAGNOSTIC_LOG.open("a", encoding="utf-8") as stream:
-            stream.write(message[:1000] + "\\n")
+            stream.write(message[:1000] + "\n")
             stream.flush()
     except OSError:
         pass
@@ -34,7 +34,7 @@ try:
     from PyQt6.QtWidgets import QApplication, QPushButton
     from nexaos_welcome import NexaWelcome
 except Exception:
-    diagnostic("session-smoke import failure:\\n" + traceback.format_exc())
+    diagnostic("session-smoke import failure:\n" + traceback.format_exc())
     raise
 
 
