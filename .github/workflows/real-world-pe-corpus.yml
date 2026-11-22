@@ -46,12 +46,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.x'
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Download and verify pinned upstream PE files
         run: python scripts/download-verified-pe-samples.py
       - name: Check Rust formatting
@@ -61,7 +63,7 @@ jobs:
           NEXA_REAL_WORLD_PE_DIR: ${{ github.workspace }}/target/real-world-pe
         run: cargo test --locked -p nexa-inspect --test real_world_pe_corpus -- --nocapture
       - name: Upload verification manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verified-pe-corpus-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/real-world-pe/SHA256SUMS.txt

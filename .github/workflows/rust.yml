@@ -17,10 +17,14 @@ jobs:
     name: Format Rust sources
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: rustfmt
+      - name: Verify immutable GitHub Actions references
+        run: python3 scripts/check-github-actions-pins.py
       - name: Check workspace formatting
         run: cargo fmt --all -- --check
       - name: Check fuzz target formatting
@@ -34,9 +38,11 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Run workspace tests
         run: cargo test --workspace --locked
       - name: Check CLI help
@@ -64,7 +70,7 @@ jobs:
 
       - name: Upload hosted Linux benchmark observations
         if: always() && matrix.os == 'ubuntu-latest' && github.ref == 'refs/heads/nce-005c/low-end-resource-baseline'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nce-005c-hosted-linux-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/nce-005c-hosted-linux-benchmark.txt
@@ -146,7 +152,7 @@ jobs:
 
       - name: Upload hosted Windows benchmark observations
         if: always() && matrix.os == 'windows-latest' && github.ref == 'refs/heads/nce-005b/end-to-end-preparation-benchmark'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nce-005b-hosted-windows-benchmark-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/nce-005b-hosted-windows-benchmark.txt
@@ -157,9 +163,11 @@ jobs:
     name: External compiler PE layout (MinGW + LLVM/LLD)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Install MinGW-w64 cross compilers
         run: |
           sudo apt-get update
@@ -252,7 +260,7 @@ jobs:
             stat -c '%n %s bytes' *.exe > fixture-sizes.txt
           )
       - name: Upload reproducible PE corpus fixtures
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nexa-pe-corpus-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -270,10 +278,12 @@ jobs:
     name: Clippy (warnings denied)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Lint all targets
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
