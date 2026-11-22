@@ -28,6 +28,8 @@ performance, hardware support, and low-memory targets remain goals—not guarant
 - **Linux foundation:** use the Linux kernel and its hardware-driver ecosystem as
   the host foundation. Windows kernel drivers cannot be replaced by user-mode API
   compatibility.
+- **Privacy and protection:** isolate applications, minimize data collection, and
+  keep host credentials and unrelated account sessions private by default.
 
 ## Anti-cheat and account-safety requirements
 
@@ -43,6 +45,10 @@ NexaOS may force by bypassing protections.
 - Clearly distinguish verified, unverified, and unsupported game configurations.
 - Do not use a user's primary gaming account as a compatibility test account.
   Use vendor-approved test arrangements where available.
+- Do not expose browser cookies, saved passwords, MFA material, OS keyrings,
+  SSH keys, or unrelated game-launcher sessions to Windows applications by default.
+- Keep telemetry off by default; diagnostics must be minimized, disclosed, and
+  explicitly enabled by the user.
 - Treat account protection as a design objective, not an absolute guarantee:
   third-party publishers control detection and enforcement, so no OS can promise
   that an account will never be flagged or restricted.
@@ -55,16 +61,13 @@ planning/application, and transactional image-preparation foundations. These
 produce data only: they do not launch Windows applications, load Windows DLLs,
 create executable mappings, or transfer control to PE entry points.
 
-The active development branch is
-nce-005c/low-end-resource-baseline. **NCE-005 remains open** while its
-representative-corpus and compatibility/resource evidence gates are addressed.
-See [NCE-005](docs/milestones/NCE-005.md) for exact scope, limitations, and evidence.
-The [NCE-006 desktop and application-entry milestone](docs/milestones/NCE-006.md)
-records the desktop design and current implementation. A UI-independent desktop
-model now provides in-memory directory navigation, safe display-text handling,
-structured .exe launch requests, and a mock launcher that never creates processes
-or executes files. A graphical Nexa shell and real application runtime are not yet
-implemented.
+The [NCE-005 evidence milestone](docs/milestones/NCE-005.md) remains open for
+broader provenance-reviewed PE corpus and compatibility evidence. The
+[NCE-006 desktop milestone](docs/milestones/NCE-006.md) records the current
+Debian/LXQt preview, safe file-browser foundation, and preview-only application
+entry path. The new [NCE-007 security and privacy milestone](docs/milestones/NCE-007.md)
+defines the mandatory threat-model, isolation, credential, privacy, and update
+integrity gates that must be reviewed before real Windows execution is enabled.
 
 ## Build and inspect
 
@@ -86,18 +89,19 @@ in this order:
 1. Close the remaining NCE-005 evidence gates with a small, provenance- and
    license-reviewed sample set. Do not expand benchmarks or corpus work without a
    decision they can inform.
-2. Build the NCE-006 desktop shell and file-manager integration against a mock
-   launcher, while keeping real PE execution disabled until its runtime security
-   milestone is reviewed.
-3. Design and implement the smallest safe end-to-end Windows user-mode application
-   compatibility slice, with explicit boundaries, failure handling, and measurable
-   launch/resource costs.
-4. Add the common Win32, process, memory, file, thread, synchronization, and DLL
-   behaviors required by real applications; expand from purpose-built test programs
-   to appropriately licensed applications.
-5. Expand graphics, input, audio, and game compatibility. Treat kernel anti-cheat
+2. Continue NCE-006 desktop integration and validation against the preview-only
+   launcher; keep real PE execution disabled.
+3. Complete the NCE-007 threat model and security/privacy design, then validate
+   unprivileged isolation, credential boundaries, IPC, diagnostics, and update
+   integrity before proposing executable runtime work.
+4. Design and implement the smallest safe end-to-end Windows user-mode application
+   compatibility slice only after the NCE-007 execution gate is reviewed.
+5. Add the common Win32, process, memory, file, thread, synchronization, and DLL
+   behaviors required by real applications; expand from purpose-built test
+   programs to appropriately licensed applications.
+6. Expand graphics, input, audio, and game compatibility. Treat kernel anti-cheat
    support as a separate vendor-approval gate.
-6. Engineer installation, updates, recovery, hardware support, and release-quality
+7. Engineer installation, updates, recovery, hardware support, and release-quality
    distribution.
 
 Use risk-based validation: spend test effort on memory safety, bounds, privilege
@@ -113,5 +117,5 @@ correctness and security checks; use targeted validation for documentation-only
 or isolated changes when full CI adds no meaningful protection.
 
 Milestones are complete only when their stated acceptance criteria and evidence
-are satisfied. No universal Windows compatibility, anti-cheat safety, or
-performance claim should be made without supporting evidence.
+are satisfied. No universal Windows compatibility, anti-cheat safety, account
+protection, or performance claim should be made without supporting evidence.
