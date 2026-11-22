@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=NexaOS Task Manager
-GenericName=Task Manager
-Comment=View processes and monitor CPU and memory usage
+Name=QPS Process Monitor
+GenericName=Upstream Process Monitor
+Comment=Upstream process monitor with process controls; separate from NexaOS Task Manager
 Exec=qps
 Icon=utilities-system-monitor
 Terminal=false
