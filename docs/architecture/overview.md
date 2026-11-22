@@ -1,14 +1,65 @@
 # NexaOS Architecture — Initial Direction
 
-NexaOS is planned as a lightweight Linux-based operating system focused on running supported Windows applications and games without requiring a Windows virtual machine. The Linux kernel and its hardware-driver ecosystem provide the host foundation; Nexa's original work is the Nexa Compatibility Engine (NCE), its desktop integration, and the operating-system experience around it.
+NexaOS is planned as a lightweight Linux-based operating system with an ambitious long-term goal: run the widest possible range of modern Windows applications and games without requiring a Windows virtual machine for normal use. This includes multiplayer games using anti-cheat, pursued through legitimate provider- and publisher-approved support. The Linux kernel and its hardware-driver ecosystem provide the host foundation; Nexa's original work is the Nexa Compatibility Engine (NCE), its desktop integration, and the operating-system experience around it.
 
-The project has three co-equal product priorities:
+The three non-negotiable product goals are:
 
-1. **Low resource use:** keep idle memory use, CPU activity, storage footprint, boot time, and background work low enough to remain practical on modest computers.
-2. **Useful Windows compatibility:** implement Windows behavior carefully, test against real applications, and expand compatibility based on measured user value rather than feature-count claims.
-3. **Privacy and account protection:** keep applications isolated, prevent ambient access to host credentials and unrelated account sessions, and minimize collection and exposure of personal data.
+1. **Maximum practical Windows compatibility:** support as much modern Windows software and gaming as technically and legally possible, including anti-cheat-protected multiplayer games where vendors and publishers provide an approved path.
+2. **Strong system security and resilience:** minimize attack surface, isolate failures, prevent application compromise from becoming host compromise, detect vulnerabilities through continuous testing and review, and deliver trustworthy recovery and security updates.
+3. **Privacy and account protection:** keep credentials, browser sessions, gaming accounts, personal files, and private activity inaccessible to applications unless the user explicitly authorizes a narrow capability.
 
-Neither priority may be traded away silently. A compatibility feature that imposes substantial overhead needs profiling and an explicit design decision; a lightweight shortcut that breaks common application behavior is not a successful optimization. A compatibility workaround that weakens isolation or exposes credentials is not an acceptable compatibility improvement.
+Lightweight operation is an important engineering quality across all three goals: avoid unnecessary services and memory overhead, but never weaken security or break compatibility merely to achieve a smaller footprint.
+
+No operating system can guarantee zero vulnerabilities or universal third-party compatibility. Nexa must state its tested coverage and residual risks precisely. A compatibility workaround that disables host protections, bypasses anti-cheat, or exposes credentials is not an acceptable compatibility improvement.
+
+## Maximum compatibility strategy
+
+The long-term target is broad support for current Windows application and game ecosystems, not a permanently limited whitelist. Coverage must be earned through reproducible testing and expanded in layers:
+
+- Core PE/COFF parsing, process lifecycle, virtual memory, threads, synchronization, files, registry, COM, networking, and Windows user-mode APIs.
+- Dynamic library loading, application manifests, runtime dependencies, installer and update behavior, and common Windows services where safe and feasible.
+- Graphics, presentation, input, audio, controller, display, and performance paths across supported hardware and drivers.
+- Developer tools, productivity suites, creative applications, launchers, single-player games, multiplayer games, and demanding modern titles.
+- Compatibility tracking by exact application/version, architecture, hardware/driver, online mode, anti-cheat provider/version, and tested feature set.
+
+Do not equate a successful PE parse, process start, launcher window, or offline menu with a fully working game. Record installation, startup, rendering, input, audio, online connectivity, multiplayer, anti-cheat initialization, update behavior, suspend/resume, and stability as separate test dimensions where applicable.
+
+### Anti-cheat and publisher-controlled systems
+
+Anti-cheat support is a first-class compatibility objective, not an excluded category. However, it is also a trust boundary controlled by third-party providers and publishers.
+
+- Inventory the technical requirements of major anti-cheat providers and games, including user-mode components, kernel drivers, signing requirements, boot/security assumptions, and server-side policy.
+- Pursue official vendor engineering cooperation, compatibility declarations, certification, signing, or provider-supported Linux paths wherever required.
+- Implement only approved interfaces and supported configurations. Never bypass, spoof, disable, patch, evade, or tamper with anti-cheat, DRM, protected processes, game memory, or security drivers.
+- Do not claim support when a required Windows kernel driver or publisher authorization is unavailable. A user-mode compatibility layer cannot transparently replace an arbitrary Windows kernel driver.
+- Fail closed and explain the limitation when integrity checks or required support are absent. Do not offer an unsafe mode that disables host protections.
+- Maintain a transparent matrix: provider/game, version, hardware, approved configuration, test date, online/multiplayer status, and known limitations.
+
+Some games may remain unavailable until their publisher or anti-cheat provider supports the platform. This is a real external dependency, not something Nexa can ethically or safely defeat through a technical workaround.
+
+## Strong system security and resilience
+
+Security is a system-wide property. Design for compromise resistance, containment, detection, response, and recovery:
+
+- Keep the trusted computing base small and explicit; minimize privileged code and always-running services.
+- Apply least privilege and defense in depth to applications, desktop services, brokers, installers, updaters, and system management.
+- Separate application identities, private data, processes, IPC, devices, and host resources. Fail closed if policy setup fails.
+- Use memory-safe implementation languages where practical, strict input validation, fuzzing, static analysis, adversarial testing, and independent security review.
+- Harden boot and update trust, package provenance, dependency resolution, signing keys, rollback protection, and recovery.
+- Establish a vulnerability disclosure and response process, supported security update policy, and measurable remediation workflow.
+- Treat kernel, firmware, physical access, and third-party service risks as explicit residual risks; do not claim NCE alone solves them.
+- Measure attack-surface reduction and isolation with tests. "No known issue" is not proof of security, and "unbreakable" is not an acceptable claim.
+
+## Privacy and account protection
+
+- No ambient access from a Windows application to browser cookies, saved passwords, password-manager databases, MFA material, OS keyrings, SSH keys, API tokens, or unrelated game-launcher sessions.
+- Isolate per-application state and expose host files/devices only through narrow, understandable, revocable user grants.
+- Mediate clipboard, screen, microphone, camera, accessibility, and input-sensitive capabilities through scoped user intent where the platform supports it.
+- Never put secrets in command-line arguments, environment variables, logs, crash dumps, or routine telemetry.
+- Disable telemetry by default. Optional diagnostics must be informed, minimized, redacted, revocable, and bounded in retention.
+- Do not silently proxy application traffic, profile users across apps, or transmit account identifiers to Nexa services.
+- Make it possible for users to inspect and revoke permissions and understand what application data is stored.
+- Clearly distinguish Nexa's host-side protections from third-party account enforcement, which Nexa cannot guarantee.
 
 ## Lightweight-system principles
 
@@ -18,71 +69,37 @@ Neither priority may be traded away silently. A compatibility feature that impos
 - Prefer efficient native implementations, bounded caches, lazy initialization, and predictable resource limits.
 - Avoid duplicating large runtime components across applications where safe sharing is possible.
 - Keep the desktop responsive under memory pressure; resource exhaustion must not turn into system-wide instability.
-- Measure idle and workload behavior on representative low-end hardware. Do not publish minimum-spec or performance claims until they are supported by repeatable measurements.
-- Treat power use, thermals, storage reads, and startup latency as performance concerns alongside frame rate and application launch time.
+- Measure idle and workload behavior on representative low-end hardware. Do not publish minimum-spec or performance claims until supported by repeatable measurements.
 
-## Nexa Compatibility Engine (NCE)
+## NCE component strategy
 
 Planned components include PE inspection and parsing, image loading, import/export resolution, Windows x64 ABI bridging, NT-style user-mode services, Win32 APIs, registry and COM behavior, networking, audio, graphics translation, and per-application security boundaries.
 
-These are work areas, not claims of implemented functionality. Components should be added incrementally behind clear interfaces, with compatibility tests and resource measurements. The engine should load only the subsystems an application needs where the architecture permits it.
+These are work areas, not claims of implemented functionality. Components should be added incrementally behind clear interfaces, with compatibility tests, security tests, and resource measurements. The engine should load only the subsystems an application needs where the architecture permits it.
 
-## Compatibility strategy
+## Validation and compatibility evidence
 
-- Prioritize common desktop application foundations first: process startup, memory, files, threads, synchronization, dynamic libraries, and core Win32 behavior.
-- Build a repeatable compatibility test suite using redistributable or purpose-built test programs and appropriately licensed application fixtures.
-- Track compatibility by application, version, feature set, and known limitations; avoid blanket claims that all Windows software works.
-- Prefer upstreamable, well-documented behavior over application-specific hacks. Keep unavoidable workarounds isolated and testable.
-- Use graphics and audio translation layers only with explicit performance and correctness testing across supported hardware.
-- Preserve a clear distinction between native Linux applications and Windows applications running through NCE.
-
-A user-mode compatibility engine can implement user-mode behavior. It cannot transparently replace arbitrary Windows kernel drivers. Multiplayer anti-cheat support is limited to configurations officially supported by the publisher and provider; NexaOS will not promise unsupported kernel-driver or anti-cheat compatibility.
-
-## Performance and compatibility validation
-
-Every major runtime milestone should add measurements as well as correctness tests. At minimum, record:
+Every major runtime milestone should add measurements and compatibility results as well as correctness tests. At minimum, record:
 
 - idle RAM and CPU use with the default desktop and background services;
-- incremental RAM and CPU use when the compatibility runtime is idle and when an application is active;
+- incremental RAM and CPU use when the compatibility runtime is idle and active;
 - cold and warm application launch time;
-- CPU, memory, and frame-time behavior for representative workloads where applicable;
+- CPU, memory, frame-time, rendering, and input behavior for representative workloads;
 - storage footprint and cache growth;
-- behavior under constrained memory and slower storage.
+- behavior under constrained memory and slower storage;
+- security isolation, denied-access behavior, and recovery from application/runtime crashes;
+- per-app and per-game compatibility results with exact versions, hardware, driver, and online/anti-cheat configuration.
 
-Use repeatable test machines or documented hardware profiles. Compare changes against a recorded baseline, and reject optimizations that materially regress compatibility or stability without a justified trade-off. Initial numeric budgets will be set only after representative low-end hardware is selected and measured; inventing targets before that would create misleading promises.
+Use repeatable test machines or documented hardware profiles. Compare changes against recorded baselines. Do not publish compatibility or performance claims without evidence. Prioritize broad coverage while keeping each result honest and reproducible.
 
-## Compatibility and security boundaries
+## Current implementation boundaries
 
-The compatibility runtime must not execute untrusted inputs during inspection, must validate binary structures before use, and must isolate application state and privileges. Prefer least privilege and explicit access to host resources. Security boundaries and crash containment are core architecture requirements, not optional performance features.
+NCE-001 is a read-only metadata inspector. It must not map executable sections into executable memory, resolve imports for execution, load Windows DLLs, or transfer control to an entry point.
 
-## NCE-001 boundary
+NCE-002 defines a staged PE32+ AMD64 image-layout plan. Its implementation uses bounded, non-executable memory and does not transfer control to an image entry point.
 
-NCE-001 is a read-only metadata inspector. It must not map executable sections into executable memory, resolve imports for execution, load Windows DLLs, or transfer control to an entry point. Its purpose is to establish a safe, testable PE foundation for later loader work.
+NCE-004a defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. This does not enable application loading or execution.
 
-## NCE-002 design boundary
+NCE-004b composes inspection, layout, bounded non-executable allocation, population, explicit-catalogue import resolution, symbolic IAT validation, and image-local relocation into a failure-atomic preparation pipeline. Its output remains non-executable prepared data; it does not write IAT values, load DLLs, set page permissions, or transfer control to an image entry point.
 
-The [NCE-002 design specification](../milestones/NCE-002.md) defines a staged PE32+ AMD64 image-layout plan. Its first implementation must use bounded, non-executable memory and must not transfer control to an image entry point. Layout planning, allocation, population, relocation, import resolution, and execution remain separate stages. The specification is design-only until the corresponding implementation and automated acceptance tests exist.
-
-## NCE-004a relocation boundary
-
-The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AMD64 base-relocation metadata, pure DIR64 patch planning, and all-or-nothing image-local application. NCE-004a.1, NCE-004a.2, and NCE-004a.3 are implemented and validated for their isolated data-processing scope. This does not enable application loading or execution.
-
-## NCE-004b image-preparation boundary
-
-The [NCE-004b specification](../milestones/NCE-004b.md) defines the orchestration stage composing inspection, layout, bounded non-executable allocation, population, explicit-catalogue import resolution, symbolic IAT validation, and image-local relocation into a failure-atomic preparation pipeline. NCE-004b is implemented and validated on the feature branch. Its output remains non-executable prepared data; it does not write IAT values, load DLLs, set page permissions, or transfer control to an image entry point. Broader third-party PE corpus review and representative low-end hardware measurements remain release gates before real application loading is considered.
-
-## NCE-007 application isolation, privacy, and account protection
-
-The [NCE-007 milestone](../milestones/NCE-007.md) is the mandatory security-design gate before NCE can launch Windows executables. It defines the assets, threat actors, trust boundaries, least-privilege requirements, credential isolation, privacy defaults, executable/dependency integrity, failure containment, and validation criteria.
-
-The architecture must preserve these invariants:
-
-- Each Windows application receives isolated private state and only narrowly granted host resources. No application receives ambient access to the user's full home directory, browser profiles, OS keyring, SSH keys, or unrelated game-launcher sessions.
-- The desktop and launcher broker remain unprivileged. IPC is versioned, bounded, validated, and resistant to impersonation; no shell-string construction is used.
-- Credentials and tokens are never passed through command-line arguments, environment variables, logs, crash reports, or routine telemetry.
-- Clipboard, screen, audio, camera, and other sensitive user-interaction capabilities require clear, scoped user intent where supported by the host platform.
-- Telemetry is disabled by default. Optional diagnostics are minimized, disclosed, redacted, and revocable.
-- Sandbox, dependency-verification, or policy-setup failure must not trigger an unsandboxed fallback.
-- Executable-memory policy, loader behavior, DLL resolution, process lifecycle, and update integrity require separate reviewed designs and tests before real application execution.
-
-Candidate host mechanisms may include Linux namespaces, seccomp, Landlock, cgroups, and dedicated user identities. Their availability and combination must be validated against the supported kernel baseline; enabling one mechanism alone is not proof of a secure sandbox. NCE-007 is currently a design proposal, not implemented isolation or a claim that user accounts are protected today.
+The [NCE-007 milestone](../milestones/NCE-007.md) is the mandatory security-design gate before NCE can launch Windows executables. It defines the threat model, isolation, credential protection, privacy defaults, executable/dependency integrity, failure containment, and validation criteria. NCE-007 is currently a design proposal, not implemented isolation or a claim that user accounts are protected today.
