@@ -14,7 +14,7 @@
 - Failed samples clear old metrics and display an unavailable state rather than leaving stale values visible.
 - The implementation does not read command lines, environment variables, process memory, credentials, browser data, or file contents. It has no process-control or startup-management operations.
 - Remaining scope: per-core CPU visualization and a separate process-details view are not yet implemented. These remain part of the broader task-manager design and require focused follow-up work.
-- The QEMU check is a 150-second graphical boot/framebuffer smoke test, not proof of interactive desktop login or hardware compatibility.
+- The QEMU check is a 150-second graphical boot/framebuffer smoke test. On the reviewed PR head it captured 1280×800 output with 3,590 unique colors; the ISO SHA-256 is `97a20da3d7601cb07ca8e77df09f1aa09f430f04d150793e2dfa6a331306bd39`. This is not proof of interactive desktop login or hardware compatibility.
 - Physical low-memory CPU/RAM overhead, large-process-list responsiveness, display scaling, keyboard navigation, and session-level interaction remain unverified.
 
 ## Product goal
