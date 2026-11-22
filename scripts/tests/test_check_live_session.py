@@ -42,6 +42,29 @@ class SessionReportValidationTests(unittest.TestCase):
         report["checks"] = []
         self.assertIn("checks must be a JSON object", validate_report(report))
 
+    def test_decodes_launcher_events_before_final_report(self):
+        from check_live_session import decode_report_stream
+
+        final = self.passing_report()
+        final["kind"] = "final"
+        stream = (
+            b'{"kind":"event","stage":"launcher_started"}\\n'
+            b'{"kind":"event","stage":"python_starting"}\\n'
+            + (json.dumps(final) + "\\n").encode("utf-8")
+        )
+        report = decode_report_stream(stream)
+        self.assertEqual(report["diagnostics"], [
+            {"kind": "event", "stage": "launcher_started"},
+            {"kind": "event", "stage": "python_starting"},
+        ])
+        self.assertEqual(validate_report(report), [])
+
+    def test_rejects_stream_without_final_report(self):
+        from check_live_session import decode_report_stream
+
+        with self.assertRaisesRegex(ValueError, "without a final report"):
+            decode_report_stream(b'{"kind":"event","stage":"launcher_started"}\\n')
+
 
 if __name__ == "__main__":
     unittest.main()
