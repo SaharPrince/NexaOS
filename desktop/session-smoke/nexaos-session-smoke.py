@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtTest import QTest
@@ -82,6 +83,18 @@ def main() -> int:
         "file_browser_dialog": False,
     }
     failures: list[str] = []
+    # LXQt starts autostart applications while its remaining session
+    # components may still be coming up. Wait briefly, but fail closed.
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline and not all(checks[name] for name in (
+        "x11_display", "dbus_session_bus", "lxqt_session", "lxqt_panel"
+    )):
+        time.sleep(0.5)
+        checks["x11_display"] = bool(os.environ.get("DISPLAY"))
+        checks["dbus_session_bus"] = bool(os.environ.get("DBUS_SESSION_BUS_ADDRESS"))
+        checks["lxqt_session"] = process_exists("lxqt-session")
+        checks["lxqt_panel"] = process_exists("lxqt-panel")
+
     report = {"schema_version": 1, "status": "failed", "checks": checks, "failures": failures}
 
     # Do not attempt GUI tests when the session prerequisites are missing.
