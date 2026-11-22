@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 import time
 from typing import Any
@@ -81,8 +82,10 @@ def receive_report(stream_path: Path, timeout_seconds: int) -> dict:
             data = b""
         if len(data) > MAX_REPORT_BYTES:
             raise ValueError("session-smoke report stream exceeded its size limit")
-        final_marker = data.find(b'"kind":"final"')
-        if final_marker >= 0 and b"\n" in data[final_marker:]:
+        # JSON permits insignificant whitespace around separators. Match the
+        # decoded field's syntax rather than one serializer's compact layout.
+        final_match = re.search(rb'"kind"\s*:\s*"final"', data)
+        if final_match is not None and b"\n" in data[final_match.start():]:
             return decode_report_stream(data)
         time.sleep(0.25)
     partial = data.decode("utf-8", errors="replace")[-1000:]
