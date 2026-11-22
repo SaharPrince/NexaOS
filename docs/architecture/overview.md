@@ -10,7 +10,7 @@ The five non-negotiable product goals are:
 4. **Strong system security and resilience:** minimize attack surface, isolate failures, prevent application compromise from becoming host compromise, detect vulnerabilities through continuous testing and review, and deliver trustworthy recovery and security updates.
 5. **Privacy and account protection:** keep credentials, browser sessions, gaming accounts, personal files, and private activity inaccessible to applications unless the user explicitly authorizes a narrow capability.
 
-Lightweight operation is an important engineering quality across all three goals: avoid unnecessary services and memory overhead, but never weaken security or break compatibility merely to achieve a smaller footprint.
+Lightweight operation is an important engineering quality across all five goals: avoid unnecessary services and memory overhead, but never weaken security or break compatibility merely to achieve a smaller footprint.
 
 No operating system can guarantee zero vulnerabilities or universal third-party compatibility. Nexa must state its tested coverage and residual risks precisely. A compatibility workaround that disables host protections, bypasses anti-cheat, or exposes credentials is not an acceptable compatibility improvement.
 
