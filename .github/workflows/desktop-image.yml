@@ -2,6 +2,9 @@ name: NexaOS desktop preview
 
 on:
   push:
+    branches:
+      - main
+      - nce-005c/low-end-resource-baseline
     paths:
       - "desktop/live-build/config/**"
       - "desktop/nexaos-welcome/**"
