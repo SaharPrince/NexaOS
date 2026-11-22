@@ -46,7 +46,7 @@ def send_report(report: dict) -> None:
     """Send one bounded JSON line to the host-owned QEMU test socket."""
     if not REPORT_DEVICE.exists():
         raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
-    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\\n").encode("utf-8")
+    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     if len(payload) > 8192:
         raise ValueError("session-smoke report exceeded its size limit")
     descriptor = os.open(REPORT_DEVICE, os.O_WRONLY)
