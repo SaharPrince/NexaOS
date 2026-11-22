@@ -7,10 +7,9 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts"
 SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.xwd"
 BOOT_MENU_SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-menu-before-key.xwd"
 QEMU_LOG="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.log"
-SESSION_SOCKET="$ARTIFACT_DIR/nexaos-session-smoke.sock"
+SESSION_STREAM="$ARTIFACT_DIR/nexaos-session-smoke.jsonl"
 MONITOR_SOCKET="$ARTIFACT_DIR/nexaos-qemu-monitor.sock"
 SESSION_REPORT="$ARTIFACT_DIR/nexaos-session-smoke.json"
-SESSION_READY="$ARTIFACT_DIR/nexaos-session-smoke.connected"
 SESSION_SMOKE="${NEXAOS_SESSION_SMOKE:-0}"
 
 for command in qemu-system-x86_64 xvfb-run xwd identify timeout python3; do
@@ -26,7 +25,7 @@ if [[ ! -s "$ISO_PATH" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$MONITOR_SOCKET" "$SESSION_REPORT" "$SESSION_READY"
+rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$MONITOR_SOCKET" "$SESSION_REPORT" "$"
 
 printf 'Starting isolated QEMU boot smoke test for: %s\n' "$ISO_PATH"
 
@@ -35,14 +34,13 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     iso_path="$1"
     screenshot="$2"
     qemu_log="$3"
-    session_socket="$4"
+    session_stream="$4"
     session_report="$5"
     session_checker="$6"
     session_smoke="$7"
     monitor_socket="$8"
     boot_key_helper="$9"
     boot_menu_screenshot="${10}"
-    session_ready="${11}"
 
     qemu_args=(
         -machine pc,accel=tcg
@@ -60,7 +58,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     )
     if [[ "$session_smoke" == "1" ]]; then
         qemu_args+=(
-            -chardev "socket,id=session,path=$session_socket,server=on,wait=off"
+            -chardev "file,id=session,path=$session_stream"
             -device virtio-serial-pci
             -device virtserialport,chardev=session,name=org.nexaos.session-smoke
         )
@@ -68,13 +66,9 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     qemu-system-x86_64 "${qemu_args[@]}" >"$qemu_log" 2>&1 &
     qemu_pid=$!
-    checker_pid=""
+    
 
     cleanup() {
-        if [[ -n "$checker_pid" ]] && kill -0 "$checker_pid" 2>/dev/null; then
-            kill "$checker_pid" 2>/dev/null || true
-            wait "$checker_pid" 2>/dev/null || true
-        fi
         # Preserve the last guest display even when the report channel or
         # desktop autostart fails, so CI can distinguish boot/login/UI states.
         if kill -0 "$qemu_pid" 2>/dev/null; then
@@ -87,14 +81,8 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     }
     trap cleanup EXIT
 
-    # Connect the host report reader before the guest can boot. QEMU's socket
-    # chardev does not preserve guest output written before a client connects.
-    if [[ "$session_smoke" == "1" ]]; then
-        rm -f "$session_ready"
-        python3 "$session_checker" "$session_socket" "$session_report" \
-            --timeout 240 --ready-file "$session_ready" &
-        checker_pid=$!
-    fi
+    # QEMU writes guest report bytes to a host file from device startup.
+    # This avoids socket connection timing and dropped early startup events.
 
     # Allow firmware, the ISO bootloader, and its menu to finish initializing.
     # The monitor socket becomes ready before the guest menu accepts keyboard input.
@@ -102,29 +90,12 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     # Preserve the exact screen state before injecting the one allowed key.
     xwd -root -silent -out "$boot_menu_screenshot"
     test -s "$boot_menu_screenshot"
-    # Ensure the host has accepted the report connection before booting the guest.
-    if [[ "$session_smoke" == "1" ]]; then
-        for attempt in $(seq 1 60); do
-            [[ -s "$session_ready" ]] && break
-            if ! kill -0 "$checker_pid" 2>/dev/null; then
-                wait "$checker_pid" || true
-                printf "Session report reader exited before connecting.\n" >&2
-                exit 1
-            fi
-            sleep 0.5
-        done
-        if [[ ! -s "$session_ready" ]]; then
-            printf "Session report reader did not establish its connection before boot.\n" >&2
-            exit 1
-        fi
-    fi
-
     # The Debian live ISO presents an interactive boot menu in this VM. Select
     # its default live entry explicitly instead of waiting for guest autostart.
     python3 "$boot_key_helper" "$monitor_socket" ret --timeout 30
 
     if [[ "$session_smoke" == "1" ]]; then
-        wait "$checker_pid"
+        python3 "$session_checker" "$session_stream" "$session_report" --timeout 240
         checker_pid=""
         # Confirm the guest remains alive after the interactive checks complete.
         sleep 10
@@ -148,7 +119,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     xwd -root -silent -out "$screenshot"
     test -s "$screenshot"
-' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT" "$SESSION_READY"
+' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT" "$"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
