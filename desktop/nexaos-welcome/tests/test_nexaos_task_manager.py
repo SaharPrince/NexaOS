@@ -148,6 +148,32 @@ class ProcfsCollectorTests(unittest.TestCase):
             self.assertEqual((total, idle), (950, 800))
             self.assertEqual(system.cpu_model, "Test CPU")
 
+    def test_process_enumeration_respects_configured_limit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "stat").write_text(
+                "cpu 100 0 50 800 0 0 0 0 0 0\\n", encoding="ascii"
+            )
+            (root / "meminfo").write_text(
+                "MemTotal: 1000 kB\\nMemAvailable: 500 kB\\n",
+                encoding="ascii",
+            )
+            (root / "uptime").write_text("10.0 0.0\\n", encoding="ascii")
+            (root / "cpuinfo").write_text("model name : Test CPU\\n", encoding="ascii")
+            for pid in range(100, 110):
+                process = root / str(pid)
+                process.mkdir()
+                (process / "stat").write_text(
+                    make_stat(pid=pid, name=f"worker-{pid}", start=pid),
+                    encoding="ascii",
+                )
+
+            collector = ProcfsCollector(
+                root, page_size=4096, cpu_count=2, max_processes=2
+            )
+            _, processes = collector.snapshot()
+            self.assertLessEqual(len(processes), 2)
+
     def test_collector_first_sample_has_no_fabricated_cpu(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
