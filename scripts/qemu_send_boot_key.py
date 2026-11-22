@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send a bounded key event to a local QEMU human-monitor socket."""
+"""Send and verify one bounded key event through a local QEMU HMP socket."""
 from __future__ import annotations
 
 import argparse
@@ -8,8 +8,32 @@ import socket
 import time
 
 
+PROMPT = b"(qemu) "
+MAX_MONITOR_RESPONSE = 16 * 1024
+
+
+def _read_until_prompt(connection: socket.socket, deadline: float) -> bytes:
+    """Read a complete HMP response, not merely one arbitrary socket chunk."""
+    data = bytearray()
+    while not data.endswith(PROMPT):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("QEMU monitor did not return its command prompt")
+        connection.settimeout(min(2.0, remaining))
+        try:
+            chunk = connection.recv(4096)
+        except socket.timeout as error:
+            raise TimeoutError("timed out waiting for QEMU monitor prompt") from error
+        if not chunk:
+            raise ConnectionError("QEMU monitor closed before returning its prompt")
+        data.extend(chunk)
+        if len(data) > MAX_MONITOR_RESPONSE:
+            raise ValueError("QEMU monitor response exceeded its size limit")
+    return bytes(data)
+
+
 def send_key(socket_path: Path, key: str, timeout_seconds: int = 30) -> None:
-    """Wait for QEMU's monitor and issue one allow-listed key event."""
+    """Wait for QEMU HMP readiness, issue only Enter, and verify its response."""
     if key != "ret":
         raise ValueError("only the Enter key is permitted by this boot helper")
     deadline = time.monotonic() + timeout_seconds
@@ -17,15 +41,17 @@ def send_key(socket_path: Path, key: str, timeout_seconds: int = 30) -> None:
     while time.monotonic() < deadline:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                connection.settimeout(2)
                 connection.connect(str(socket_path))
-                # Consume the monitor greeting before issuing a command.
-                connection.recv(4096)
-                connection.sendall(f"sendkey {key}\n".encode("ascii"))
-                try:
-                    connection.recv(4096)
-                except socket.timeout:
-                    pass
+                # HMP can split its greeting across multiple socket reads.
+                _read_until_prompt(connection, deadline)
+                connection.sendall(b"sendkey ret\n")
+                response = _read_until_prompt(connection, deadline)
+                lowered = response.lower()
+                if b"unknown command" in lowered or b"error:" in lowered:
+                    raise RuntimeError(
+                        "QEMU monitor rejected sendkey ret: "
+                        + response.decode("utf-8", errors="replace")[-500:]
+                    )
                 return
         except (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError) as error:
             last_error = error
@@ -40,7 +66,7 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=30)
     args = parser.parse_args()
     send_key(args.socket_path, args.key, args.timeout)
-    print("Sent Enter to the QEMU live boot menu.", flush=True)
+    print("QEMU monitor accepted the Enter command.", flush=True)
     return 0
 
 
