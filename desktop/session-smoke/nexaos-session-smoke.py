@@ -27,17 +27,6 @@ def diagnostic(message: str) -> None:
         pass
 
 
-diagnostic("session-smoke launcher entered Python")
-try:
-    from PyQt6.QtCore import Qt, QTimer
-    from PyQt6.QtTest import QTest
-    from PyQt6.QtWidgets import QApplication, QPushButton
-    from nexaos_welcome import NexaWelcome
-except Exception:
-    diagnostic("session-smoke import failure:\n" + traceback.format_exc())
-    raise
-
-
 REPORT_DEVICE = Path("/dev/virtio-ports/org.nexaos.session-smoke")
 REQUIRED_CHECKS = (
     "x11_display",
@@ -51,6 +40,46 @@ REQUIRED_CHECKS = (
     "qt_mouse_activation",
     "file_browser_dialog",
 )
+
+
+def send_report(report: dict) -> None:
+    """Send one bounded JSON line to the host-owned QEMU test socket."""
+    if not REPORT_DEVICE.exists():
+        raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
+    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\\n").encode("utf-8")
+    if len(payload) > 8192:
+        raise ValueError("session-smoke report exceeded its size limit")
+    descriptor = os.open(REPORT_DEVICE, os.O_WRONLY)
+    try:
+        written = os.write(descriptor, payload)
+        if written != len(payload):
+            raise OSError("session-smoke report was not fully written")
+    finally:
+        os.close(descriptor)
+
+
+diagnostic("session-smoke launcher entered Python")
+try:
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QApplication, QPushButton
+    from nexaos_welcome import NexaWelcome
+except Exception as error:
+    # Report import failures before optional GUI dependencies can prevent
+    # the main smoke-test routine from starting. Do not send exception text,
+    # paths, environment values, or tracebacks to the host.
+    diagnostic("session-smoke import failure: " + type(error).__name__)
+    failed_report = {
+        "schema_version": 1,
+        "status": "failed",
+        "checks": {name: False for name in REQUIRED_CHECKS},
+        "failures": ["startup_import_error:" + type(error).__name__],
+    }
+    try:
+        send_report(failed_report)
+    except Exception as report_error:
+        diagnostic("unable to transmit import-failure report: " + type(report_error).__name__)
+    raise
 
 
 def process_exists(expected: str) -> bool:
@@ -69,24 +98,6 @@ def process_exists(expected: str) -> bool:
         if name == expected:
             return True
     return False
-
-
-def send_report(report: dict) -> None:
-    """Send one bounded JSON line to the host-owned QEMU test socket."""
-    diagnostic("attempting session report; virtio device exists=" + str(REPORT_DEVICE.exists()))
-    if not REPORT_DEVICE.exists():
-        raise FileNotFoundError("QEMU session-smoke virtio port is unavailable")
-    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
-    if len(payload) > 8192:
-        raise ValueError("session-smoke report exceeded its size limit")
-    descriptor = os.open(REPORT_DEVICE, os.O_WRONLY)
-    try:
-        written = os.write(descriptor, payload)
-        if written != len(payload):
-            raise OSError("session-smoke report was not fully written")
-        diagnostic("session report write completed; bytes=" + str(written))
-    finally:
-        os.close(descriptor)
 
 
 def main() -> int:
