@@ -5,6 +5,9 @@ on:
     paths:
       - "desktop/live-build/config/**"
       - "desktop/nexaos-welcome/**"
+      - "desktop/session-smoke/**"
+      - "scripts/check_live_session.py"
+      - "scripts/tests/**"
       - "engine/desktop-shell/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -94,10 +97,17 @@ jobs:
       - name: Smoke-test NexaOS Welcome UI without opening a display
         run: QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
 
+      - name: Test session-report validation
+        run: PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -v
+
       - name: Build preview ISO
+        env:
+          NEXAOS_SESSION_SMOKE: ${{ github.ref != 'refs/heads/nce-005c/low-end-resource-baseline' && '1' || '0' }}
         run: bash scripts/build-live-image.sh
 
-      - name: Boot preview ISO in isolated QEMU VM
+      - name: Boot preview ISO and validate interactive desktop session
+        env:
+          NEXAOS_SESSION_SMOKE: ${{ github.ref != 'refs/heads/nce-005c/low-end-resource-baseline' && '1' || '0' }}
         run: bash scripts/smoke-boot-live-image.sh
 
       - name: Upload preview ISO, checksum, and VM evidence
@@ -109,6 +119,7 @@ jobs:
             artifacts/nexaos-preview-amd64.iso.sha256
             artifacts/nexaos-qemu-boot-smoke.xwd
             artifacts/nexaos-qemu-boot-smoke.log
+            artifacts/nexaos-session-smoke.json
           if-no-files-found: error
           retention-days: 3
  
