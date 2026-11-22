@@ -11,7 +11,7 @@ from nexaos_task_manager import (
 
 
 def make_stat(pid=321, name="worker (render)", user=5, system=2, start=77, rss=10):
-    fields = [0] * 22
+    fields = ["0"] * 22
     fields[0] = "S"
     fields[11] = str(user)
     fields[12] = str(system)
