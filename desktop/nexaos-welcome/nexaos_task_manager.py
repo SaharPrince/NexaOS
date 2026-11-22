@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 import platform
-import pwd
 import sys
 import time
 from dataclasses import dataclass
@@ -141,6 +140,7 @@ class ProcfsCollector:
         self._previous_cpu: tuple[int, int] | None = None
         self._previous_processes: dict[int, tuple[int, int]] = {}
         self._previous_time: float | None = None
+        self._uid_names: dict[int, str] | None = None
 
     @staticmethod
     def _read_bounded(path: Path, limit: int) -> str:
@@ -182,9 +182,33 @@ class ProcfsCollector:
         )
         return sample, total, idle
 
+    def _load_uid_names(self) -> dict[int, str]:
+        if self._uid_names is not None:
+            return self._uid_names
+        names: dict[int, str] = {}
+        try:
+            with Path("/etc/passwd").open("rb") as stream:
+                raw = stream.read(1024 * 1024 + 1)
+            if len(raw) <= 1024 * 1024:
+                for line in raw.decode("utf-8", errors="replace").splitlines()[:4096]:
+                    fields = line.split(":")
+                    if len(fields) >= 3:
+                        try:
+                            uid = int(fields[2], 10)
+                        except ValueError:
+                            continue
+                        if 0 <= uid <= 2**31 - 1:
+                            names.setdefault(uid, fields[0][:MAX_NAME_CHARS])
+        except OSError:
+            pass
+        self._uid_names = names
+        return names
+
     def _read_processes(self, total_delta: int, elapsed: float) -> list[ProcessSample]:
         samples: list[ProcessSample] = []
         current: dict[int, tuple[int, int]] = {}
+        uid_names = self._load_uid_names()
+        visited = 0
         try:
             directory = os.scandir(self.proc_root)
         except OSError:
@@ -192,7 +216,8 @@ class ProcfsCollector:
             return samples
         with directory:
             for entry in directory:
-                if len(samples) >= self.max_processes:
+                visited += 1
+                if len(samples) >= self.max_processes or visited > self.max_processes * 2:
                     break
                 if not entry.name.isdecimal():
                     continue
@@ -205,10 +230,7 @@ class ProcfsCollector:
                         self._read_bounded(process_dir / "stat", MAX_STAT_BYTES)
                     )
                     uid = process_dir.stat().st_uid
-                    try:
-                        owner = pwd.getpwuid(uid).pw_name
-                    except (KeyError, OSError):
-                        owner = str(uid)
+                    owner = uid_names.get(uid, str(uid))
                 except (OSError, ValueError, OverflowError):
                     # A process may exit or become inaccessible during enumeration.
                     continue
