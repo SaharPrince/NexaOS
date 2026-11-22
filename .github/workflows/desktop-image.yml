@@ -48,9 +48,11 @@ jobs:
         run: |
           bash -n scripts/build-live-image.sh
           bash -n scripts/smoke-boot-live-image.sh
-          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py
+          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py desktop/nexaos-welcome/nexaos_task_manager.py
           python3 scripts/validate-desktop-config.py
           test -s desktop/nexaos-welcome/nexaos_file_browser.py
+          test -s desktop/nexaos-welcome/nexaos_task_manager.py
+          test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-task-manager.desktop
           test -s engine/desktop-shell/src/bin/nexa-desktop-controller.rs
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
           test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-welcome.desktop
@@ -82,6 +84,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y live-build=1:20250505+deb13u1
           live-build --version
+
+      - name: Run task manager unit tests
+        run: PYTHONPATH=desktop/nexaos-welcome QT_QPA_PLATFORM=offscreen python3 -m unittest discover -s desktop/nexaos-welcome/tests -v
 
       - name: Build preview-only Rust desktop controller
         run: cargo build --locked --release -p nexa-desktop-shell --bin nexa-desktop-controller
