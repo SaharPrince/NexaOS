@@ -2,12 +2,13 @@
 
 NexaOS is planned as a lightweight Linux-based operating system focused on running supported Windows applications and games without requiring a Windows virtual machine. The Linux kernel and its hardware-driver ecosystem provide the host foundation; Nexa's original work is the Nexa Compatibility Engine (NCE), its desktop integration, and the operating-system experience around it.
 
-The project has two co-equal product priorities:
+The project has three co-equal product priorities:
 
 1. **Low resource use:** keep idle memory use, CPU activity, storage footprint, boot time, and background work low enough to remain practical on modest computers.
 2. **Useful Windows compatibility:** implement Windows behavior carefully, test against real applications, and expand compatibility based on measured user value rather than feature-count claims.
+3. **Privacy and account protection:** keep applications isolated, prevent ambient access to host credentials and unrelated account sessions, and minimize collection and exposure of personal data.
 
-Neither priority may be traded away silently. A compatibility feature that imposes substantial overhead needs profiling and an explicit design decision; a lightweight shortcut that breaks common application behavior is not a successful optimization.
+Neither priority may be traded away silently. A compatibility feature that imposes substantial overhead needs profiling and an explicit design decision; a lightweight shortcut that breaks common application behavior is not a successful optimization. A compatibility workaround that weakens isolation or exposes credentials is not an acceptable compatibility improvement.
 
 ## Lightweight-system principles
 
@@ -69,3 +70,19 @@ The [NCE-004a specification](../milestones/NCE-004a.md) defines bounded PE32+ AM
 ## NCE-004b image-preparation boundary
 
 The [NCE-004b specification](../milestones/NCE-004b.md) defines the orchestration stage composing inspection, layout, bounded non-executable allocation, population, explicit-catalogue import resolution, symbolic IAT validation, and image-local relocation into a failure-atomic preparation pipeline. NCE-004b is implemented and validated on the feature branch. Its output remains non-executable prepared data; it does not write IAT values, load DLLs, set page permissions, or transfer control to an image entry point. Broader third-party PE corpus review and representative low-end hardware measurements remain release gates before real application loading is considered.
+
+## NCE-007 application isolation, privacy, and account protection
+
+The [NCE-007 milestone](../milestones/NCE-007.md) is the mandatory security-design gate before NCE can launch Windows executables. It defines the assets, threat actors, trust boundaries, least-privilege requirements, credential isolation, privacy defaults, executable/dependency integrity, failure containment, and validation criteria.
+
+The architecture must preserve these invariants:
+
+- Each Windows application receives isolated private state and only narrowly granted host resources. No application receives ambient access to the user's full home directory, browser profiles, OS keyring, SSH keys, or unrelated game-launcher sessions.
+- The desktop and launcher broker remain unprivileged. IPC is versioned, bounded, validated, and resistant to impersonation; no shell-string construction is used.
+- Credentials and tokens are never passed through command-line arguments, environment variables, logs, crash reports, or routine telemetry.
+- Clipboard, screen, audio, camera, and other sensitive user-interaction capabilities require clear, scoped user intent where supported by the host platform.
+- Telemetry is disabled by default. Optional diagnostics are minimized, disclosed, redacted, and revocable.
+- Sandbox, dependency-verification, or policy-setup failure must not trigger an unsandboxed fallback.
+- Executable-memory policy, loader behavior, DLL resolution, process lifecycle, and update integrity require separate reviewed designs and tests before real application execution.
+
+Candidate host mechanisms may include Linux namespaces, seccomp, Landlock, cgroups, and dedicated user identities. Their availability and combination must be validated against the supported kernel baseline; enabling one mechanism alone is not proof of a secure sandbox. NCE-007 is currently a design proposal, not implemented isolation or a claim that user accounts are protected today.
