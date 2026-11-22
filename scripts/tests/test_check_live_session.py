@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from check_live_session import REQUIRED_CHECKS, validate_report
+from check_live_session import REQUIRED_CHECKS, validate_report, receive_report
 
 
 class SessionReportValidationTests(unittest.TestCase):
@@ -59,6 +59,36 @@ class SessionReportValidationTests(unittest.TestCase):
             {"kind": "event", "stage": "python_starting"},
         ])
         self.assertEqual(validate_report(report), [])
+
+    def test_report_reader_writes_ready_marker_after_socket_connect(self):
+        import socket
+        import tempfile
+        import threading
+        from pathlib import Path
+        from check_live_session import receive_report
+
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "report.sock"
+            ready_path = Path(directory) / "connected"
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(socket_path))
+            listener.listen(1)
+
+            def send_report():
+                connection, _ = listener.accept()
+                with connection:
+                    report = self.passing_report()
+                    report["kind"] = "final"
+                    connection.sendall((json.dumps(report) + "\\n").encode())
+                listener.close()
+
+            sender = threading.Thread(target=send_report)
+            sender.start()
+            result = receive_report(socket_path, 5, ready_path)
+            sender.join(timeout=5)
+            self.assertTrue(ready_path.is_file())
+            self.assertEqual(ready_path.read_text(encoding="ascii"), "connected\\n")
+            self.assertEqual(result["status"], "passed")
 
     def test_rejects_stream_without_final_report(self):
         from check_live_session import decode_report_stream
