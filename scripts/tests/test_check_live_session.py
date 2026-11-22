@@ -49,9 +49,9 @@ class SessionReportValidationTests(unittest.TestCase):
         final = self.passing_report()
         final["kind"] = "final"
         stream = (
-            b'{"kind":"event","stage":"launcher_started"}\\n'
-            b'{"kind":"event","stage":"python_starting"}\\n'
-            + (json.dumps(final) + "\\n").encode("utf-8")
+            b'{"kind":"event","stage":"launcher_started"}\n'
+            b'{"kind":"event","stage":"python_starting"}\n'
+            + (json.dumps(final) + "\n").encode("utf-8")
         )
         report = decode_report_stream(stream)
         self.assertEqual(report["diagnostics"], [
@@ -64,7 +64,7 @@ class SessionReportValidationTests(unittest.TestCase):
         from check_live_session import decode_report_stream
 
         with self.assertRaisesRegex(ValueError, "without a final report"):
-            decode_report_stream(b'{"kind":"event","stage":"launcher_started"}\\n')
+            decode_report_stream(b'{"kind":"event","stage":"launcher_started"}\n')
 
 
 if __name__ == "__main__":
