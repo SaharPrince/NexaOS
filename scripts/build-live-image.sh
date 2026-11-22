@@ -6,12 +6,17 @@ BUILD_DIR="$ROOT_DIR/desktop/live-build"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 
 SESSION_SMOKE_SCRIPT_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke.py"
+SESSION_SMOKE_LAUNCHER_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke-launcher.sh"
 SESSION_SMOKE_ENTRY_DEST="$BUILD_DIR/config/includes.chroot/etc/xdg/autostart/nexaos-session-smoke.desktop"
 SESSION_SMOKE_SCRIPT_STAGED=0
+SESSION_SMOKE_LAUNCHER_STAGED=0
 SESSION_SMOKE_ENTRY_STAGED=0
 cleanup_session_smoke() {
     if [[ "$SESSION_SMOKE_SCRIPT_STAGED" == "1" ]]; then
         rm -f -- "$SESSION_SMOKE_SCRIPT_DEST"
+    fi
+    if [[ "$SESSION_SMOKE_LAUNCHER_STAGED" == "1" ]]; then
+        rm -f -- "$SESSION_SMOKE_LAUNCHER_DEST"
     fi
     if [[ "$SESSION_SMOKE_ENTRY_STAGED" == "1" ]]; then
         rm -f -- "$SESSION_SMOKE_ENTRY_DEST"
@@ -81,7 +86,7 @@ sudo lb config \
     --source false
 
 if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
-    if [[ -e "$SESSION_SMOKE_SCRIPT_DEST" || -e "$SESSION_SMOKE_ENTRY_DEST" ]]; then
+    if [[ -e "$SESSION_SMOKE_SCRIPT_DEST" || -e "$SESSION_SMOKE_LAUNCHER_DEST" || -e "$SESSION_SMOKE_ENTRY_DEST" ]]; then
         printf 'Refusing to overwrite an existing CI session-smoke overlay.\n' >&2
         exit 1
     fi
@@ -89,6 +94,10 @@ if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
         "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke.py" \
         "$SESSION_SMOKE_SCRIPT_DEST"
     SESSION_SMOKE_SCRIPT_STAGED=1
+    install -D -m 0755 \
+        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke-launcher.sh" \
+        "$SESSION_SMOKE_LAUNCHER_DEST"
+    SESSION_SMOKE_LAUNCHER_STAGED=1
     install -D -m 0644 \
         "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke.desktop" \
         "$SESSION_SMOKE_ENTRY_DEST"
