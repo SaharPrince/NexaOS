@@ -35,6 +35,8 @@ def validate_workflow(path: Path) -> list[str]:
     action_count = 0
 
     for index, line in enumerate(lines):
+        if line.lstrip().startswith("#"):
+            continue
         match = ACTION_LINE.search(line)
         if not match:
             continue
@@ -58,7 +60,7 @@ def validate_workflow(path: Path) -> list[str]:
         if action.lower() == CHECKOUT_ACTION:
             block = step_block(lines, index)
             if not any(
-                re.match(r"^\s* persist-credentials:\s*false\s*(?:#.*)?$", item)
+                re.match(r"^\s*persist-credentials:\s*false\s*(?:#.*)?$", item)
                 for item in block
             ):
                 errors.append(
