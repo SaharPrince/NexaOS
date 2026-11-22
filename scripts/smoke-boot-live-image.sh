@@ -42,7 +42,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     monitor_socket="$8"
     boot_key_helper="$9"
     boot_menu_screenshot="${10}"
-    session_ready="$11"
+    session_ready="${11}"
 
     qemu_args=(
         -machine pc,accel=tcg
@@ -148,7 +148,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     xwd -root -silent -out "$screenshot"
     test -s "$screenshot"
-' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT"
+' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT" "$SESSION_READY"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
