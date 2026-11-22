@@ -33,31 +33,40 @@ def _read_until_prompt(connection: socket.socket, deadline: float) -> bytes:
 
 
 def send_key(socket_path: Path, key: str, timeout_seconds: int = 30) -> None:
-    """Wait for QEMU HMP readiness, issue only Enter, and verify its response."""
+    """Connect to HMP and issue the allow-listed Enter event exactly once."""
     if key != "ret":
         raise ValueError("only the Enter key is permitted by this boot helper")
     deadline = time.monotonic() + timeout_seconds
+    connection: socket.socket | None = None
     last_error: OSError | None = None
     while time.monotonic() < deadline:
+        candidate = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                connection.connect(str(socket_path))
-                # HMP can split its greeting across multiple socket reads.
-                _read_until_prompt(connection, deadline)
-                connection.sendall(b"sendkey ret\n")
-                response = _read_until_prompt(connection, deadline)
-                lowered = response.lower()
-                if b"unknown command" in lowered or b"error:" in lowered:
-                    raise RuntimeError(
-                        "QEMU monitor rejected sendkey ret: "
-                        + response.decode("utf-8", errors="replace")[-500:]
-                    )
-                return
+            candidate.settimeout(min(2.0, max(0.1, deadline - time.monotonic())))
+            candidate.connect(str(socket_path))
+            connection = candidate
+            break
         except (FileNotFoundError, ConnectionRefusedError, TimeoutError, OSError) as error:
             last_error = error
+            candidate.close()
             time.sleep(0.25)
-    raise TimeoutError(f"QEMU monitor did not become ready: {last_error}")
+    if connection is None:
+        raise TimeoutError(f"QEMU monitor did not become ready: {last_error}")
 
+    # Once connected, never retry the key command: a lost acknowledgement
+    # must fail the test rather than risk injecting Enter a second time.
+    try:
+        _read_until_prompt(connection, deadline)
+        connection.sendall(b"sendkey ret\\n")
+        response = _read_until_prompt(connection, deadline)
+        lowered = response.lower()
+        if b"unknown command" in lowered or b"error:" in lowered:
+            raise RuntimeError(
+                "QEMU monitor rejected sendkey ret: "
+                + response.decode("utf-8", errors="replace")[-500:]
+            )
+    finally:
+        connection.close()
 
 def main() -> int:
     parser = argparse.ArgumentParser()
