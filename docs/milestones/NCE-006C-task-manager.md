@@ -2,7 +2,20 @@
 
 ## Status
 
-**NCE-006C.1 implementation in progress.** The initial read-only Qt monitor and procfs collector are being implemented against this design. Later process-control and startup-management stages remain separate review gates.
+**NCE-006C.1 read-only monitor implementation merged to `main`; full stage acceptance remains open.** The first Qt monitor and bounded procfs collector are implemented. Automated unit, headless UI, ISO-build, and QEMU boot-smoke checks passed on the reviewed PR head. Interactive desktop validation and physical-device resource measurements remain outstanding. Later process-control and startup-management stages remain separate review gates.
+
+## NCE-006C.1 implementation evidence (2026-11-22)
+
+- Implementation: [PR #16](https://github.com/SaharPrince/NexaOS/pull/16), merged as `07417f90e4509b05df610338463a718760d048ee`.
+- Reviewed PR head: `1aa71e6efd75793387a5b824f19953a6d23b7e6b`.
+- Automated desktop workflow [#44997769398](https://github.com/SaharPrince/NexaOS/actions/runs/44997769398) passed the task-manager tests, Qt headless smoke test, Debian 13 LXQt ISO build, QEMU boot smoke, and evidence upload. Rust tests, formatting, Clippy, dependency audit, and parser fuzzing also passed.
+- Implemented process name, PID, owner, state, per-process CPU and resident memory, aggregate CPU, memory/swap, uptime, CPU model, logical CPU count, and kernel version.
+- Process enumeration and procfs reads are bounded. Sampling starts only while the window is visible and stops when hidden, minimized, or closed. Search filters the current in-memory snapshot.
+- Failed samples clear old metrics and display an unavailable state rather than leaving stale values visible.
+- The implementation does not read command lines, environment variables, process memory, credentials, browser data, or file contents. It has no process-control or startup-management operations.
+- Remaining scope: per-core CPU visualization and a separate process-details view are not yet implemented. These remain part of the broader task-manager design and require focused follow-up work.
+- The QEMU check is a 150-second graphical boot/framebuffer smoke test, not proof of interactive desktop login or hardware compatibility.
+- Physical low-memory CPU/RAM overhead, large-process-list responsiveness, display scaling, keyboard navigation, and session-level interaction remain unverified.
 
 ## Product goal
 
