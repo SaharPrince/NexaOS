@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QApplication
 from nexaos_task_manager import (
     NexaTaskManager,
     ProcfsCollector,
+    SystemSample,
     parse_cpu_line,
     parse_memory_info,
     parse_process_stat,
@@ -37,6 +38,37 @@ class TaskManagerDisplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_sampling_timer_starts_and_stops_with_window_lifecycle(self):
+        class StaticCollector:
+            def snapshot(self):
+                return (
+                    SystemSample(
+                        None, 1024 * 1024, 512 * 1024, 0, 0,
+                        60.0, "Test CPU", 2, "test-kernel",
+                    ),
+                    [],
+                )
+
+        manager = NexaTaskManager()
+        manager.collector = StaticCollector()
+        self.assertFalse(manager.timer.isActive())
+
+        manager.show()
+        self.app.processEvents()
+        self.assertTrue(manager.timer.isActive())
+
+        manager.hide()
+        self.app.processEvents()
+        self.assertFalse(manager.timer.isActive())
+
+        manager.show()
+        self.app.processEvents()
+        self.assertTrue(manager.timer.isActive())
+
+        manager.close()
+        self.app.processEvents()
+        self.assertFalse(manager.timer.isActive())
 
     def test_failed_refresh_clears_stale_system_metrics(self):
         class FailingCollector:
