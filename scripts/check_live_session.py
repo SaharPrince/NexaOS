@@ -71,7 +71,11 @@ def decode_report_stream(data: bytes) -> dict:
     return final_report
 
 
-def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
+def receive_report(
+    socket_path: Path,
+    timeout_seconds: int,
+    ready_file: Path | None = None,
+) -> dict:
     """Connect to QEMU's local UNIX socket and receive bounded JSONL records."""
     deadline = time.monotonic() + timeout_seconds
     connection: socket.socket | None = None
@@ -88,6 +92,10 @@ def receive_report(socket_path: Path, timeout_seconds: int) -> dict:
             time.sleep(0.5)
     if connection is None:
         raise TimeoutError("QEMU session-smoke socket did not become available")
+
+    if ready_file is not None:
+        ready_file.parent.mkdir(parents=True, exist_ok=True)
+        ready_file.write_text("connected\\n", encoding="ascii")
 
     data = bytearray()
     try:
@@ -118,9 +126,14 @@ def main() -> int:
     parser.add_argument("socket_path", type=Path)
     parser.add_argument("report_path", type=Path)
     parser.add_argument("--timeout", type=int, default=210)
+    parser.add_argument(
+        "--ready-file",
+        type=Path,
+        help="write this marker after the QEMU report socket is connected",
+    )
     args = parser.parse_args()
     try:
-        report = receive_report(args.socket_path, args.timeout)
+        report = receive_report(args.socket_path, args.timeout, args.ready_file)
     except Exception as error:
         print(f"Desktop session validation failed: {error}", flush=True)
         return 1
