@@ -108,13 +108,13 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
             [[ -s "$session_ready" ]] && break
             if ! kill -0 "$checker_pid" 2>/dev/null; then
                 wait "$checker_pid" || true
-                printf "Session report reader exited before connecting.\\n" >&2
+                printf "Session report reader exited before connecting.\n" >&2
                 exit 1
             fi
             sleep 0.5
         done
         if [[ ! -s "$session_ready" ]]; then
-            printf "Session report reader did not establish its connection before boot.\\n" >&2
+            printf "Session report reader did not establish its connection before boot.\n" >&2
             exit 1
         fi
     fi
