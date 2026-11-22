@@ -101,9 +101,19 @@ A disabled button is not an enforcement boundary. The UI is untrusted for author
 
 Acceptance requires adversarial tests and a security review of the enforcement component, not merely UI tests. Until then, NCE-006C.2 remains design-only and the shipped Task Manager stays read-only.
 
-### NCE-006C.3 — Startup applications and resource history (future gate)
+### NCE-006C.3 — User startup applications and resource history (future gate)
 
-Startup management and historical graphs are not part of the first implementation. They require separate design for user/system scope, autostart file provenance, enable/disable rollback, and bounded storage. Do not delete autostart entries or change service state in the initial task manager.
+Startup management and historical graphs are not part of the first implementation and require a separate review gate.
+
+- Startup controls may manage only entries explicitly created and owned by the current user in that user's autostart configuration.
+- Do not edit, mask, disable, delete, or change system-provided autostart entries, systemd system units, init scripts, login/session managers, package/update services, drivers, or any NexaOS security component.
+- Do not offer system-wide startup management, service control, scheduled-task administration, kernel-module management, or privileged configuration changes.
+- If an entry's ownership or provenance is uncertain, show it as unavailable and make no change.
+- Changes must be reversible, preserve the original entry and metadata, and fail closed if rollback cannot be guaranteed.
+- Resource history should remain bounded and in memory by default. Any persistent history requires a separate privacy review, explicit user choice, and bounded retention.
+- Do not collect command lines, environment variables, credentials, browser/session data, or file contents for resource history.
+
+The future startup UI is an application convenience, not a system-administration console. Do not delete autostart entries or change service state in the initial Task Manager.
 
 ## Resource and privacy budgets
 
