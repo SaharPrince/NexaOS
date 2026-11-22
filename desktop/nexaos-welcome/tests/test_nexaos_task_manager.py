@@ -67,13 +67,13 @@ class ProcfsCollectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "stat").write_text(
-                "cpu 100 0 50 800 0 0 0 0 0 0\\n"
-                + ("cpu0 1 0 1 8 0 0 0 0 0 0\\n" * 2000),
+                "cpu 100 0 50 800 0 0 0 0 0 0\n"
+                + ("cpu0 1 0 1 8 0 0 0 0 0 0\n" * 2000),
                 encoding="ascii",
             )
-            (root / "meminfo").write_text("MemTotal: 1000 kB\\n", encoding="ascii")
+            (root / "meminfo").write_text("MemTotal: 1000 kB\n", encoding="ascii")
             (root / "cpuinfo").write_text(
-                "model name : Test CPU\\n" + ("large cpu record\\n" * 5000),
+                "model name : Test CPU\n" + ("large cpu record\n" * 5000),
                 encoding="ascii",
             )
             collector = ProcfsCollector(root, page_size=4096, cpu_count=2)
