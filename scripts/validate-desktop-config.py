@@ -15,6 +15,7 @@ WALLPAPER = OVERLAY / "usr/share/backgrounds/nexaos/nexaos-default.svg"
 MENU_ICON = OVERLAY / "usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
 PACKAGE_LIST = ROOT / "desktop/live-build/config/package-lists/nexaos-desktop.list.chroot"
 TASK_MANAGER = OVERLAY / "usr/share/applications/qps.desktop"
+SDDM_AUTOLOGIN = OVERLAY / "etc/sddm.conf.d/10-nexaos-live-autologin.conf"
 
 
 def read_ini(path: Path, *, global_section: bool = False) -> configparser.ConfigParser:
@@ -25,7 +26,7 @@ def read_ini(path: Path, *, global_section: bool = False) -> configparser.Config
 
 
 def main() -> int:
-    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST, TASK_MANAGER):
+    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST, TASK_MANAGER, SDDM_AUTOLOGIN):
         if not path.is_file() or path.stat().st_size == 0:
             raise SystemExit(f"required desktop asset is missing or empty: {path}")
 
@@ -64,6 +65,14 @@ def main() -> int:
     if task_entry.get("Name") != "NexaOS Task Manager" or task_entry.get("Exec") != "qps" or task_entry.get("Type") != "Application":
         raise SystemExit("Task Manager launcher must use the NexaOS name and launch qps directly")
 
+    sddm = read_ini(SDDM_AUTOLOGIN)
+    if sddm.get("Autologin", "User", fallback="") != "user":
+        raise SystemExit("SDDM live autologin must target the live-config default user")
+    if sddm.get("Autologin", "Session", fallback="") != "lxqt.desktop":
+        raise SystemExit("SDDM live autologin must select the LXQt X11 session")
+    if sddm.get("Autologin", "Relogin", fallback="").lower() != "false":
+        raise SystemExit("SDDM live autologin must not force relogin after logout")
+
     package_entries = [
         line.strip()
         for line in PACKAGE_LIST.read_text(encoding="utf-8").splitlines()
@@ -81,7 +90,7 @@ def main() -> int:
         raise SystemExit(f"desktop package list contains duplicates: {sorted(duplicate_packages)}")
 
     required_packages = {
-        "user-setup", "gvfs-backends", "gvfs-fuse", "papirus-icon-theme",
+        "task-lxqt-desktop", "user-setup", "gvfs-backends", "gvfs-fuse", "papirus-icon-theme",
         "qt6-svg-plugins", "fonts-noto-core", "lximage-qt", "lxqt-policykit",
         "lxqt-qtplugin", "lxqt-archiver", "featherpad", "pavucontrol-qt",
         "lxqt-powermanagement", "screengrab", "pcmanfm-qt-l10n", "qps",
@@ -90,7 +99,7 @@ def main() -> int:
     if missing_packages:
         raise SystemExit(f"desktop package list is missing: {sorted(missing_packages)}")
 
-    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, Task Manager launcher, and unique feature packages are valid.")
+    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, Task Manager launcher, SDDM LXQt autologin, and unique feature packages are valid.")
     return 0
 
 
