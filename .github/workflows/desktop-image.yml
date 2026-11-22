@@ -143,6 +143,7 @@ jobs:
           name: nexaos-qemu-session-diagnostics
           path: |
             artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-menu-before-key.xwd
             artifacts/nexaos-qemu-boot-smoke.log
             artifacts/nexaos-session-smoke.json
           if-no-files-found: warn
