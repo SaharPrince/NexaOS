@@ -43,7 +43,7 @@ class ProcfsCollectorTests(unittest.TestCase):
     def test_rejects_truncated_and_negative_process_counters(self):
         with self.assertRaises(ValueError):
             parse_process_stat("123 (broken) S 1 2")
-        fields = [0] * 22
+        fields = ["0"] * 22
         fields[0] = "R"
         fields[11] = "-1"
         with self.assertRaises(ValueError):
