@@ -17,7 +17,7 @@ if [[ ! -f "$BUILD_DIR/config/package-lists/nexaos-desktop.list.chroot" ]]; then
     exit 1
 fi
 
-for source in nexaos_welcome.py nexaos_file_browser.py; do
+for source in nexaos_welcome.py nexaos_file_browser.py nexaos_task_manager.py; do
     if [[ ! -s "$ROOT_DIR/desktop/nexaos-welcome/$source" ]]; then
         printf 'NexaOS desktop application source is missing: %s\n' "$source" >&2
         exit 1
@@ -31,6 +31,9 @@ install -D -m 0644 \
 install -D -m 0644 \
     "$ROOT_DIR/desktop/nexaos-welcome/nexaos_file_browser.py" \
     "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos_file_browser.py"
+install -D -m 0644 \
+    "$ROOT_DIR/desktop/nexaos-welcome/nexaos_task_manager.py" \
+    "$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos_task_manager.py"
 # Build the small, preview-only Rust controller and stage it as a fixed system helper.
 (
     cd "$ROOT_DIR"
