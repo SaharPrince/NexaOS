@@ -81,7 +81,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     # Allow firmware and the ISO bootloader to render the live menu before
     # sending Enter; monitor availability alone does not mean the menu is ready.
     sleep 5
-    # Debian's live ISO presents an interactive boot menu in this VM. Select
+    # The Debian live ISO presents an interactive boot menu in this VM. Select
     # its default live entry explicitly instead of waiting for guest autostart.
     python3 "$boot_key_helper" "$monitor_socket" ret --timeout 30
 
