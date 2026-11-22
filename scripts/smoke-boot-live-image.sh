@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd)"
-ISO_PATH="\${1:-$ROOT_DIR/artifacts/nexaos-preview-amd64.iso}"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+ISO_PATH="${1:-$ROOT_DIR/artifacts/nexaos-preview-amd64.iso}"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.xwd"
 QEMU_LOG="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.log"
 SESSION_SOCKET="$ARTIFACT_DIR/nexaos-session-smoke.sock"
 SESSION_REPORT="$ARTIFACT_DIR/nexaos-session-smoke.json"
-SESSION_SMOKE="\${NEXAOS_SESSION_SMOKE:-0}"
+SESSION_SMOKE="${NEXAOS_SESSION_SMOKE:-0}"
 
 for command in qemu-system-x86_64 xvfb-run xwd identify timeout python3; do
     if ! command -v "$command" >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
         )
     fi
 
-    qemu-system-x86_64 "\${qemu_args[@]}" >"$qemu_log" 2>&1 &
+    qemu-system-x86_64 "${qemu_args[@]}" >"$qemu_log" 2>&1 &
     qemu_pid=$!
 
     cleanup() {
