@@ -5,6 +5,15 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/desktop/live-build"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 
+SESSION_SMOKE_SCRIPT_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke.py"
+SESSION_SMOKE_ENTRY_DEST="$BUILD_DIR/config/includes.chroot/etc/xdg/autostart/nexaos-session-smoke.desktop"
+cleanup_session_smoke() {
+    if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
+        rm -f -- "$SESSION_SMOKE_SCRIPT_DEST" "$SESSION_SMOKE_ENTRY_DEST"
+    fi
+}
+trap cleanup_session_smoke EXIT
+
 for command in lb sudo find sha256sum cargo; do
     if ! command -v "$command" >/dev/null 2>&1; then
         printf 'Required command not found: %s\n' "$command" >&2
@@ -65,6 +74,15 @@ sudo lb config \
     --iso-volume NEXAOS_PREVIEW \
     --bootappend-live "boot=live components" \
     --source false
+
+if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
+    install -D -m 0644 \
+        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke.py" \
+        "$SESSION_SMOKE_SCRIPT_DEST"
+    install -D -m 0644 \
+        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke.desktop" \
+        "$SESSION_SMOKE_ENTRY_DEST"
+fi
 
 sudo lb build
 
