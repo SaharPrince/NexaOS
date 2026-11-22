@@ -2,7 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from nexaos_task_manager import (
+from PyQt6.QtWidgets import QApplication
+from nexaos_task_manager import NexaTaskManager,
     ProcfsCollector,
     parse_cpu_line,
     parse_memory_info,
@@ -29,6 +30,39 @@ class FakeClock:
 
     def advance(self, amount=1.0):
         self.value += amount
+
+
+class TaskManagerDisplayTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_failed_refresh_clears_stale_system_metrics(self):
+        class FailingCollector:
+            def snapshot(self):
+                raise OSError("synthetic procfs failure")
+
+        manager = NexaTaskManager()
+        manager.cpu_label.setText("CPU usage: 88.0%")
+        manager.cpu_bar.setValue(88)
+        manager.memory_label.setText("Memory: old sample")
+        manager.memory_bar.setValue(72)
+        manager.swap_label.setText("Swap: old sample")
+        manager.swap_bar.setValue(20)
+        manager.system_label.setText("Old CPU information")
+        manager.collector = FailingCollector()
+
+        manager.refresh_snapshot()
+
+        self.assertEqual(manager.cpu_label.text(), "CPU: unavailable")
+        self.assertEqual(manager.cpu_bar.value(), 0)
+        self.assertEqual(manager.memory_label.text(), "Memory: unavailable")
+        self.assertEqual(manager.memory_bar.value(), 0)
+        self.assertEqual(manager.swap_label.text(), "Swap: unavailable")
+        self.assertEqual(manager.swap_bar.value(), 0)
+        self.assertEqual(manager.system_label.text(), "System information unavailable")
+        self.assertIn("synthetic procfs failure", manager.status.text())
+        manager.close()
 
 
 class ProcfsCollectorTests(unittest.TestCase):
