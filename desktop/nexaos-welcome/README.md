@@ -5,25 +5,26 @@ The first graphical NexaOS desktop application for the Debian 13 + LXQt preview.
 ## Included in this prototype
 
 - A compact Qt 6 welcome hub exposed through the LXQt application menu.
-- A NexaOS read-only file browser with folder navigation, hidden-file toggle, folder-first sorting, and bounded directory listings.
+- A home-confined file browser with folder navigation, hidden-file toggle, folder-first sorting, bounded directory listings, and a narrowly scoped **New folder** operation.
 - Appearance, display, keyboard/mouse, and system-settings shortcuts.
 - A Windows executable file chooser that displays a preview-only notice.
-- A headless `--self-test` mode used by CI to construct the UI and verify the non-execution preview path.
+- A headless self-test mode used by CI to construct the UI and verify safe file-browser and non-execution preview behavior.
 
 ## Security boundary
 
-- Settings utilities are started only through a fixed allowlist of absolute system executable paths and passed as argument arrays to `subprocess.Popen`.
-- The built-in browser starts in the logged-in user's home folder and refuses navigation outside that root. It walks directories with descriptor-relative `O_NOFOLLOW` opens, does not follow symbolic links, and caps each visible listing at 1,000 entries.
+- Settings utilities are started only through a fixed allowlist of absolute system executable paths and passed as argument arrays to subprocess.Popen.
+- The built-in browser starts in the logged-in user's canonical home folder and refuses navigation outside that root. It walks directories with descriptor-relative O_NOFOLLOW opens, does not follow symbolic links, and caps each visible listing at 1,000 entries.
 - No shell is invoked and user-provided filenames are never used to construct a command.
-- The browser is read-only: it does not create, modify, delete, or open files. Double-clicking a folder navigates; selecting a regular file only shows a status message. A `.exe` selection shows a preview-only notice.
-- The Windows `.exe` chooser is informational only. It does not open, inspect, load, or execute the selected file.
-- No file association is registered for `.exe` files.
-- The Python browser is not yet connected to the Rust `DesktopController`; the controller remains a separate preview-only model/API until a reviewed IPC or in-process integration is implemented.
+- The browser does not open, modify, rename, delete, copy, move, or execute existing files. Double-clicking a folder navigates; selecting a regular file only shows a status message; a .exe selection uses the preview-only Rust controller.
+- The sole write operation is creating a new child folder in the current directory. The name must be one valid path component; creation is descriptor-relative, does not follow symbolic links, and never overwrites an existing item.
+- The Windows .exe chooser is informational only. It does not open, inspect, load, or execute the selected file.
+- No file association is registered for .exe files.
+- The Python browser calls a fixed, unprivileged Rust controller helper using bounded JSON, a structured argument array, closed inherited file descriptors, and a short timeout. The helper remains preview-only and never starts a process.
 - The app does not elevate privileges or modify security policy.
 
 ## Build
 
-The live image installs Debian's `python3` and `python3-pyqt6` packages. Both canonical Python modules are staged by `scripts/build-live-image.sh` into the live-build chroot overlay and launched by the `NexaOS Welcome` desktop entry.
+The live image installs Debian's python3 and python3-pyqt6 packages. The canonical application modules are staged by scripts/build-live-image.sh into the live-build chroot overlay and launched by the NexaOS Welcome desktop entry.
 
 Run the non-interactive UI smoke test on a system with PyQt6 installed:
 
@@ -32,3 +33,7 @@ QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --sel
 ```
 
 This is an early graphical integration slice, not a complete custom desktop shell, installer, Windows compatibility runtime, or executable launcher.
+
+## Planned desktop work
+
+The graphical task manager is specified separately in [NCE-006C](../../docs/milestones/NCE-006C-task-manager.md). Its first stage is read-only process and performance monitoring; process termination is explicitly excluded until a separate safety review.
