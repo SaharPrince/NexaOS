@@ -4,8 +4,10 @@ NexaOS is experimental software. Do not use it to run untrusted executables.
 
 ## Reporting
 
-Please do not publish details of a suspected vulnerability in an issue. Contact
-the repository owner privately through GitHub's security reporting feature.
+Please do not publish details of a suspected vulnerability in a public issue.
+If GitHub private vulnerability reporting is enabled for this repository, use its
+private reporting flow. If it is unavailable, ask the repository owner for a
+private reporting channel before sharing technical details.
 
 ## Current safety boundaries
 
