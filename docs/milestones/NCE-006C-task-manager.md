@@ -2,7 +2,7 @@
 
 ## Status
 
-**Design proposal only.** This document defines a staged task-manager implementation for the Debian 13 + LXQt preview. No process-monitoring or process-control code is added by this proposal.
+**NCE-006C.1 implementation in progress.** The initial read-only Qt monitor and procfs collector are being implemented against this design. Later process-control and startup-management stages remain separate review gates.
 
 ## Product goal
 
