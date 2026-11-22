@@ -5,6 +5,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 ISO_PATH="${1:-$ROOT_DIR/artifacts/nexaos-preview-amd64.iso}"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.xwd"
+BOOT_MENU_SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-menu-before-key.xwd"
 QEMU_LOG="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.log"
 SESSION_SOCKET="$ARTIFACT_DIR/nexaos-session-smoke.sock"
 MONITOR_SOCKET="$ARTIFACT_DIR/nexaos-qemu-monitor.sock"
@@ -24,7 +25,7 @@ if [[ ! -s "$ISO_PATH" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$MONITOR_SOCKET" "$SESSION_REPORT"
+rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$MONITOR_SOCKET" "$SESSION_REPORT"
 
 printf 'Starting isolated QEMU boot smoke test for: %s\n' "$ISO_PATH"
 
@@ -39,6 +40,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     session_smoke="$7"
     monitor_socket="$8"
     boot_key_helper="$9"
+    boot_menu_screenshot="${10}"
 
     qemu_args=(
         -machine pc,accel=tcg
@@ -81,6 +83,9 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     # Allow firmware, the ISO bootloader, and its menu to finish initializing.
     # The monitor socket becomes ready before the guest menu accepts keyboard input.
     sleep 15
+    # Preserve the exact screen state before injecting the one allowed key.
+    xwd -root -silent -out "$boot_menu_screenshot"
+    test -s "$boot_menu_screenshot"
     # The Debian live ISO presents an interactive boot menu in this VM. Select
     # its default live entry explicitly instead of waiting for guest autostart.
     python3 "$boot_key_helper" "$monitor_socket" ret --timeout 30
@@ -109,7 +114,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     xwd -root -silent -out "$screenshot"
     test -s "$screenshot"
-' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py"
+' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_SOCKET" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
