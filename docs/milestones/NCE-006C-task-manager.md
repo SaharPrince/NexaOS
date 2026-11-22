@@ -32,7 +32,7 @@ The first implementation is deliberately read-only.
 Required views:
 - **Processes:** process name, PID, user, CPU usage, resident memory, and state where available.
 - **Performance:** total CPU utilization, memory used/available, swap use, and basic per-core CPU view where reliable.
-- **Details:** executable name, process owner, start time, and command line only when safely available and appropriate. Do not display environment variables, credentials, or sensitive command-line arguments by default.
+- **Details:** executable name, process owner, start time, and application identity where available. Do not display command lines, environment variables, credentials, or process memory in the initial implementation. Any future command-line view requires a separate privacy review and reliable secret redaction.
 - **System:** CPU model, logical processors, total memory, kernel version, and uptime, with unavailable fields shown honestly.
 
 Behavior:
@@ -45,18 +45,61 @@ Behavior:
 - Handle process exit, PID reuse, permission changes, disappearing procfs entries, and malformed procfs data without crashing.
 - No privileged helper, daemon, kernel module, or network access is required for the read-only stage.
 
-### NCE-006C.2 — Safe same-user process actions (separate review gate)
+### NCE-006C.2 — Safe managed-application actions (separate security gate)
 
-Process termination is intentionally excluded from the first implementation. It may be added only after a separate code review and tests establish all of the following:
+The goal is to let users manage applications they intentionally launched without turning Task Manager into a system-administration tool. This stage is **not** a general-purpose process killer.
 
-- The action is explicit, visibly destructive, and requires a confirmation dialog naming the selected process and PID.
-- The target is revalidated immediately before the action; a stale PID must never cause a different process to be signalled.
-- Prefer Linux pidfd_open and pidfd_send_signal where supported to bind the action to a process identity. Any fallback must demonstrate race-safe identity checks or disable the action.
-- By default, only processes owned by the current user may be signalled. No automatic elevation, root helper, or broad process-control permission is allowed.
-- Never offer termination for PID 1, kernel threads, the task manager itself, or protected system/session components. If classification is uncertain, disable the action.
-- Offer a graceful termination request first. Force termination, if ever exposed, requires a second explicit confirmation and a clear explanation.
-- Handle permission denial and process exit without retries that could target another process.
-- Tests cover PID reuse, permission boundaries, self-protection, process exit races, and unsupported kernel interfaces.
+#### Allowed actions
+
+- Request graceful close of an eligible NexaOS-managed application.
+- Restart an eligible application only through its recorded launcher entry and original validated launch configuration.
+- Show a clear result when an app exits, refuses to close, is already gone, or cannot safely be controlled.
+- Force-close is not part of the initial NCE-006C.2 scope. It would require a later explicit design and a second confirmation.
+
+#### Hard exclusions
+
+Task Manager must never offer or perform actions against:
+
+- Kernel threads, PID 1, system services, system/session infrastructure, login/session managers, desktop shell components, or package/update services.
+- NexaOS security enforcement, Action Guardian, Sentinel, credential protection, integrity verification, update/recovery trust components, or security event services.
+- Drivers, protected anti-cheat components, protected game processes, or processes whose classification is unknown.
+- Arbitrary processes merely because they appear in the process list or share the current user's UID.
+
+A disabled button is not an enforcement boundary. The UI is untrusted for authorization purposes. The OS must reject disallowed requests even if a caller bypasses the Task Manager interface.
+
+#### Required authorization architecture
+
+- Limit the action target to an application instance launched and registered by the NexaOS application launcher. Do not accept a caller-supplied PID as sufficient authority.
+- Give each managed application a stable instance identity, launch provenance, and an OS-managed containment scope. Bind actions to that identity and scope, not a process name or a stale PID.
+- Keep protected system and security components outside application-control scopes and under distinct OS-managed service identities. Security components must not share an application-control identity or be controllable through the user-app control interface.
+- Enforce the allow/deny decision in an OS-owned component independent of the Task Manager UI. The authorization policy must be root-owned or otherwise protected from ordinary applications, read-only to the UI, and fail closed if missing, corrupt, stale, or unavailable.
+- The control interface must expose only a narrow operation such as `request_close(managed_instance_id)`; it must not expose arbitrary PID signalling, arbitrary command execution, service management, privilege elevation, or generic filesystem writes.
+- Prefer pidfd-based process identity binding where supported. Revalidate the registered application instance and containment scope immediately before acting. PID reuse or instance mismatch must cause a safe refusal.
+- No broad `CAP_KILL`, root shell, unrestricted privileged helper, or general-purpose root D-Bus method. If the required OS enforcement cannot be achieved without such broad authority, defer the feature rather than weakening the boundary.
+- The UI must not be able to register arbitrary processes as managed applications, change protected classifications, edit the policy, or delegate control authority.
+- A failed, timed-out, crashed, or compromised control component must not fall back to raw PID signalling or unsandboxed control.
+- Record only minimal, privacy-preserving action metadata (managed instance ID, requested action, result, timestamp). Never log command lines, tokens, file contents, or credentials.
+
+#### User interaction
+
+- Make the target application name and instance identity visible before confirmation.
+- Explain that the action asks the application to close and may cause unsaved work to be lost.
+- Require explicit confirmation for each close request; do not batch-close applications by default.
+- If the application does not close, explain the safe next step. Do not silently escalate to force termination.
+- Never present a system/security process as an eligible target. If eligibility cannot be proven, show it as protected or unavailable.
+
+#### Mandatory tests before implementation
+
+- UI bypass: direct API calls cannot control arbitrary PIDs or unregistered applications.
+- Protected-target denial: PID 1, kernel threads, system services, session infrastructure, security components, credential services, update services, and protected anti-cheat processes are denied.
+- Identity safety: PID reuse, process exit races, stale instance IDs, scope replacement, and launcher restart cannot redirect an action to a different process.
+- Policy safety: missing, malformed, downgraded, or unavailable policy fails closed.
+- Privilege review: no broad kill capability, root shell, arbitrary command execution, or generic privileged operation is available to the UI.
+- Isolation: an ordinary application cannot register itself as trusted, alter protected classifications, or invoke the broker to affect another application's private state.
+- Failure containment: broker crash, timeout, IPC truncation, malformed messages, and resource exhaustion leave protected processes untouched.
+- UX: confirmation, refusal, unsaved-work warning, and close-result states are accessible and understandable.
+
+Acceptance requires adversarial tests and a security review of the enforcement component, not merely UI tests. Until then, NCE-006C.2 remains design-only and the shipped Task Manager stays read-only.
 
 ### NCE-006C.3 — Startup applications and resource history (future gate)
 
@@ -115,7 +158,8 @@ Startup management and historical graphs are not part of the first implementatio
 
 ## Explicit non-goals
 
-- Killing or suspending processes in the first release.
+- General-purpose process killing or suspending.
+- Any control of system services, session infrastructure, kernel components, or security-critical components.
 - Editing services, startup entries, kernel parameters, or system configuration.
 - Reading process memory, environment variables, browser sessions, or credentials.
 - Installing kernel modules or privileged monitoring agents.

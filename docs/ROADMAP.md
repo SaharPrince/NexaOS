@@ -52,7 +52,7 @@ Acceptance criteria:
 - The welcome app and preview launcher never execute selected PE files or build shell commands from user-controlled paths.
 - File-manager enumeration and file operations have explicit path, symlink, permission, and error-handling tests.
 - A physical-device test record covers at least one representative low-memory machine and one graphics/device configuration; untested hardware limitations are documented.
-- A graphical task manager is specified and prototyped with process list, CPU/RAM usage, per-process details, safe termination semantics, and clear privilege boundaries. It must not require permanent elevated privileges.
+- A graphical task manager provides read-only process/performance monitoring. Future application-management actions are restricted to explicitly registered NexaOS-managed application instances, with OS-enforced protection for system, session, and security components; no general-purpose process killer or broad privileged helper is allowed. Startup management remains a separate review gate.
 - Desktop customization has a user-facing settings design for themes, icons, wallpaper, panel/taskbar layout, shortcuts, window behavior, and optional widgets/components.
 - The default experience stays efficient, while optional customization remains available without loading every optional component at startup.
 - No desktop milestone claims Windows application execution.
