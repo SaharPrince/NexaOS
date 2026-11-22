@@ -23,6 +23,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: rustfmt
+      - name: Verify immutable GitHub Actions references
+        run: python3 scripts/check-github-actions-pins.py
       - name: Check workspace formatting
         run: cargo fmt --all -- --check
       - name: Check fuzz target formatting
