@@ -28,9 +28,9 @@ REQUIRED_CHECKS = (
     "lxqt_panel",
     "welcome_window",
     "welcome_controls",
-    "keyboard_activation",
+    "qt_keyboard_activation",
     "task_manager_sampling",
-    "pointer_activation",
+    "qt_mouse_activation",
     "file_browser_dialog",
 )
 
@@ -77,9 +77,9 @@ def main() -> int:
         "lxqt_panel": process_exists("lxqt-panel"),
         "welcome_window": False,
         "welcome_controls": False,
-        "keyboard_activation": False,
+        "qt_keyboard_activation": False,
         "task_manager_sampling": False,
-        "pointer_activation": False,
+        "qt_mouse_activation": False,
         "file_browser_dialog": False,
     }
     failures: list[str] = []
@@ -149,7 +149,7 @@ def main() -> int:
                 QTimer.singleShot(350, inspect_task_manager)
                 task_button.setFocus()
                 QTest.keyClick(task_button, Qt.Key.Key_Return)
-                checks["keyboard_activation"] = modal_result.get("valid", False)
+                checks["qt_keyboard_activation"] = modal_result.get("valid", False)
                 checks["task_manager_sampling"] = modal_result.get("valid", False)
 
             files_button = buttons.get("Open Files")
@@ -172,7 +172,7 @@ def main() -> int:
 
                 QTimer.singleShot(350, inspect_file_browser)
                 QTest.mouseClick(files_button, Qt.MouseButton.LeftButton)
-                checks["pointer_activation"] = modal_result.get("valid", False)
+                checks["qt_mouse_activation"] = modal_result.get("valid", False)
                 checks["file_browser_dialog"] = modal_result.get("valid", False)
 
             for name in REQUIRED_CHECKS:
