@@ -4,48 +4,67 @@ NexaOS is an experimental Linux-based operating system project focused on runnin
 Windows user applications and games through an independently developed
 compatibility engine, without requiring a Windows virtual machine for normal use.
 
+**Long-term ambition:** make Nexa a practical OS choice for people who depend on
+Windows software and PC gaming—including multiplayer titles with anti-cheat—while
+protecting the host system, personal information, and online accounts. This is a
+development target, not a claim of current compatibility or a guarantee that every
+third-party application will work.
+
 **Implementation status: early development.** Nexa currently has a Rust PE
 inspection and non-executing image-preparation foundation. It is not yet a
 general-purpose Windows application runtime or installable desktop OS. Compatibility,
 performance, hardware support, and low-memory targets remain goals—not guarantees.
 
-## Product goals
+## Five co-equal product pillars
 
-- **Familiar desktop:** make the desktop, file handling, settings, and everyday
-  workflows feel natural to people switching from Windows.
-- **Simple launching:** the intended experience is double-clicking a Windows .exe
-  in the file manager, with no command-line setup and minimal avoidable launch delay.
-- **Broad compatibility:** progressively support ordinary Windows applications,
-  productivity software, and games; report compatibility by app/version rather than
-  claiming every program works.
-- **Lightweight operation:** keep idle CPU/RAM use, background services, storage
-  footprint, and launch overhead low, especially on modest hardware.
-- **User choice:** keep the default desktop lightweight while letting each
-  person customize layout, appearance, shortcuts, window behavior, and optional
-  desktop components. The default arrangement is a starting point, not a restriction.
-- **Original engineering:** build Nexa's own compatibility components; do not
-  misrepresent a repackaged Wine build as the Nexa engine.
-- **Linux foundation:** use the Linux kernel and its hardware-driver ecosystem as
-  the host foundation. Windows kernel drivers cannot be replaced by user-mode API
-  compatibility.
+1. **Broad Windows compatibility:** run the widest practical range of modern
+   Windows applications and games. Pursue anti-cheat-protected multiplayer titles
+   through official provider/publisher-approved support only.
+2. **Performance and efficiency:** keep idle CPU/RAM use, storage footprint,
+   background activity, launch overhead, and graphics costs low, including on
+   modest hardware. Measure improvements rather than assuming them.
+3. **Customization and usability:** deliver a polished, Windows-familiar desktop
+   with meaningful control over themes, icons, wallpaper, panels/taskbar, windows,
+   shortcuts, accessibility, and optional components.
+4. **Security and resilience:** use least privilege, application isolation,
+   defense in depth, trustworthy updates, failure containment, and recoverable
+   system operations.
+5. **Privacy and account protection:** protect personal files, passwords, browser
+   sessions, gaming sessions, keyrings, and private activity from ambient
+   application access.
+
+**Optimization principle: keep the features; improve the engineering.** NexaOS
+must not remove useful functionality simply to make benchmark numbers look better.
+Prefer efficient algorithms, bounded caches, lazy initialization, on-demand
+services, hardware acceleration, and measured resource management. Never silently
+trade away compatibility, security, privacy, accessibility, or user choice.
+
+## Linux and Rust engineering approach
+
+Linux provides the kernel, hardware-driver ecosystem, process and memory management,
+filesystems, networking, and isolation primitives. Rust is the primary language for
+new system-critical components because it combines low-level control with memory
+safety guarantees in safe code. Use mature existing components or C/C++ interop
+where that is safer or more compatible than rewriting them. Linux and Rust are a
+strong foundation, not automatic Windows compatibility: the Windows APIs and
+runtime behavior still need to be implemented and tested.
 
 ## Anti-cheat and account-safety requirements
 
-Anti-cheat compatibility is a high-risk, publisher-controlled area—not something
-NexaOS may force by bypassing protections.
+Anti-cheat compatibility is a first-class, publisher-controlled workstream—not
+something NexaOS may force by bypassing protections.
 
 - Support anti-cheat only through legitimate, vendor- and publisher-approved
   compatibility paths.
 - Never bypass, spoof, disable, or tamper with anti-cheat, protected processes,
   game memory, or security drivers.
 - Fail closed when required anti-cheat support is absent, uncertain, or reports an
-  integrity problem; do not repeatedly retry or silently force a launch.
+  integrity problem; do not silently force a launch.
 - Clearly distinguish verified, unverified, and unsupported game configurations.
-- Do not use a user's primary gaming account as a compatibility test account.
-  Use vendor-approved test arrangements where available.
+- Use vendor-approved test arrangements where available, not a user's primary
+  gaming account.
 - Treat account protection as a design objective, not an absolute guarantee:
-  third-party publishers control detection and enforcement, so no OS can promise
-  that an account will never be flagged or restricted.
+  third-party publishers control detection and enforcement.
 
 ## Current engineering status
 
@@ -55,63 +74,40 @@ planning/application, and transactional image-preparation foundations. These
 produce data only: they do not launch Windows applications, load Windows DLLs,
 create executable mappings, or transfer control to PE entry points.
 
-The active development branch is
-nce-005c/low-end-resource-baseline. **NCE-005 remains open** while its
-representative-corpus and compatibility/resource evidence gates are addressed.
-See [NCE-005](docs/milestones/NCE-005.md) for exact scope, limitations, and evidence.
-The [NCE-006 desktop and application-entry milestone](docs/milestones/NCE-006.md)
-records the desktop design and current implementation. A UI-independent desktop
-model now provides in-memory directory navigation, safe display-text handling,
-structured .exe launch requests, and a mock launcher that never creates processes
-or executes files. A graphical Nexa shell and real application runtime are not yet
-implemented.
+- **NCE-005** covers PE corpus, compatibility evidence, and resource measurements
+  for the existing non-executing preparation pipeline. Its remaining evidence-based
+  compatibility decisions are still open.
+- **NCE-006** covers the desktop and application-entry experience. The repository
+  has a Debian/LXQt preview, a welcome application, and a Rust preview-only desktop
+  model/controller. This is not yet a fully validated interactive desktop or a
+  real Windows application launcher.
+- **NCE-007** defines the security and privacy gate before real Windows execution.
+  Its design proposal is under review in [PR #12](https://github.com/SaharPrince/NexaOS/pull/12);
+  proposed controls must not be mistaken for implemented runtime protections.
+
+The detailed, dependency-aware plan and measurable acceptance criteria are in
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Build and inspect
 
 Requires a stable Rust toolchain.
 
 ```sh
-cargo test --workspace
-cargo run -p nexa-inspect -- inspect path/to/program.exe
-cargo run -p nexa-inspect -- inspect --json path/to/program.exe
+cargo test --workspace --locked
+cargo run --locked -p nexa-inspect -- inspect path/to/program.exe
+cargo run --locked -p nexa-inspect -- inspect --json path/to/program.exe
 ```
 
 The inspector reads the selected file as data only. **Execution: NOT ATTEMPTED.**
 
-## Development priorities
-
-To reach a useful user experience without spending time on low-value work, prioritize
-in this order:
-
-1. Close the remaining NCE-005 evidence gates with a small, provenance- and
-   license-reviewed sample set. Do not expand benchmarks or corpus work without a
-   decision they can inform.
-2. Build the NCE-006 desktop shell and file-manager integration against a mock
-   launcher, while keeping real PE execution disabled until its runtime security
-   milestone is reviewed.
-3. Design and implement the smallest safe end-to-end Windows user-mode application
-   compatibility slice, with explicit boundaries, failure handling, and measurable
-   launch/resource costs.
-4. Add the common Win32, process, memory, file, thread, synchronization, and DLL
-   behaviors required by real applications; expand from purpose-built test programs
-   to appropriately licensed applications.
-5. Expand graphics, input, audio, and game compatibility. Treat kernel anti-cheat
-   support as a separate vendor-approval gate.
-6. Engineer installation, updates, recovery, hardware support, and release-quality
-   distribution.
-
-Use risk-based validation: spend test effort on memory safety, bounds, privilege
-boundaries, data integrity, failure recovery, and regressions that could affect a
-user's machine. Avoid duplicative benchmarks and low-value repeated checks. Never
-trade away system safety to make a compatibility test pass.
-
 ## Continuous validation
 
 GitHub Actions checks Rust formatting, workspace tests on Linux and Windows,
-Clippy, bounded parser fuzzing, and Rust dependency advisories. Keep required
-correctness and security checks; use targeted validation for documentation-only
-or isolated changes when full CI adds no meaningful protection.
+Clippy, bounded parser fuzzing, and Rust dependency advisories. Expand validation
+with targeted sandbox integration, desktop session, performance regression, and
+application compatibility tests as those components are implemented.
 
-Milestones are complete only when their stated acceptance criteria and evidence
-are satisfied. No universal Windows compatibility, anti-cheat safety, or
-performance claim should be made without supporting evidence.
+Milestones are complete only when their acceptance criteria and supporting evidence
+are satisfied. Do not claim universal Windows compatibility, anti-cheat support,
+perfect account protection, zero vulnerabilities, or performance gains without
+reproducible evidence.
