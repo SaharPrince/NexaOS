@@ -25,7 +25,7 @@ if [[ ! -s "$ISO_PATH" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$MONITOR_SOCKET" "$SESSION_REPORT" "$"
+rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$MONITOR_SOCKET" "$SESSION_REPORT"
 
 printf 'Starting isolated QEMU boot smoke test for: %s\n' "$ISO_PATH"
 
@@ -96,7 +96,6 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     if [[ "$session_smoke" == "1" ]]; then
         python3 "$session_checker" "$session_stream" "$session_report" --timeout 240
-        checker_pid=""
         # Confirm the guest remains alive after the interactive checks complete.
         sleep 10
     else
@@ -119,7 +118,7 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
 
     xwd -root -silent -out "$screenshot"
     test -s "$screenshot"
-' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT" "$"
+' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
