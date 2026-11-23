@@ -145,9 +145,19 @@ def main() -> int:
         return 1
 
     diagnostic("session prerequisites passed; creating QApplication")
-    app = QApplication(sys.argv[:1])
-    window = NexaWelcome()
-    window.show()
+    try:
+        app = QApplication(sys.argv[:1])
+        window = NexaWelcome()
+        window.show()
+    except Exception as error:
+        diagnostic("GUI startup exception: " + traceback.format_exc())
+        report["failures"].append(f"startup_exception:{type(error).__name__}")
+        report["status"] = "failed"
+        try:
+            send_report(report)
+        except Exception as report_error:
+            diagnostic("unable to transmit GUI-startup failure report: " + type(report_error).__name__)
+        return 2
     diagnostic("NexaOS Welcome window shown")
 
     def run_checks() -> None:
@@ -188,6 +198,9 @@ def main() -> int:
                 QTimer.singleShot(350, inspect_task_manager)
                 task_button.setFocus()
                 QTest.keyClick(task_button, Qt.Key.Key_Return)
+                # Process the Qt event loop until the scheduled modal inspection
+                # runs; reading modal_result immediately races the 350 ms timer.
+                QTest.qWait(400)
                 checks["qt_keyboard_activation"] = modal_result.get("valid", False)
                 checks["task_manager_sampling"] = modal_result.get("valid", False)
 
@@ -211,6 +224,8 @@ def main() -> int:
 
                 QTimer.singleShot(350, inspect_file_browser)
                 QTest.mouseClick(files_button, Qt.MouseButton.LeftButton)
+                # Allow the same scheduled inspection to run deterministically.
+                QTest.qWait(400)
                 checks["qt_mouse_activation"] = modal_result.get("valid", False)
                 checks["file_browser_dialog"] = modal_result.get("valid", False)
 
