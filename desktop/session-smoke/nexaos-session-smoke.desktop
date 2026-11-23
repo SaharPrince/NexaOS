@@ -5,4 +5,3 @@ Comment=CI-only interactive desktop validation
 Exec=/bin/sh /usr/lib/nexaos/nexaos-session-smoke-launcher.sh
 NoDisplay=true
 Terminal=false
-OnlyShowIn=LXQt;
