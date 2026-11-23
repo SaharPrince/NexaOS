@@ -57,6 +57,9 @@ def send_report(report: dict) -> None:
             raise OSError("session-smoke report was not fully written")
     finally:
         os.close(descriptor)
+    # The launcher uses this local marker to avoid sending a duplicate fallback
+    # report if the guest test has already completed its authoritative write.
+    Path("/tmp/nexaos-session-smoke-report-sent").write_text("sent\\n", encoding="ascii")
 
 
 diagnostic("session-smoke launcher entered Python")
