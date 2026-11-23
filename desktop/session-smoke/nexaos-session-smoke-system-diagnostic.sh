@@ -81,8 +81,11 @@ while [ "$attempt" -lt 190 ]; do
     grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
     grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
     grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
+grep -Fq "unable to transmit GUI-check final report:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_report_transport_failure=true
+grep -Fq "fallback report transport failed" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && launcher_fallback_transport_failure=true
+[ -e /tmp/nexaos-session-smoke-report-sent ] && python_report_marker=true
     grep -Fq "bounded Python process exited with status" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_process_exited=true
-    if [ "$launcher_entered" = true ] && { [ "$gui_checks_finished" = true ] || [ "$python_import_failure" = true ] || [ "$python_process_exited" = true ]; }; then
+    if [ "$launcher_entered" = true ] && { [ "$python_import_failure" = true ] || [ "$python_process_exited" = true ]; }; then
         break
     fi
     sleep 1
@@ -96,6 +99,7 @@ fi
 launcher_log_exists=false; launcher_entered=false; python_starting=false; python_process_created=false
 python_process_exited=false; python_timed_out=false; python_log_exists=false
 python_main_entered=false; python_import_failure=false; gui_checks_finished=false
+python_report_transport_failure=false; launcher_fallback_transport_failure=false; python_report_marker=false
 [ -r /tmp/nexaos-session-smoke-launcher.log ] && launcher_log_exists=true
 [ -r /tmp/nexaos-session-smoke.log ] && python_log_exists=true
 grep -Fq "autostart launcher entered" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && launcher_entered=true
@@ -107,9 +111,11 @@ grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_mai
 grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
 grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
 log "diagnostic service completed its bounded session observation"
-if [ -e "$DEVICE" ]; then
-    printf '{"kind":"event","stage":"system_diagnostic","sddm_active":%s,"logind_active":%s,"lxqt_session_file":%s,"live_user_exists":%s,"autologin_config":%s,"user_panel_config":%s,"global_autostart_entry":%s,"user_runtime_dir":%s,"user_login_session":%s,"user_session_active":%s,"user_session_class_user":%s,"sddm_pam_file":%s,"sddm_pam_systemd":%s,"common_session_pam_systemd":%s,"lxqt_session_process":%s,"lxqt_panel_process":%s,"user_lxqt_session_process":%s,"user_lxqt_panel_process":%s,"xorg_process":%s,"user_xorg_process":%s,"sddm_auth_failure":%s,"launcher_log_exists":%s,"launcher_entered":%s,"python_starting":%s,"python_process_created":%s,"python_process_exited":%s,"python_timed_out":%s,"python_log_exists":%s,"python_main_entered":%s,"python_import_failure":%s,"gui_checks_finished":%s}\n' \
-        "$sddm_active" "$logind_active" "$session_file" "$live_user" "$autologin_config" "$panel_config" "$global_autostart_entry" "$user_runtime_dir" "$user_login_session" "$user_session_active" "$user_session_class_user" "$sddm_pam_file" "$sddm_pam_systemd" "$common_session_pam_systemd" "$lxqt_session_process" "$lxqt_panel_process" "$user_lxqt_session_process" "$user_lxqt_panel_process" "$xorg_process" "$user_xorg_process" "$sddm_auth_failure" "$launcher_log_exists" "$launcher_entered" "$python_starting" "$python_process_created" "$python_process_exited" "$python_timed_out" "$python_log_exists" "$python_main_entered" "$python_import_failure" "$gui_checks_finished" > "$DEVICE" || log "virtio report write failed"
+if [ "$python_report_marker" = true ]; then
+    log "guest final report marker exists; suppressing concurrent diagnostic-channel write"
+elif [ -e "$DEVICE" ]; then
+    printf '{"kind":"event","stage":"system_diagnostic","sddm_active":%s,"logind_active":%s,"lxqt_session_file":%s,"live_user_exists":%s,"autologin_config":%s,"user_panel_config":%s,"global_autostart_entry":%s,"user_runtime_dir":%s,"user_login_session":%s,"user_session_active":%s,"user_session_class_user":%s,"sddm_pam_file":%s,"sddm_pam_systemd":%s,"common_session_pam_systemd":%s,"lxqt_session_process":%s,"lxqt_panel_process":%s,"user_lxqt_session_process":%s,"user_lxqt_panel_process":%s,"xorg_process":%s,"user_xorg_process":%s,"sddm_auth_failure":%s,"launcher_log_exists":%s,"launcher_entered":%s,"python_starting":%s,"python_process_created":%s,"python_process_exited":%s,"python_timed_out":%s,"python_log_exists":%s,"python_main_entered":%s,"python_import_failure":%s,"gui_checks_finished":%s,"python_report_transport_failure":%s,"launcher_fallback_transport_failure":%s,"python_report_marker":%s}\n' \
+        "$sddm_active" "$logind_active" "$session_file" "$live_user" "$autologin_config" "$panel_config" "$global_autostart_entry" "$user_runtime_dir" "$user_login_session" "$user_session_active" "$user_session_class_user" "$sddm_pam_file" "$sddm_pam_systemd" "$common_session_pam_systemd" "$lxqt_session_process" "$lxqt_panel_process" "$user_lxqt_session_process" "$user_lxqt_panel_process" "$xorg_process" "$user_xorg_process" "$sddm_auth_failure" "$launcher_log_exists" "$launcher_entered" "$python_starting" "$python_process_created" "$python_process_exited" "$python_timed_out" "$python_log_exists" "$python_main_entered" "$python_import_failure" "$gui_checks_finished" "$python_report_transport_failure" "$launcher_fallback_transport_failure" "$python_report_marker" > "$DEVICE" || log "virtio report write failed"
 else
     log "virtio report device unavailable after module load and wait"
 fi
