@@ -102,7 +102,7 @@ grep -Fq "autostart launcher entered" /tmp/nexaos-session-smoke-launcher.log 2>/
 grep -Fq "starting session smoke Python" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_starting=true
 grep -Fq "bounded Python process created" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_process_created=true
 grep -Fq "bounded Python process exited with status" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_process_exited=true
-grep -Fq "Python process exceeded bounded runtime" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_timed_out=true
+grep -Fq "Python process timed out after 180 seconds" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_timed_out=true
 grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
 grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
 grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
