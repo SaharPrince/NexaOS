@@ -67,7 +67,7 @@ if ! command -v timeout >/dev/null 2>&1; then
     write_fallback_report "guest_timeout_utility_missing"
     exit 127
 fi
-timeout --signal=TERM --kill-after=5s "${MAX_RUNTIME_SECONDS}s" /usr/bin/python3 -u "$SCRIPT" >> "$LOG" 2>&1 &
+timeout --signal=TERM --kill-after=5s "${MAX_RUNTIME_SECONDS}s" /usr/bin/python3 -u "$SCRIPT" >> "$PYTHON_LOG" 2>&1 &
 python_pid=$!
 printf '%s\n' "$python_pid" > "$PID_FILE"
 log "bounded Python process created"
@@ -75,8 +75,15 @@ emit "python_process_started"
 wait "$python_pid"
 python_status=$?
 log "bounded Python process exited with status $python_status"
+if [ "$python_status" -eq 124 ]; then
+    log "Python process timed out after ${MAX_RUNTIME_SECONDS} seconds"
+fi
 if [ ! -e "$REPORT_SENT" ]; then
-    if [ ! -s "$PYTHON_LOG" ]; then
+    if [ "$python_status" -eq 124 ]; then
+        write_fallback_report "python_process_timeout"
+    elif [ "$python_status" -eq 137 ]; then
+        write_fallback_report "python_process_killed_after_timeout"
+    elif [ ! -s "$PYTHON_LOG" ]; then
         write_fallback_report "python_exited_before_script_started"
     else
         write_fallback_report "python_exited_without_final_report"
