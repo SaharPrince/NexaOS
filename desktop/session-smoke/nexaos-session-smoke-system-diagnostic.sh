@@ -81,9 +81,6 @@ while [ "$attempt" -lt 190 ]; do
     grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
     grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
     grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
-grep -Fq "unable to transmit GUI-check final report:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_report_transport_failure=true
-grep -Fq "fallback report transport failed" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && launcher_fallback_transport_failure=true
-[ -e /tmp/nexaos-session-smoke-report-sent ] && python_report_marker=true
     grep -Fq "bounded Python process exited with status" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_process_exited=true
     if [ "$launcher_entered" = true ] && { [ "$python_import_failure" = true ] || [ "$python_process_exited" = true ]; }; then
         break
@@ -110,6 +107,9 @@ grep -Fq "Python process timed out after 180 seconds" /tmp/nexaos-session-smoke-
 grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
 grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
 grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
+grep -Fq "unable to transmit GUI-check final report:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_report_transport_failure=true
+grep -Fq "fallback report transport failed" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && launcher_fallback_transport_failure=true
+[ -e /tmp/nexaos-session-smoke-report-sent ] && python_report_marker=true
 log "diagnostic service completed its bounded session observation"
 if [ "$python_report_marker" = true ]; then
     log "guest final report marker exists; suppressing concurrent diagnostic-channel write"
