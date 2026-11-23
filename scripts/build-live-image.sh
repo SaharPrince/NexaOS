@@ -7,7 +7,7 @@ ARTIFACT_DIR="$ROOT_DIR/artifacts"
 
 SESSION_SMOKE_SCRIPT_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke.py"
 SESSION_SMOKE_LAUNCHER_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke-launcher.sh"
-SESSION_SMOKE_ENTRY_DEST="$BUILD_DIR/config/includes.chroot/etc/xdg/autostart/nexaos-session-smoke.desktop"
+SESSION_SMOKE_ENTRY_DEST="$BUILD_DIR/config/includes.chroot/etc/skel/.config/autostart/nexaos-session-smoke.desktop"
 SESSION_SMOKE_DIAG_SCRIPT_DEST="$BUILD_DIR/config/includes.chroot/usr/lib/nexaos/nexaos-session-smoke-system-diagnostic.sh"
 SESSION_SMOKE_DIAG_SERVICE_DEST="$BUILD_DIR/config/includes.chroot/etc/systemd/system/nexaos-session-smoke-diagnostic.service"
 SESSION_SMOKE_DIAG_WANTS_DEST="$BUILD_DIR/config/includes.chroot/etc/systemd/system/graphical.target.wants/nexaos-session-smoke-diagnostic.service"
