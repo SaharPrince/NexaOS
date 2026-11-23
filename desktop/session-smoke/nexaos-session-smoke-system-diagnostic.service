@@ -1,0 +1,11 @@
+[Unit]
+Description=CI-only NexaOS live desktop boot diagnostics
+After=graphical.target
+Wants=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/nexaos/nexaos-session-smoke-system-diagnostic.sh
+
+[Install]
+WantedBy=graphical.target
