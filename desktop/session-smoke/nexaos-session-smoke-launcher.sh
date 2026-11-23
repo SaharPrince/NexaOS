@@ -19,8 +19,8 @@ emit() {
     stage=$1
     display_set=false
     dbus_set=false
-    [ -n "\${DISPLAY:-}" ] && display_set=true
-    [ -n "\${DBUS_SESSION_BUS_ADDRESS:-}" ] && dbus_set=true
+    [ -n "${DISPLAY:-}" ] && display_set=true
+    [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] && dbus_set=true
     if [ -e "$DEVICE" ]; then
         printf '{"kind":"event","stage":"%s","display_set":%s,"dbus_session_set":%s}\n' \
             "$stage" "$display_set" "$dbus_set" > "$DEVICE" 2>> "$LOG" || log "report transport failed at $stage"
@@ -67,7 +67,7 @@ if ! command -v timeout >/dev/null 2>&1; then
     write_fallback_report "guest_timeout_utility_missing"
     exit 127
 fi
-timeout --signal=TERM --kill-after=5s "\${MAX_RUNTIME_SECONDS}s" /usr/bin/python3 -u "$SCRIPT" >> "$LOG" 2>&1 &
+timeout --signal=TERM --kill-after=5s "${MAX_RUNTIME_SECONDS}s" /usr/bin/python3 -u "$SCRIPT" >> "$LOG" 2>&1 &
 python_pid=$!
 printf '%s\n' "$python_pid" > "$PID_FILE"
 log "bounded Python process created"
