@@ -117,12 +117,12 @@ if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
         "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke.desktop" \
         "$SESSION_SMOKE_ENTRY_DEST"
     SESSION_SMOKE_ENTRY_STAGED=1
-    install -D -m 0755 \\
-        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke-system-diagnostic.sh" \\
+    install -D -m 0755 \
+        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke-system-diagnostic.sh" \
         "$SESSION_SMOKE_DIAG_SCRIPT_DEST"
     SESSION_SMOKE_DIAG_SCRIPT_STAGED=1
-    install -D -m 0644 \\
-        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke-system-diagnostic.service" \\
+    install -D -m 0644 \
+        "$ROOT_DIR/desktop/session-smoke/nexaos-session-smoke-system-diagnostic.service" \
         "$SESSION_SMOKE_DIAG_SERVICE_DEST"
     SESSION_SMOKE_DIAG_SERVICE_STAGED=1
     install -D -m 0644 /dev/null "$SESSION_SMOKE_DIAG_WANTS_DEST"
