@@ -245,7 +245,9 @@ def main() -> int:
             window.close()
             try:
                 send_report(report)
-            except Exception:
+            except Exception as report_error:
+                # Preserve a bounded failure classification for the system diagnostic.
+                diagnostic("unable to transmit GUI-check final report: " + type(report_error).__name__)
                 # Without the host report channel, the QEMU test must fail closed.
                 app.exit(2)
                 return
