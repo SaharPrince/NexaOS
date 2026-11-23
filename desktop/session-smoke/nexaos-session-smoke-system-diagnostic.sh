@@ -73,14 +73,16 @@ while [ "$attempt" -lt 190 ]; do
     launcher_entered=false
     python_main_entered=false
     python_import_failure=false
+    gui_checks_finished=false
     python_process_exited=false
     if grep -Fq "autostart launcher entered" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null; then
         launcher_entered=true
     fi
     grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
     grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
+    grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
     grep -Fq "bounded Python process exited with status" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_process_exited=true
-    if [ "$launcher_entered" = true ] && { [ "$python_main_entered" = true ] || [ "$python_import_failure" = true ] || [ "$python_process_exited" = true ]; }; then
+    if [ "$launcher_entered" = true ] && { [ "$gui_checks_finished" = true ] || [ "$python_import_failure" = true ] || [ "$python_process_exited" = true ]; }; then
         break
     fi
     sleep 1
