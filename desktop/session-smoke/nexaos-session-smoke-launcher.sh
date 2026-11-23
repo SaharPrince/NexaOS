@@ -62,31 +62,19 @@ fi
 
 log "starting session smoke Python"
 emit "python_starting"
-/usr/bin/python3 -u "$SCRIPT" >> "$LOG" 2>&1 &
+if ! command -v timeout >/dev/null 2>&1; then
+    log "timeout utility missing"
+    write_fallback_report "guest_timeout_utility_missing"
+    exit 127
+fi
+timeout --signal=TERM --kill-after=5s "\${MAX_RUNTIME_SECONDS}s" /usr/bin/python3 -u "$SCRIPT" >> "$LOG" 2>&1 &
 python_pid=$!
 printf '%s\n' "$python_pid" > "$PID_FILE"
-log "python child process created"
+log "bounded Python process created"
 emit "python_process_started"
-
-elapsed=0
-while kill -0 "$python_pid" 2>/dev/null && [ "$elapsed" -lt "$MAX_RUNTIME_SECONDS" ]; do
-    sleep 1
-    elapsed=$((elapsed + 1))
-done
-
-if kill -0 "$python_pid" 2>/dev/null; then
-    log "Python process exceeded bounded runtime"
-    kill "$python_pid" 2>/dev/null || true
-    sleep 1
-    kill -KILL "$python_pid" 2>/dev/null || true
-    wait "$python_pid" 2>/dev/null || true
-    write_fallback_report "python_process_timeout"
-    exit 124
-fi
-
 wait "$python_pid"
 python_status=$?
-log "Python child process exited with status $python_status"
+log "bounded Python process exited with status $python_status"
 if [ ! -e "$REPORT_SENT" ]; then
     if [ ! -s "$PYTHON_LOG" ]; then
         write_fallback_report "python_exited_before_script_started"
