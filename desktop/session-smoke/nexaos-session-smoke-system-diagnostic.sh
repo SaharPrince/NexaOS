@@ -11,7 +11,7 @@ if command -v modprobe >/dev/null 2>&1; then modprobe virtio_console >> "$LOG" 2
 attempt=0
 while [ "$attempt" -lt 20 ] && [ ! -e "$DEVICE" ]; do sleep 1; attempt=$((attempt + 1)); done
 sddm_active=false; logind_active=false; session_file=false; live_user=false
-autologin_config=false; panel_config=false; user_autostart=false; user_runtime_dir=false
+autologin_config=false; panel_config=false; global_autostart_entry=false; user_runtime_dir=false
 user_login_session=false; user_session_active=false; user_session_class_user=false
 sddm_pam_file=false; sddm_pam_systemd=false; common_session_pam_systemd=false
 lxqt_session_process=false; lxqt_panel_process=false; user_lxqt_session_process=false
@@ -23,13 +23,13 @@ sddm_auth_failure=false
 [ "$USER_UID" != "0" ] && live_user=true
 [ -r /etc/sddm.conf.d/10-nexaos-live-autologin.conf ] && autologin_config=true
 [ -r /home/user/.config/lxqt/panel.conf ] && panel_config=true
-[ -r /home/user/.config/autostart/nexaos-session-smoke.desktop ] && user_autostart=true
+[ -r /etc/xdg/autostart/nexaos-session-smoke.desktop ] && global_autostart_entry=true
 [ -r /etc/pam.d/sddm ] && sddm_pam_file=true
 if [ -r /etc/pam.d/sddm ] && grep -Eq 'pam_systemd\.so' /etc/pam.d/sddm; then sddm_pam_systemd=true; fi
 if [ -r /etc/pam.d/common-session ] && grep -Eq 'pam_systemd\.so' /etc/pam.d/common-session; then common_session_pam_systemd=true; fi
 
-# The display manager and autologin may settle after graphical.target. Observe
-# the real session for up to 120 seconds rather than sampling only at target entry.
+# The display manager, LXQt session and XDG autostart may settle after graphical.target.
+# Wait for the launcher breadcrumb as well as the real session, up to 120 seconds.
 attempt=0
 while [ "$attempt" -lt 120 ]; do
     [ -d "/run/user/$USER_UID" ] && user_runtime_dir=true
@@ -70,8 +70,13 @@ while [ "$attempt" -lt 120 ]; do
                 ;;
         esac
     done
+    launcher_entered=false
+    if grep -Fq "autostart launcher entered" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null; then
+        launcher_entered=true
+    fi
     if [ "$user_runtime_dir" = true ] && [ "$user_session_active" = true ] \
-       && [ "$user_lxqt_session_process" = true ] && [ "$user_lxqt_panel_process" = true ]; then
+       && [ "$user_lxqt_session_process" = true ] && [ "$user_lxqt_panel_process" = true ] \
+       && [ "$launcher_entered" = true ]; then
         break
     fi
     sleep 1
@@ -82,10 +87,19 @@ if command -v journalctl >/dev/null 2>&1; then
         sddm_auth_failure=true
     fi
 fi
+launcher_log_exists=false; launcher_entered=false; python_starting=false
+python_log_exists=false; python_main_entered=false; python_import_failure=false; gui_checks_finished=false
+[ -r /tmp/nexaos-session-smoke-launcher.log ] && launcher_log_exists=true
+[ -r /tmp/nexaos-session-smoke.log ] && python_log_exists=true
+grep -Fq "autostart launcher entered" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && launcher_entered=true
+grep -Fq "starting session smoke Python" /tmp/nexaos-session-smoke-launcher.log 2>/dev/null && python_starting=true
+grep -Fq "main entered;" /tmp/nexaos-session-smoke.log 2>/dev/null && python_main_entered=true
+grep -Fq "session-smoke import failure:" /tmp/nexaos-session-smoke.log 2>/dev/null && python_import_failure=true
+grep -Fq "GUI checks finished;" /tmp/nexaos-session-smoke.log 2>/dev/null && gui_checks_finished=true
 log "diagnostic service completed its bounded session observation"
 if [ -e "$DEVICE" ]; then
-    printf '{"kind":"event","stage":"system_diagnostic","sddm_active":%s,"logind_active":%s,"lxqt_session_file":%s,"live_user_exists":%s,"autologin_config":%s,"user_panel_config":%s,"user_autostart_entry":%s,"user_runtime_dir":%s,"user_login_session":%s,"user_session_active":%s,"user_session_class_user":%s,"sddm_pam_file":%s,"sddm_pam_systemd":%s,"common_session_pam_systemd":%s,"lxqt_session_process":%s,"lxqt_panel_process":%s,"user_lxqt_session_process":%s,"user_lxqt_panel_process":%s,"xorg_process":%s,"user_xorg_process":%s,"sddm_auth_failure":%s}\n' \
-        "$sddm_active" "$logind_active" "$session_file" "$live_user" "$autologin_config" "$panel_config" "$user_autostart" "$user_runtime_dir" "$user_login_session" "$user_session_active" "$user_session_class_user" "$sddm_pam_file" "$sddm_pam_systemd" "$common_session_pam_systemd" "$lxqt_session_process" "$lxqt_panel_process" "$user_lxqt_session_process" "$user_lxqt_panel_process" "$xorg_process" "$user_xorg_process" "$sddm_auth_failure" > "$DEVICE" || log "virtio report write failed"
+    printf '{"kind":"event","stage":"system_diagnostic","sddm_active":%s,"logind_active":%s,"lxqt_session_file":%s,"live_user_exists":%s,"autologin_config":%s,"user_panel_config":%s,"global_autostart_entry":%s,"user_runtime_dir":%s,"user_login_session":%s,"user_session_active":%s,"user_session_class_user":%s,"sddm_pam_file":%s,"sddm_pam_systemd":%s,"common_session_pam_systemd":%s,"lxqt_session_process":%s,"lxqt_panel_process":%s,"user_lxqt_session_process":%s,"user_lxqt_panel_process":%s,"xorg_process":%s,"user_xorg_process":%s,"sddm_auth_failure":%s,"launcher_log_exists":%s,"launcher_entered":%s,"python_starting":%s,"python_log_exists":%s,"python_main_entered":%s,"python_import_failure":%s,"gui_checks_finished":%s}\n' \
+        "$sddm_active" "$logind_active" "$session_file" "$live_user" "$autologin_config" "$panel_config" "$global_autostart_entry" "$user_runtime_dir" "$user_login_session" "$user_session_active" "$user_session_class_user" "$sddm_pam_file" "$sddm_pam_systemd" "$common_session_pam_systemd" "$lxqt_session_process" "$lxqt_panel_process" "$user_lxqt_session_process" "$user_lxqt_panel_process" "$xorg_process" "$user_xorg_process" "$sddm_auth_failure" "$launcher_log_exists" "$launcher_entered" "$python_starting" "$python_log_exists" "$python_main_entered" "$python_import_failure" "$gui_checks_finished" > "$DEVICE" || log "virtio report write failed"
 else
     log "virtio report device unavailable after module load and wait"
 fi
