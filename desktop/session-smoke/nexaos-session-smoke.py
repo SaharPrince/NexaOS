@@ -68,6 +68,7 @@ try:
     from PyQt6.QtTest import QTest
     from PyQt6.QtWidgets import QApplication, QPushButton
     from nexaos_welcome import NexaWelcome
+    from nexaos_task_manager import NexaTaskManager
 except Exception as error:
     # Report import failures before optional GUI dependencies can prevent
     # the main smoke-test routine from starting. Do not send exception text,
@@ -199,13 +200,33 @@ def main() -> int:
                     dialog.close()
 
                 QTimer.singleShot(350, inspect_task_manager)
-                task_button.setFocus()
-                QTest.keyClick(task_button, Qt.Key.Key_Return)
-                # Process the Qt event loop until the scheduled modal inspection
-                # runs; reading modal_result immediately races the 350 ms timer.
+                window.activateWindow()
+                window.raise_()
+                task_button.setFocus(Qt.FocusReason.OtherFocusReason)
+                QTest.qWait(100)
+                # Space is the standard keyboard activation key for a focused
+                # QPushButton; use the real focused widget rather than Return's
+                # default-button behavior, which varies with window activation.
+                QTest.keyClick(task_button, Qt.Key.Key_Space)
                 QTest.qWait(400)
                 checks["qt_keyboard_activation"] = modal_result.get("valid", False)
-                checks["task_manager_sampling"] = modal_result.get("valid", False)
+
+            # Exercise sampling independently of keyboard activation. The old
+            # check copied the dialog-open result into both fields, so one
+            # activation failure falsely masked whether procfs sampling worked.
+            manager = NexaTaskManager(window)
+            sample_ticks: list[bool] = []
+            manager.timer.timeout.connect(lambda: sample_ticks.append(True))
+            manager.show()
+            QTest.qWait(1350)
+            checks["task_manager_sampling"] = (
+                manager.timer.isActive()
+                and bool(sample_ticks)
+                and bool(manager._snapshot)
+                and manager.process_table.rowCount() > 0
+                and manager.memory_label.text().startswith("Memory:")
+            )
+            manager.close()
 
             files_button = buttons.get("Open Files")
             if files_button is not None:
