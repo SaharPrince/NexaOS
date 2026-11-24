@@ -133,8 +133,8 @@ if [[ "${NEXAOS_SESSION_SMOKE:-0}" == "1" ]]; then
     install -D -m 0644 /dev/null "$SESSION_SMOKE_DIAG_WANTS_DEST"
     ln -sf ../nexaos-session-smoke-diagnostic.service "$SESSION_SMOKE_DIAG_WANTS_DEST"
     SESSION_SMOKE_DIAG_WANTS_STAGED=1
-    install -D -m 0644 \\
-        "$ROOT_DIR/desktop/session-smoke/99-nexaos-session-smoke.rules" \\
+    install -D -m 0644 \
+        "$ROOT_DIR/desktop/session-smoke/99-nexaos-session-smoke.rules" \
         "$SESSION_SMOKE_UDEV_RULE_DEST"
     SESSION_SMOKE_UDEV_RULE_STAGED=1
 fi
