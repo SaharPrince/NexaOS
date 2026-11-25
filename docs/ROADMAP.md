@@ -23,7 +23,7 @@ Anti-cheat is a first-class compatibility workstream, but only through provider/
 This roadmap is based on the repository state reviewed on 2026-11-22.
 
 - **NCE-005 — PE evidence:** the inspection and non-executing image-preparation pipeline has synthetic and compiler-produced fixture coverage plus benchmark evidence. The remaining representative-corpus and evidence-based compatibility decisions are still open.
-- **NCE-006 — desktop:** the repository has a Debian/LXQt preview, Welcome hub, Rust preview-only desktop controller, and merged read-only Task Manager. The Task Manager's unit/UI tests, ISO build, and QEMU framebuffer smoke passed on the reviewed PR #16 head. This is not proof of an interactive, hardware-validated desktop; physical-device resource measurements and session-level interaction remain open. Real PE execution remains disabled.
+- **NCE-006 — desktop:** the repository has a Debian/LXQt preview, Welcome hub, Rust preview-only desktop controller, and merged read-only Task Manager. In addition to the Task Manager's unit/UI tests and ISO/QEMU boot checks, PR #28 passed a 10-check interactive QEMU desktop-session validation with zero failures; PR #29 clarified the separate upstream QPS and NexaOS Task Manager boundaries. This is not proof of physical-hardware compatibility or low-memory performance; physical-device measurements and the remaining desktop acceptance items remain open. Real PE execution remains disabled.
 - **NCE-007 — security and privacy:** PR #12 has been merged. The threat model, security invariants, privacy requirements, and implementation gates are documented on `main`; they are design requirements, not implemented runtime protections.
 
 Work may proceed in parallel only where dependencies are respected. In particular, no real Windows application execution is enabled until the required NCE-007 design and implementation gates are accepted and tested.
@@ -170,8 +170,9 @@ Acceptance criteria:
 
 ## Immediate next actions
 
-1. Complete NCE-006 desktop session validation, including the read-only task manager, and record physical-device limitations.
-2. Finish the remaining high-value NCE-005 evidence decisions.
+1. Complete the remaining NCE-006 desktop acceptance work: physical-device resource measurements on a documented low-memory machine, hardware/display validation, and any session workflows not covered by the 10-check QEMU run.
+2. Finish the remaining high-value NCE-005 evidence decisions, prioritizing verifiable real-world PE samples for the unresolved section-layout and metadata cases.
+3. Turn the NCE-007 design into a reviewed, unprivileged NCE-007B isolation prototype plan; do not introduce process-control privileges or enable PE execution.
 3. Convert the merged NCE-007 design into separately reviewed implementation milestones; keep Windows executable launch disabled until the required gates pass.
 4. Establish NXP-001 whole-OS performance baselines before setting numerical resource budgets.
 5. Apply the secure-transparency review to public documentation, source changes, and release artifacts.
