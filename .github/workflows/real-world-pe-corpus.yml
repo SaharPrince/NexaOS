@@ -63,7 +63,7 @@ jobs:
           NEXA_REAL_WORLD_PE_DIR: ${{ github.workspace }}/target/real-world-pe
         run: cargo test --locked -p nexa-inspect --test real_world_pe_corpus -- --nocapture
       - name: Upload verification manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verified-pe-corpus-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: target/real-world-pe/SHA256SUMS.txt
