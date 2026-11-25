@@ -1,0 +1,3 @@
+# CI-only dedicated QEMU session-smoke channel. The stream contains only
+# bounded test status JSON; it carries no credentials or user data.
+SUBSYSTEM=="virtio-ports", ATTR{name}=="org.nexaos.session-smoke", MODE="0666"

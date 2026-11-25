@@ -5,9 +5,14 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 ISO_PATH="${1:-$ROOT_DIR/artifacts/nexaos-preview-amd64.iso}"
 ARTIFACT_DIR="$ROOT_DIR/artifacts"
 SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.xwd"
+BOOT_MENU_SCREENSHOT="$ARTIFACT_DIR/nexaos-qemu-boot-menu-before-key.xwd"
 QEMU_LOG="$ARTIFACT_DIR/nexaos-qemu-boot-smoke.log"
+SESSION_STREAM="$ARTIFACT_DIR/nexaos-session-smoke.jsonl"
+MONITOR_SOCKET="$ARTIFACT_DIR/nexaos-qemu-monitor.sock"
+SESSION_REPORT="$ARTIFACT_DIR/nexaos-session-smoke.json"
+SESSION_SMOKE="${NEXAOS_SESSION_SMOKE:-0}"
 
-for command in qemu-system-x86_64 xvfb-run xwd identify timeout; do
+for command in qemu-system-x86_64 xvfb-run xwd identify timeout python3; do
     if ! command -v "$command" >/dev/null 2>&1; then
         printf 'Required command not found: %s\n' "$command" >&2
         exit 1
@@ -20,7 +25,7 @@ if [[ ! -s "$ISO_PATH" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$SCREENSHOT" "$QEMU_LOG"
+rm -f "$SCREENSHOT" "$BOOT_MENU_SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$MONITOR_SOCKET" "$SESSION_REPORT"
 
 printf 'Starting isolated QEMU boot smoke test for: %s\n' "$ISO_PATH"
 
@@ -29,43 +34,91 @@ timeout 300s xvfb-run -a -s "-screen 0 1280x800x24" bash -c '
     iso_path="$1"
     screenshot="$2"
     qemu_log="$3"
+    session_stream="$4"
+    session_report="$5"
+    session_checker="$6"
+    session_smoke="$7"
+    monitor_socket="$8"
+    boot_key_helper="$9"
+    boot_menu_screenshot="${10}"
 
-    qemu-system-x86_64 \
-        -machine pc,accel=tcg \
-        -cpu qemu64 \
-        -m 3072 \
-        -smp 2 \
-        -vga std \
-        -cdrom "$iso_path" \
-        -boot order=d \
-        -nic none \
-        -display sdl \
-        -no-reboot \
-        -no-shutdown \
-        >"$qemu_log" 2>&1 &
+    qemu_args=(
+        -machine pc,accel=tcg
+        -cpu qemu64
+        -m 3072
+        -smp 2
+        -vga std
+        -cdrom "$iso_path"
+        -boot order=d
+        -nic none
+        -display sdl
+        -monitor "unix:$monitor_socket,server=on,wait=off"
+        -no-reboot
+        -no-shutdown
+    )
+    if [[ "$session_smoke" == "1" ]]; then
+        qemu_args+=(
+            -chardev "file,id=session,path=$session_stream"
+            -device virtio-serial-pci
+            -device virtserialport,chardev=session,name=org.nexaos.session-smoke
+        )
+    fi
+
+    qemu-system-x86_64 "${qemu_args[@]}" >"$qemu_log" 2>&1 &
     qemu_pid=$!
+    
 
     cleanup() {
+        # Preserve the last guest display even when the report channel or
+        # desktop autostart fails, so CI can distinguish boot/login/UI states.
         if kill -0 "$qemu_pid" 2>/dev/null; then
+            if [[ ! -s "$screenshot" ]]; then
+                xwd -root -silent -out "$screenshot" 2>/dev/null || true
+            fi
             kill "$qemu_pid" 2>/dev/null || true
             wait "$qemu_pid" 2>/dev/null || true
         fi
     }
     trap cleanup EXIT
 
-    # Allow the live boot to reach its graphical startup path.
-    for second in $(seq 1 150); do
-        if ! kill -0 "$qemu_pid" 2>/dev/null; then
-            printf "QEMU exited before the observation window completed.\n" >&2
-            cat "$qemu_log" >&2 || true
-            exit 1
-        fi
-        sleep 1
-    done
+    # QEMU writes guest report bytes to a host file from device startup.
+    # This avoids socket connection timing and dropped early startup events.
+
+    # Allow firmware, the ISO bootloader, and its menu to finish initializing.
+    # The monitor socket becomes ready before the guest menu accepts keyboard input.
+    sleep 15
+    # Preserve the exact screen state before injecting the one allowed key.
+    xwd -root -silent -out "$boot_menu_screenshot"
+    test -s "$boot_menu_screenshot"
+    # The Debian live ISO presents an interactive boot menu in this VM. Select
+    # its default live entry explicitly instead of waiting for guest autostart.
+    python3 "$boot_key_helper" "$monitor_socket" ret --timeout 30
+
+    if [[ "$session_smoke" == "1" ]]; then
+        python3 "$session_checker" "$session_stream" "$session_report" --timeout 240
+        # Confirm the guest remains alive after the interactive checks complete.
+        sleep 10
+    else
+        # Legacy framebuffer-only mode is retained for release-image builds.
+        for second in $(seq 1 150); do
+            if ! kill -0 "$qemu_pid" 2>/dev/null; then
+                printf "QEMU exited before the observation window completed.\n" >&2
+                cat "$qemu_log" >&2 || true
+                exit 1
+            fi
+            sleep 1
+        done
+    fi
+
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then
+        printf "QEMU exited before evidence capture completed.\n" >&2
+        cat "$qemu_log" >&2 || true
+        exit 1
+    fi
 
     xwd -root -silent -out "$screenshot"
     test -s "$screenshot"
-' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG"
+' _ "$ISO_PATH" "$SCREENSHOT" "$QEMU_LOG" "$SESSION_STREAM" "$SESSION_REPORT" "$ROOT_DIR/scripts/check_live_session.py" "$SESSION_SMOKE" "$MONITOR_SOCKET" "$ROOT_DIR/scripts/qemu_send_boot_key.py" "$BOOT_MENU_SCREENSHOT"
 
 dimensions="$(identify -quiet -format '%wx%h' "$SCREENSHOT")"
 color_count="$(identify -quiet -format '%k' "$SCREENSHOT")"
@@ -80,7 +133,13 @@ if [[ ! "$color_count" =~ ^[0-9]+$ ]] || (( color_count < 8 )); then
     exit 1
 fi
 
-printf 'QEMU remained running for the 150-second observation window.\n'
+if [[ "$SESSION_SMOKE" == "1" ]]; then
+    test -s "$SESSION_REPORT"
+    printf 'Interactive LXQt session report: %s\n' "$SESSION_REPORT"
+else
+    printf 'Framebuffer-only mode: no interactive session assertions were requested.\n'
+fi
+
 printf 'Captured graphical output: %s (%s, %s unique colors after downscaling).\n' \
     "$SCREENSHOT" "$dimensions" "$color_count"
-printf 'This smoke test does not establish successful desktop login or hardware compatibility.\n'
+printf 'QEMU smoke does not establish physical-device compatibility.\n'

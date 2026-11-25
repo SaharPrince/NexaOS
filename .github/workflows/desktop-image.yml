@@ -2,9 +2,16 @@ name: NexaOS desktop preview
 
 on:
   push:
+    branches:
+      - main
+      - nce-005c/low-end-resource-baseline
     paths:
       - "desktop/live-build/config/**"
       - "desktop/nexaos-welcome/**"
+      - "desktop/session-smoke/**"
+      - "scripts/check_live_session.py"
+      - "scripts/qemu_send_boot_key.py"
+      - "scripts/tests/**"
       - "engine/desktop-shell/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -15,6 +22,10 @@ on:
     paths:
       - "desktop/live-build/**"
       - "desktop/nexaos-welcome/**"
+      - "desktop/session-smoke/**"
+      - "scripts/check_live_session.py"
+      - "scripts/qemu_send_boot_key.py"
+      - "scripts/tests/**"
       - "engine/desktop-shell/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -48,10 +59,18 @@ jobs:
         run: |
           bash -n scripts/build-live-image.sh
           bash -n scripts/smoke-boot-live-image.sh
-          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py desktop/nexaos-welcome/nexaos_task_manager.py
+          sh -n desktop/session-smoke/nexaos-session-smoke-launcher.sh
+          sh -n desktop/session-smoke/nexaos-session-smoke-system-diagnostic.sh
+          python3 -m py_compile desktop/nexaos-welcome/nexaos_welcome.py desktop/nexaos-welcome/nexaos_file_browser.py desktop/nexaos-welcome/nexaos_task_manager.py desktop/session-smoke/nexaos-session-smoke.py scripts/check_live_session.py scripts/qemu_send_boot_key.py
           python3 scripts/validate-desktop-config.py
           test -s desktop/nexaos-welcome/nexaos_file_browser.py
           test -s desktop/nexaos-welcome/nexaos_task_manager.py
+          test -s desktop/session-smoke/nexaos-session-smoke.py
+          test -s desktop/session-smoke/nexaos-session-smoke.desktop
+          test -s desktop/session-smoke/nexaos-session-smoke-launcher.sh
+          test -s desktop/session-smoke/nexaos-session-smoke-system-diagnostic.sh
+          test -s desktop/session-smoke/nexaos-session-smoke-system-diagnostic.service
+          test -s scripts/qemu_send_boot_key.py
           test -s desktop/live-build/config/includes.chroot/usr/share/applications/nexaos-task-manager.desktop
           test -s engine/desktop-shell/src/bin/nexa-desktop-controller.rs
           test -s desktop/live-build/config/package-lists/nexaos-desktop.list.chroot
@@ -94,13 +113,21 @@ jobs:
       - name: Smoke-test NexaOS Welcome UI without opening a display
         run: QT_QPA_PLATFORM=offscreen python3 desktop/nexaos-welcome/nexaos_welcome.py --self-test
 
+      - name: Test session-report validation
+        run: PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -v
+
       - name: Build preview ISO
+        env:
+          NEXAOS_SESSION_SMOKE: ${{ github.ref != 'refs/heads/nce-005c/low-end-resource-baseline' && '1' || '0' }}
         run: bash scripts/build-live-image.sh
 
-      - name: Boot preview ISO in isolated QEMU VM
+      - name: Boot preview ISO and validate interactive desktop session
+        env:
+          NEXAOS_SESSION_SMOKE: ${{ github.ref != 'refs/heads/nce-005c/low-end-resource-baseline' && '1' || '0' }}
         run: bash scripts/smoke-boot-live-image.sh
 
       - name: Upload preview ISO, checksum, and VM evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nexaos-desktop-preview-amd64
@@ -108,9 +135,24 @@ jobs:
             artifacts/nexaos-preview-amd64.iso
             artifacts/nexaos-preview-amd64.iso.sha256
             artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-menu-before-key.xwd
             artifacts/nexaos-qemu-boot-smoke.log
-          if-no-files-found: error
+            artifacts/nexaos-session-smoke.json
+          if-no-files-found: warn
           retention-days: 3
+
+      - name: Upload QEMU failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexaos-qemu-session-diagnostics
+          path: |
+            artifacts/nexaos-qemu-boot-smoke.xwd
+            artifacts/nexaos-qemu-boot-menu-before-key.xwd
+            artifacts/nexaos-qemu-boot-smoke.log
+            artifacts/nexaos-session-smoke.json
+          if-no-files-found: warn
+          retention-days: 7
  
   publish-iso-release:
     name: Publish direct ISO release
