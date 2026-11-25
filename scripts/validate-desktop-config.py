@@ -14,7 +14,7 @@ PANEL = OVERLAY / "etc/skel/.config/lxqt/panel.conf"
 WALLPAPER = OVERLAY / "usr/share/backgrounds/nexaos/nexaos-default.svg"
 MENU_ICON = OVERLAY / "usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
 PACKAGE_LIST = ROOT / "desktop/live-build/config/package-lists/nexaos-desktop.list.chroot"
-TASK_MANAGER = OVERLAY / "usr/share/applications/qps.desktop"
+NEXA_TASK_MANAGER = OVERLAY / "usr/share/applications/nexaos-task-manager.desktop"\nQPS_PROCESS_MONITOR = OVERLAY / "usr/share/applications/qps.desktop"
 SDDM_AUTOLOGIN = OVERLAY / "etc/sddm.conf.d/10-nexaos-live-autologin.conf"
 SESSION_DIAGNOSTIC_SERVICE = ROOT / "desktop/session-smoke/nexaos-session-smoke-system-diagnostic.service"
 
