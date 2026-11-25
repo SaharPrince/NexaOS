@@ -16,6 +16,7 @@ MENU_ICON = OVERLAY / "usr/share/lxqt/themes/nexaos/nexaos-menu.svg"
 PACKAGE_LIST = ROOT / "desktop/live-build/config/package-lists/nexaos-desktop.list.chroot"
 TASK_MANAGER = OVERLAY / "usr/share/applications/qps.desktop"
 SDDM_AUTOLOGIN = OVERLAY / "etc/sddm.conf.d/10-nexaos-live-autologin.conf"
+SESSION_DIAGNOSTIC_SERVICE = ROOT / "desktop/session-smoke/nexaos-session-smoke-system-diagnostic.service"
 
 
 def read_ini(path: Path, *, global_section: bool = False) -> configparser.ConfigParser:
@@ -26,7 +27,7 @@ def read_ini(path: Path, *, global_section: bool = False) -> configparser.Config
 
 
 def main() -> int:
-    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST, TASK_MANAGER, SDDM_AUTOLOGIN):
+    for path in (PACKAGES, PANEL, WALLPAPER, MENU_ICON, PACKAGE_LIST, TASK_MANAGER, SDDM_AUTOLOGIN, SESSION_DIAGNOSTIC_SERVICE):
         if not path.is_file() or path.stat().st_size == 0:
             raise SystemExit(f"required desktop asset is missing or empty: {path}")
 
@@ -73,6 +74,15 @@ def main() -> int:
     if sddm.get("Autologin", "Relogin", fallback="").lower() != "false":
         raise SystemExit("SDDM live autologin must not force relogin after logout")
 
+    diagnostic_service = configparser.ConfigParser(interpolation=None)
+    diagnostic_service.read(SESSION_DIAGNOSTIC_SERVICE, encoding="utf-8")
+    if diagnostic_service.get("Unit", "After", fallback="") != "sddm.service":
+        raise SystemExit("session diagnostic service must start after SDDM, not after graphical.target")
+    if diagnostic_service.get("Service", "Type", fallback="") != "simple":
+        raise SystemExit("session diagnostic service must not block graphical.target as a oneshot")
+    if diagnostic_service.get("Install", "WantedBy", fallback="") != "graphical.target":
+        raise SystemExit("session diagnostic service must be enabled by graphical.target")
+
     package_entries = [
         line.strip()
         for line in PACKAGE_LIST.read_text(encoding="utf-8").splitlines()
@@ -99,7 +109,7 @@ def main() -> int:
     if missing_packages:
         raise SystemExit(f"desktop package list is missing: {sorted(missing_packages)}")
 
-    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, Task Manager launcher, SDDM LXQt autologin, and unique feature packages are valid.")
+    print("NexaOS desktop defaults, wallpaper, menu icon, panel plugins, Task Manager launcher, SDDM LXQt autologin, non-blocking session diagnostics, and unique feature packages are valid.")
     return 0
 
 
