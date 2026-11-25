@@ -2,7 +2,7 @@
 
 ## Status
 
-**NCE-006C.1 read-only monitor implementation merged to `main`; full stage acceptance remains open.** The first Qt monitor and bounded procfs collector are implemented. Automated unit, headless UI, ISO-build, and QEMU boot-smoke checks passed on the reviewed PR head. Interactive desktop validation and physical-device resource measurements remain outstanding. Later process-control and startup-management stages remain separate review gates.
+**NCE-006C.1 read-only monitor implementation and an interactive QEMU desktop-session validation slice are merged to `main`; full stage acceptance remains open.** The first Qt monitor and bounded procfs collector are implemented. Automated unit, headless UI, ISO-build, QEMU boot-smoke, and 10-check interactive-session validation have passed on their reviewed PR heads. Broader desktop acceptance, physical-device resource measurements, and hardware compatibility remain outstanding. Later process-control and startup-management stages remain separate review gates.
 
 ## NCE-006C.1 implementation evidence (2026-11-22)
 
@@ -16,6 +16,15 @@
 - Remaining scope: per-core CPU visualization and a separate process-details view are not yet implemented. These remain part of the broader task-manager design and require focused follow-up work.
 - The QEMU check is a 150-second graphical boot/framebuffer smoke test. On the reviewed PR head it captured 1280×800 output with 3,590 unique colors; the ISO SHA-256 is `97a20da3d7601cb07ca8e77df09f1aa09f430f04d150793e2dfa6a331306bd39`. This is not proof of interactive desktop login or hardware compatibility.
 - Physical low-memory CPU/RAM overhead, large-process-list responsiveness, display scaling, keyboard navigation, and session-level interaction remain unverified.
+
+## Interactive desktop-session validation evidence (2026-11-25)
+
+- Validation change: [PR #28](https://github.com/SaharPrince/NexaOS/pull/28), merged as `5c51cf405fcbca025038dee25e508d99cd09d6e8`.
+- The desktop preview workflow built the Debian 13 LXQt preview ISO, booted it in QEMU, and completed 10 required session checks with zero failures.
+- Checks covered the D-Bus session bus, file-browser dialog, LXQt panel and session, Qt keyboard and mouse activation, Task Manager sampling, Welcome controls and window, and X11 display readiness.
+- The checked workflow run is [#45549881271](https://github.com/SaharPrince/NexaOS/actions/runs/45549881271). The merged PR's CI and the post-merge workflows passed on the reviewed commits.
+- This is evidence of an interactive VM session, not physical-hardware compatibility, low-memory resource performance, or completion of every desktop acceptance item.
+- Follow-up launcher-boundary clarification: [PR #29](https://github.com/SaharPrince/NexaOS/pull/29), merged as `2fde4d6d33e774f1aa37c195ee7a608644a56997`, labels upstream QPS as **QPS Process Monitor** and preserves the separate NexaOS Task Manager read-only boundary. All four post-merge workflows passed on that merge commit.
 
 ## Product goal
 
